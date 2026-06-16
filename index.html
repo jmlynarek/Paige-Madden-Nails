@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#FAF6F2" />
+<title>Paige Madden Nails — Custom Order</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Pinyon+Script&family=Cormorant+Garamond:wght@500;600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #FAF6F2;
+    --blush: #FBEBEB;
+    --rose: #B46869;
+    --dusty: #DC8289;
+    --highlight: #F1BCBD;
+    --card: #EDE5DE;
+    --neutral: #B69886;
+    --ink: #5F463F;
+    --ink-2: #8C6A60;
+    --ink-soft: rgba(95, 70, 63, 0.62);
+    --hair: rgba(95, 70, 63, 0.12);
+    --line: rgba(95, 70, 63, 0.16);
+    --rose-30: rgba(180, 104, 105, 0.34);
+    --surface: #FFFFFF;
+    --shadow: 0 1px 2px rgba(95,70,63,0.04), 0 14px 34px rgba(95,70,63,0.07);
+    --shadow-sm: 0 1px 2px rgba(95,70,63,0.05), 0 6px 16px rgba(95,70,63,0.05);
+    --script: 'Pinyon Script', cursive;
+    --serif: 'Cormorant Garamond', serif;
+    --sans: 'Hanken Grotesk', system-ui, sans-serif;
+
+    --safe-top: env(safe-area-inset-top);
+    --safe-bottom: env(safe-area-inset-bottom);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: var(--sans);
+    background: radial-gradient(125% 90% at 50% 0%, #F2ECE6 0%, #E7DDD4 100%);
+    -webkit-font-smoothing: antialiased;
+    color: var(--ink);
+  }
+
+  #root { min-height: 100%; }
+
+  /* ── App shell (fills the phone viewport, capped for larger screens) ── */
+  .app {
+    height: 100vh;
+    height: 100dvh;
+    max-width: 460px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 0 60px rgba(95,70,63,0.06);
+  }
+  .app__scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  .pad { padding: 0 26px; }
+
+  /* ── Top bar (progress) ── */
+  .topbar {
+    padding: calc(var(--safe-top) + 20px) 24px 12px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-shrink: 0;
+  }
+  .iconbtn {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: 1px solid var(--hair);
+    background: rgba(255,255,255,0.6);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background .15s ease, transform .1s ease;
+  }
+  .iconbtn:active { transform: scale(0.94); }
+  .progress { flex: 1; }
+  .progress__meta {
+    font-family: var(--serif);
+    text-transform: uppercase;
+    letter-spacing: 0.26em;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-soft);
+    margin-bottom: 7px;
+    padding-left: 2px;
+  }
+  .progress__track {
+    height: 4px;
+    border-radius: 99px;
+    background: rgba(95,70,63,0.10);
+    overflow: hidden;
+  }
+  .progress__bar {
+    height: 100%;
+    border-radius: 99px;
+    background: var(--rose);
+    transition: width .5s cubic-bezier(.4,0,.2,1);
+  }
+
+  /* ── Footer CTA ── */
+  .footer {
+    flex-shrink: 0;
+    padding: 14px 26px calc(var(--safe-bottom) + 30px);
+    background: linear-gradient(180deg, rgba(250,246,242,0) 0%, var(--bg) 28%);
+  }
+
+  /* ── Headings ── */
+  .eyebrow {
+    font-family: var(--serif);
+    text-transform: uppercase;
+    letter-spacing: 0.30em;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--rose);
+  }
+  .title {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 32px;
+    line-height: 1.16;
+    letter-spacing: 0.004em;
+    color: var(--ink);
+    margin: 9px 0 0;
+  }
+  .title .script {
+    font-family: var(--script);
+    font-weight: 400;
+    font-size: 1.22em;
+    line-height: 0.8;
+    letter-spacing: 0;
+  }
+  .lede {
+    font-size: 15.5px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    margin: 16px 0 0;
+    max-width: 32ch;
+    text-wrap: pretty;
+  }
+
+  /* ── Button ── */
+  .btn {
+    width: 100%;
+    min-height: 58px;
+    border: none;
+    border-radius: 18px;
+    background: var(--rose);
+    color: #fff;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    padding: 0 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(180,104,105,0.34);
+    transition: transform .12s ease, box-shadow .2s ease, opacity .2s ease;
+  }
+  .btn:active { transform: translateY(1.5px) scale(0.995); box-shadow: 0 6px 16px rgba(180,104,105,0.28); }
+  .btn--soft {
+    background: transparent;
+    color: var(--ink);
+    box-shadow: none;
+    min-height: 46px;
+    font-weight: 500;
+    font-size: 15px;
+  }
+  .btn[disabled] { opacity: 0.42; box-shadow: none; cursor: default; }
+  .btn__hint {
+    text-align: center;
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin: 12px 0 0;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface);
+    border-radius: 22px;
+    box-shadow: var(--shadow);
+  }
+
+  /* ── Form fields ── */
+  .field { margin-top: 18px; }
+  .field__label {
+    display: block;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 8px;
+    letter-spacing: 0.005em;
+  }
+  .field__label .opt {
+    font-weight: 500;
+    color: var(--ink-soft);
+    font-size: 12.5px;
+  }
+  .input, .textarea {
+    width: 100%;
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 15px;
+    padding: 0 16px;
+    height: 54px;
+    font-family: var(--sans);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--ink);
+    outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .textarea {
+    height: auto;
+    min-height: 108px;
+    padding: 14px 16px;
+    line-height: 1.5;
+    resize: none;
+  }
+  .textarea--sm { min-height: 76px; }
+  .reveal { animation: reveal .32s cubic-bezier(.22,.61,.36,1) both; }
+  @keyframes reveal { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+  .input::placeholder, .textarea::placeholder { color: rgba(95,70,63,0.40); font-weight: 400; }
+  .input:focus, .textarea:focus {
+    border-color: var(--rose);
+    box-shadow: 0 0 0 3.5px rgba(180,104,105,0.13);
+  }
+  .input.err, .textarea.err { border-color: var(--dusty); box-shadow: 0 0 0 3.5px rgba(220,130,137,0.16); }
+  .field__err {
+    margin: 7px 2px 0;
+    font-size: 12.5px;
+    color: #C26A6F;
+    font-weight: 500;
+  }
+
+  /* ── Select (sizing) ── */
+  .selwrap { position: relative; }
+  .selwrap svg.chev {
+    position: absolute;
+    right: 13px; top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+  select.sel {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 13px;
+    height: 48px;
+    padding: 0 36px 0 15px;
+    font-family: var(--sans);
+    font-size: 15.5px;
+    font-weight: 600;
+    color: var(--ink);
+    outline: none;
+    cursor: pointer;
+    transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+  }
+  select.sel:focus { border-color: var(--rose); box-shadow: 0 0 0 3.5px rgba(180,104,105,0.13); }
+  select.sel.filled { background: #F3EDE6; border-color: rgba(95,70,63,0.24); color: var(--ink); }
+  select.sel.unset { color: rgba(95,70,63,0.40); font-weight: 500; }
+
+  /* ── Design tier ── */
+  .tiers { display: flex; flex-direction: column; gap: 10px; }
+  .tier {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    text-align: left;
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 15px 16px;
+    cursor: pointer;
+    font-family: var(--sans);
+    box-shadow: var(--shadow-sm);
+    transition: border-color .15s ease, background .15s ease, box-shadow .15s ease;
+  }
+  .tier.on { border-color: var(--rose); background: #FBF1F0; box-shadow: 0 0 0 3px rgba(180,104,105,0.12); }
+  .tier__radio {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    border: 2px solid var(--line);
+    flex-shrink: 0;
+    margin-top: 1px;
+    position: relative;
+    transition: border-color .15s ease;
+  }
+  .tier.on .tier__radio { border-color: var(--rose); }
+  .tier.on .tier__radio::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background: var(--rose);
+  }
+  .tier__body { flex: 1; min-width: 0; }
+  .tier__top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .tier__name { font-size: 16px; font-weight: 700; color: var(--ink); }
+  .tier__price { font-size: 16px; font-weight: 700; color: var(--rose); }
+  .tier__desc { display: block; font-size: 13px; line-height: 1.4; color: var(--ink-soft); margin-top: 4px; }
+
+  /* ── Sizing rows ── */
+  .hand { margin: 16px 22px 0; padding: 6px 18px 8px; }
+  .hand__head {
+    display: flex; align-items: center; gap: 9px;
+    padding: 10px 0 6px;
+  }
+  .hand__title {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 18px;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+    white-space: nowrap;
+  }
+  .hand__count {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+  .frow {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 11px 0;
+    border-top: 1px solid var(--hair);
+  }
+  .frow .finger {
+    flex: 1;
+    font-size: 15.5px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+  .frow .selwrap { width: 124px; flex-shrink: 0; }
+
+  /* ── Shape picker ── */
+  .subhead {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: 0.005em;
+    margin: 4px 0 11px;
+  }
+  .shapes {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 11px;
+  }
+  .shape {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 16px 8px 13px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-family: var(--sans);
+    box-shadow: var(--shadow-sm);
+    transition: border-color .15s ease, background .15s ease, box-shadow .15s ease, transform .1s ease;
+  }
+  .shape:active { transform: scale(0.98); }
+  .shape.on {
+    border-color: var(--rose);
+    background: #FBF1F0;
+    box-shadow: 0 0 0 3px rgba(180,104,105,0.12);
+  }
+  .shape__silbox {
+    height: 76px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .shape__icon {
+    width: auto;
+    height: 76px;
+    display: block;
+    object-fit: contain;
+  }
+  .shape__name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: 0.01em;
+  }
+
+  /* ── Upload ── */
+  .drop {
+    margin-top: 8px;
+    border: 1.6px dashed rgba(95,70,63,0.22);
+    border-radius: 20px;
+    background: #F5EFE9;
+    padding: 26px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: background .15s ease, border-color .15s ease;
+  }
+  .drop:active { background: #EFE7DF; }
+  .drop__circle {
+    width: 50px; height: 50px;
+    border-radius: 50%;
+    background: #fff;
+    margin: 0 auto 12px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow-sm);
+  }
+  .drop__t { font-weight: 600; font-size: 15.5px; color: var(--ink); }
+  .drop__s { font-size: 13px; color: var(--ink-soft); margin-top: 4px; line-height: 1.4; }
+  .thumbs {
+    margin-top: 14px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .thumb {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 15px;
+    overflow: hidden;
+    background: var(--card);
+    box-shadow: var(--shadow-sm);
+    animation: pop .3s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb__x {
+    position: absolute; top: 6px; right: 6px;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(95,70,63,0.78);
+    color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(2px);
+  }
+  @keyframes pop { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: scale(1); } }
+  .photohint { font-size: 12.5px; color: var(--ink-soft); margin: 12px 2px 0; }
+  .photohint.warn { color: var(--rose); font-weight: 600; }
+
+  /* ── Segmented control ── */
+  .seg {
+    display: flex;
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    padding: 4px;
+    gap: 4px;
+  }
+  .seg button {
+    flex: 1;
+    height: 46px;
+    border: none;
+    border-radius: 11px;
+    background: transparent;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 14.5px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    transition: color .2s ease;
+  }
+  .seg button.on { background: var(--rose); color: #fff; box-shadow: 0 4px 12px rgba(180,104,105,0.28); }
+
+  /* ── Welcome ── */
+  .welcome {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: calc(var(--safe-top) + 36px) 28px 8px;
+    background: radial-gradient(116% 52% at 50% 36%, var(--blush) 0%, var(--blush) 50%, var(--bg) 100%);
+  }
+  .welcome__logo {
+    width: 100%;
+    max-width: 314px;
+  }
+  .welcome__tag {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 22px;
+    line-height: 1.3;
+    color: var(--ink);
+    max-width: 17ch;
+    margin: 14px auto 0;
+  }
+  .welcome__feats {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    margin: 0 0 6px;
+    font-family: var(--serif);
+    text-transform: uppercase;
+    letter-spacing: 0.13em;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-2);
+  }
+  .welcome__feats span { white-space: nowrap; }
+  .welcome__feats i {
+    width: 3px; height: 3px;
+    border-radius: 50%;
+    background: var(--rose);
+    opacity: 0.5;
+    display: block;
+    flex-shrink: 0;
+  }
+  .welcome__spacer { flex: 1; }
+  .microhint {
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--ink-soft);
+    margin: 14px 0 2px;
+    max-width: 42ch;
+  }
+  .handle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink-soft);
+    letter-spacing: 0.02em;
+  }
+
+  /* ── Thank you ── */
+  .thanks {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: calc(var(--safe-top) + 76px) 32px 0;
+  }
+  .thanks__seal {
+    width: 92px; height: 92px;
+    border-radius: 50%;
+    background: #fff;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 16px 40px rgba(95,70,63,0.14);
+    animation: pop .5s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .thanks__title {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 31px;
+    line-height: 1.12;
+    white-space: nowrap;
+    color: var(--ink);
+    margin: 20px 0 0;
+  }
+  .recap {
+    width: 100%;
+    margin-top: 22px;
+    text-align: left;
+    padding: 6px 4px;
+  }
+  .recap__row {
+    display: flex;
+    gap: 12px;
+    padding: 13px 2px;
+    border-top: 1px solid var(--hair);
+    font-size: 14.5px;
+  }
+  .recap__row:first-child { border-top: none; }
+  .recap__k { color: var(--ink-soft); width: 96px; flex-shrink: 0; font-weight: 500; }
+  .recap__v { color: var(--ink); font-weight: 600; flex: 1; }
+
+  /* ── Step transition ── */
+  @keyframes stepIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: no-preference) {
+    .step { animation: stepIn .45s cubic-bezier(.22,.61,.36,1) both; }
+    .welcome__logo { animation: fadeUp .8s ease both; }
+    .welcome__tag { animation: fadeUp .8s ease .12s both; }
+    .thanks__title { animation: fadeUp .7s ease .1s both; }
+  }
+
+  .sectionlead { padding: 6px 26px 2px; }
+</style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script>
+  /* ============================================================
+     PAIGE MADDEN NAILS — custom order app (vanilla JS, static)
+     Recreated from the Claude Design handoff bundle.
+     Flow: Welcome → Sizing → Design → Details → Thank-you
+     Order + photos are emailed via FormSubmit (no payment — Paige
+     quotes & collects payment afterward).
+     ============================================================ */
+
+  /* ▼▼▼ PASTE YOUR FORMSUBMIT HASHED ENDPOINT HERE ▼▼▼
+     Replace the whole URL below with your hashed endpoint, e.g.
+     'https://formsubmit.co/abc123def456yourhash'
+     Do NOT use your raw email address here. */
+  var FORMSUBMIT_ENDPOINT = 'https://formsubmit.co/[HASHED_ENDPOINT]';
+  /* ▲▲▲ PASTE YOUR FORMSUBMIT HASHED ENDPOINT HERE ▲▲▲ */
+
+  // ── Config ──
+  var FINGERS = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'];
+  var SIZE_OPTS = ['0','1','2','3','4','5','6','7','8','9','10','11'];
+  var TIERS = [
+    { id: 'classic', name: 'Classic', price: 40, desc: 'Solid colours, French tips, glitter or one simple accent nail.' },
+    { id: 'custom',  name: 'Custom',  price: 50, desc: 'Hand-painted art, charms, chrome, or intricate multi-nail designs.' },
+  ];
+  // Exact mapping from the design (short/long almond images were intentionally swapped to read correctly)
+  var SHAPES = [
+    { id: 'Short Almond', img: 'shape-long-almond.png' },
+    { id: 'Long Almond',  img: 'shape-short-almond.png' },
+    { id: 'Oval',         img: 'shape-oval.png' },
+    { id: 'Square',       img: 'shape-square.png' },
+  ];
+  var money = function (n) { return '$' + n.toFixed(2).replace(/\.00$/, ''); };
+
+  // Photo compression (keeps several photos under FormSubmit's 10MB total)
+  var MAX_DIM = 1600;
+  var JPEG_QUALITY = 0.7;
+  var MAX_PHOTOS = 9;
+  var TOTAL_LIMIT = 9 * 1024 * 1024;
+
+  // ── Icons ──
+  var Icon = {
+    back:  '<svg width="17" height="17" viewBox="0 0 17 17" fill="none"><path d="M11 3L5.5 8.5 11 14" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    chev:  '<svg class="chev" width="13" height="13" viewBox="0 0 13 13" fill="none" style="color:var(--rose)"><path d="M3 5l3.5 3.5L10 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    arrow: '<svg width="17" height="16" viewBox="0 0 17 16" fill="none"><path d="M2 8h12M9 3l5 5-5 5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    x:     '<svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M3 3l7 7M10 3l-7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+    check: '<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><path d="M12 20.5l5.5 5.5L28 14.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    camera:'<svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M3 7.5A1.5 1.5 0 014.5 6h2l1.2-1.8A1 1 0 019 3.8h4a1 1 0 01.9.5L15 6h2.5A1.5 1.5 0 0119 7.5v8A1.5 1.5 0 0117.5 17h-13A1.5 1.5 0 013 15.5v-8z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="11" cy="11.2" r="3" stroke="currentColor" stroke-width="1.6"/></svg>',
+    bag:   '<svg width="17" height="17" viewBox="0 0 18 18" fill="none"><path d="M4 6h10l-.8 8.2a1.4 1.4 0 01-1.4 1.3H6.2a1.4 1.4 0 01-1.4-1.3L4 6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.5 6V5a2.5 2.5 0 015 0v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    truck: '<svg width="19" height="17" viewBox="0 0 20 18" fill="none"><path d="M2 5.5A1.5 1.5 0 013.5 4h7A1.5 1.5 0 0112 5.5V13H2V5.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M12 7.5h3.2a1.5 1.5 0 011.3.8L18 11v2h-6V7.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="6" cy="14" r="1.6" stroke="currentColor" stroke-width="1.5"/><circle cx="14.5" cy="14" r="1.6" stroke="currentColor" stroke-width="1.5"/></svg>',
+  };
+
+  // ── State ──
+  var STORAGE_KEY = 'pmn-order-v1';
+  function blankData() {
+    return {
+      shape: '', sizes: {}, notes: '',
+      name: '', email: '', phone: '',
+      fulfillment: 'pickup', address: '', shipSpeed: 'standard',
+      tier: 'classic',
+    };
+  }
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { step: 0, data: blankData() };
+      var parsed = JSON.parse(raw);
+      return {
+        step: typeof parsed.step === 'number' ? parsed.step : 0,
+        data: Object.assign(blankData(), parsed.data || {}),
+      };
+    } catch (e) { return { step: 0, data: blankData() }; }
+  }
+
+  var init = loadState();
+  var step = init.step;           // 0 welcome · 1 sizing · 2 design · 3 details · 4 thanks
+  var data = init.data;
+  var photos = [];                // { id, url, blob, name } — not persisted
+  var showErr = false;
+  var sending = false;
+
+  function persist() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: step, data: data })); }
+    catch (e) {}
+  }
+  function go(n) { step = n; showErr = false; render(); }
+
+  var root = document.getElementById('root');
+
+  // ── Small DOM helpers ──
+  function el(tag, cls, html) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (html != null) n.innerHTML = html;
+    return n;
+  }
+  function topBar(label, n, total) {
+    var bar = el('div', 'topbar');
+    bar.innerHTML =
+      '<div class="iconbtn" data-back style="color:var(--ink)">' + Icon.back + '</div>' +
+      '<div class="progress">' +
+        '<div class="progress__meta">' + label + ' · Step ' + n + ' of ' + total + '</div>' +
+        '<div class="progress__track"><div class="progress__bar" style="width:' + ((n/total)*100) + '%"></div></div>' +
+      '</div>';
+    return bar;
+  }
+
+  // ════════════════════════════════════════ render ════════
+  function render() {
+    persist();
+    root.innerHTML = '';
+    if (step === 0) root.appendChild(WelcomeScreen());
+    else if (step === 1) root.appendChild(SizingScreen());
+    else if (step === 2) root.appendChild(DesignScreen());
+    else if (step === 3) root.appendChild(DetailsScreen());
+    else root.appendChild(ThanksScreen());
+    var sc = root.querySelector('.app__scroll');
+    if (sc) sc.scrollTop = 0;
+  }
+
+  // ── 0 · WELCOME ──
+  function WelcomeScreen() {
+    var app = el('div', 'app');
+    app.innerHTML =
+      '<div class="app__scroll"><div class="welcome">' +
+        '<div class="welcome__spacer"></div>' +
+        '<img class="welcome__logo" src="logo.jpeg" alt="Paige Madden Nails" />' +
+        '<p class="welcome__tag">Custom press-ons, made just for you.</p>' +
+        '<div class="welcome__spacer"></div>' +
+        '<div class="welcome__feats"><span>Custom sizing</span><i></i><span>Handmade</span><i></i><span>Pickup or ship</span></div>' +
+      '</div></div>' +
+      '<div class="footer">' +
+        '<button class="btn" data-start>Start my custom order' + Icon.arrow + '</button>' +
+        '<p class="btn__hint">About 2 minutes · <span style="color:var(--rose);font-weight:600">@paigemadden.nails</span></p>' +
+      '</div>';
+    app.querySelector('[data-start]').onclick = function () { go(1); };
+    return app;
+  }
+
+  // ── 1 · SIZING (shape + finger sizes) ──
+  function SizingScreen() {
+    var app = el('div', 'app step');
+    app.appendChild(topBar('Sizing', 1, 3));
+
+    var scroll = el('div', 'app__scroll');
+    scroll.innerHTML =
+      '<div class="sectionlead pad">' +
+        '<div class="eyebrow">Find your fit</div>' +
+        '<h1 class="title">Shape &amp; sizes</h1>' +
+        '<p class="lede">Choose your shape, then size each nail using the sample set on the table.</p>' +
+      '</div>' +
+      '<div class="pad"><div class="subhead">Nail shape</div><div class="shapes" data-shapes></div></div>' +
+      '<div class="pad" style="margin-top:22px"><div class="subhead">Your sizes</div></div>' +
+      '<div class="hand card" style="margin-top:0">' +
+        '<div class="hand__head"><span class="hand__title">Each finger</span><span class="hand__count" data-count></span></div>' +
+        '<div data-rows></div>' +
+      '</div>' +
+      '<p class="microhint pad">Not the same on both hands? Add a note on the next step and I\'ll sort it out.</p>' +
+      '<div style="height:14px"></div>';
+
+    // shapes
+    var shapesWrap = scroll.querySelector('[data-shapes]');
+    SHAPES.forEach(function (s) {
+      var b = el('button', 'shape' + (data.shape === s.id ? ' on' : ''));
+      b.innerHTML = '<span class="shape__silbox"><img class="shape__icon" src="' + s.img + '" alt="' + s.id + '" /></span><span class="shape__name">' + s.id + '</span>';
+      b.onclick = function () {
+        data.shape = s.id; persist();
+        shapesWrap.querySelectorAll('.shape').forEach(function (x) { x.classList.remove('on'); });
+        b.classList.add('on');
+      };
+      shapesWrap.appendChild(b);
+    });
+
+    // finger rows
+    var rows = scroll.querySelector('[data-rows]');
+    var countEl = scroll.querySelector('[data-count]');
+    function updateCount() {
+      var c = FINGERS.filter(function (f) { return data.sizes[f]; }).length;
+      countEl.textContent = c + '/5 set';
+    }
+    FINGERS.forEach(function (f) {
+      var row = el('div', 'frow');
+      var opts = '<option value="">Size</option>' + SIZE_OPTS.map(function (o) {
+        return '<option value="' + o + '"' + (data.sizes[f] === o ? ' selected' : '') + '>Size ' + o + '</option>';
+      }).join('');
+      row.innerHTML = '<span class="finger">' + f + '</span><div class="selwrap"><select class="sel ' + (data.sizes[f] ? 'filled' : 'unset') + '">' + opts + '</select>' + Icon.chev + '</div>';
+      var sel = row.querySelector('select');
+      sel.onchange = function () {
+        data.sizes[f] = sel.value;
+        if (!sel.value) delete data.sizes[f];
+        sel.className = 'sel ' + (sel.value ? 'filled' : 'unset');
+        persist(); updateCount();
+      };
+      rows.appendChild(row);
+    });
+    updateCount();
+
+    app.appendChild(scroll);
+
+    var footer = el('div', 'footer');
+    footer.innerHTML = '<button class="btn" data-next>Continue' + Icon.arrow + '</button>';
+    footer.querySelector('[data-next]').onclick = function () { go(2); };
+    app.appendChild(footer);
+
+    app.querySelector('[data-back]').onclick = function () { go(0); };
+    return app;
+  }
+
+  // ── 2 · DESIGN (photos, notes, tier) ──
+  function DesignScreen() {
+    var app = el('div', 'app step');
+    app.appendChild(topBar('Design', 2, 3));
+
+    var scroll = el('div', 'app__scroll pad');
+    scroll.innerHTML =
+      '<div class="sectionlead" style="padding:6px 0 2px">' +
+        '<div class="eyebrow">Your design</div>' +
+        '<h1 class="title">Your inspiration</h1>' +
+        '<p class="lede">Add a few photos: colours, shapes, lengths or sets you love. Optional, but it helps me get it right.</p>' +
+      '</div>' +
+      '<input type="file" accept="image/*" multiple data-file style="display:none" />' +
+      '<div class="field">' +
+        '<div class="drop" data-drop><div class="drop__circle" style="color:var(--rose)">' + Icon.camera + '</div>' +
+          '<div class="drop__t" data-droptitle></div><div class="drop__s">Tap to upload from your camera roll</div></div>' +
+        '<div class="thumbs" data-thumbs></div>' +
+        '<div class="photohint" data-photohint></div>' +
+      '</div>' +
+      '<div class="field"><label class="field__label">Additional notes or requests<span class="opt"> · optional</span></label>' +
+        '<textarea class="textarea" data-notes placeholder="e.g. love this design but in hot pink"></textarea></div>' +
+      '<div class="subhead" style="margin-top:22px">Design tier</div>' +
+      '<div class="tiers" data-tiers></div>' +
+      '<p class="microhint" style="margin:10px 2px 0">Not sure which? Pick your best guess. I\'ll confirm the final price with you before I start.</p>' +
+      '<div style="height:8px"></div>';
+
+    // notes
+    var notesEl = scroll.querySelector('[data-notes]');
+    notesEl.value = data.notes;
+    notesEl.oninput = function () { data.notes = notesEl.value; persist(); };
+
+    // tiers
+    var tiersWrap = scroll.querySelector('[data-tiers]');
+    TIERS.forEach(function (tr) {
+      var b = el('button', 'tier' + (data.tier === tr.id ? ' on' : ''));
+      b.innerHTML = '<span class="tier__radio"></span><span class="tier__body"><span class="tier__top"><span class="tier__name">' + tr.name + '</span><span class="tier__price">' + money(tr.price) + '</span></span><span class="tier__desc">' + tr.desc + '</span></span>';
+      b.onclick = function () {
+        data.tier = tr.id; persist();
+        tiersWrap.querySelectorAll('.tier').forEach(function (x) { x.classList.remove('on'); });
+        b.classList.add('on');
+      };
+      tiersWrap.appendChild(b);
+    });
+
+    // photos
+    var fileInput = scroll.querySelector('[data-file]');
+    var drop = scroll.querySelector('[data-drop]');
+    var thumbs = scroll.querySelector('[data-thumbs]');
+    var dropTitle = scroll.querySelector('[data-droptitle]');
+    var photoHint = scroll.querySelector('[data-photohint]');
+
+    function totalBytes() { return photos.reduce(function (s, p) { return s + p.blob.size; }, 0); }
+    function renderPhotos() {
+      dropTitle.textContent = photos.length ? 'Add more photos' : 'Add inspiration photos';
+      thumbs.innerHTML = '';
+      photos.forEach(function (p) {
+        var t = el('div', 'thumb');
+        t.innerHTML = '<img src="' + p.url + '" alt="inspiration" /><button class="thumb__x">' + Icon.x + '</button>';
+        t.querySelector('.thumb__x').onclick = function () {
+          URL.revokeObjectURL(p.url);
+          photos = photos.filter(function (x) { return x.id !== p.id; });
+          renderPhotos();
+        };
+        thumbs.appendChild(t);
+      });
+      if (!photos.length) { photoHint.textContent = ''; photoHint.className = 'photohint'; return; }
+      var mb = (totalBytes() / (1024 * 1024)).toFixed(1);
+      if (totalBytes() > TOTAL_LIMIT) {
+        photoHint.className = 'photohint warn';
+        photoHint.textContent = photos.length + ' photo(s) · ' + mb + ' MB — a touch big to email. Please remove one or two. 💕';
+      } else {
+        photoHint.className = 'photohint';
+        photoHint.textContent = photos.length + ' photo(s) ready · ' + mb + ' MB';
+      }
+    }
+    drop.onclick = function () { fileInput.click(); };
+    fileInput.onchange = function (e) {
+      var files = Array.prototype.slice.call(e.target.files || []).slice(0, MAX_PHOTOS - photos.length);
+      if (!files.length) { fileInput.value = ''; return; }
+      dropTitle.textContent = 'Optimising…';
+      var jobs = files.map(function (file) {
+        if (!/^image\//.test(file.type)) return Promise.resolve(null);
+        return compressImage(file).then(function (blob) {
+          return { id: Date.now() + Math.random(), url: URL.createObjectURL(blob), blob: blob };
+        }).catch(function () { return null; });
+      });
+      Promise.all(jobs).then(function (res) {
+        res.forEach(function (r) { if (r) photos.push(r); });
+        fileInput.value = '';
+        renderPhotos();
+      });
+    };
+    renderPhotos();
+
+    app.appendChild(scroll);
+
+    var footer = el('div', 'footer');
+    footer.innerHTML = '<button class="btn" data-next>Continue' + Icon.arrow + '</button>';
+    footer.querySelector('[data-next]').onclick = function () { go(3); };
+    app.appendChild(footer);
+
+    app.querySelector('[data-back]').onclick = function () { go(1); };
+    return app;
+  }
+
+  // ── 3 · DETAILS ──
+  function DetailsScreen() {
+    var app = el('div', 'app step');
+    app.appendChild(topBar('Details', 3, 3));
+
+    var scroll = el('div', 'app__scroll pad');
+    scroll.innerHTML =
+      '<div class="sectionlead" style="padding:6px 0 2px">' +
+        '<div class="eyebrow">Almost done</div>' +
+        '<h1 class="title">Your details</h1>' +
+        '<p class="lede">I\'ll be in touch to confirm your design, a price and timing.</p>' +
+      '</div>' +
+      '<div class="field"><label class="field__label">Your name</label>' +
+        '<input class="input" data-name placeholder="First &amp; last name" /><div data-name-err></div></div>' +
+      '<div class="field"><label class="field__label">Email</label>' +
+        '<input class="input" type="email" inputmode="email" data-email placeholder="you@email.com" /></div>' +
+      '<div class="field"><label class="field__label">Phone</label>' +
+        '<input class="input" type="tel" inputmode="tel" data-phone placeholder="(000) 000-0000" /><div data-contact-err></div></div>' +
+      '<div class="field"><label class="field__label">Pickup or shipping?</label>' +
+        '<div class="seg"><button data-ful="pickup">' + Icon.bag + ' Pickup</button><button data-ful="shipping">' + Icon.truck + ' Ship to me</button></div></div>' +
+      '<div data-ship></div>' +
+      '<div style="height:8px"></div>';
+
+    var nameEl = scroll.querySelector('[data-name]');
+    var emailEl = scroll.querySelector('[data-email]');
+    var phoneEl = scroll.querySelector('[data-phone]');
+    nameEl.value = data.name; emailEl.value = data.email; phoneEl.value = data.phone;
+    var attempted = false;
+    nameEl.oninput = function () { data.name = nameEl.value; persist(); if (attempted) validate(); };
+    emailEl.oninput = function () { data.email = emailEl.value; persist(); if (attempted) validate(); };
+    phoneEl.oninput = function () { data.phone = phoneEl.value; persist(); if (attempted) validate(); };
+
+    // pickup/ship segmented + reveal
+    var shipWrap = scroll.querySelector('[data-ship]');
+    function paintSeg() {
+      scroll.querySelectorAll('[data-ful]').forEach(function (b) {
+        b.classList.toggle('on', b.getAttribute('data-ful') === data.fulfillment);
+      });
+    }
+    function renderShip() {
+      if (data.fulfillment !== 'shipping') { shipWrap.innerHTML = ''; return; }
+      shipWrap.innerHTML =
+        '<div class="reveal">' +
+          '<div class="field"><label class="field__label">Shipping address</label>' +
+            '<textarea class="textarea textarea--sm" data-addr placeholder="Street address, city, state, ZIP"></textarea><div data-addr-err></div></div>' +
+          '<div class="field"><label class="field__label">Shipping speed</label>' +
+            '<div class="seg"><button data-spd="standard">Standard</button><button data-spd="rush">Rush</button></div>' +
+            '<p class="microhint" data-spdhint style="margin:8px 2px 0"></p></div>' +
+        '</div>';
+      var addr = shipWrap.querySelector('[data-addr]');
+      addr.value = data.address;
+      addr.oninput = function () { data.address = addr.value; persist(); if (attempted) validate(); };
+      function paintSpd() {
+        shipWrap.querySelectorAll('[data-spd]').forEach(function (b) {
+          b.classList.toggle('on', b.getAttribute('data-spd') === data.shipSpeed);
+        });
+        shipWrap.querySelector('[data-spdhint]').textContent =
+          data.shipSpeed === 'rush' ? 'Rush: ready in about a week ($8 fee).' : 'Standard: ready in 2–3 weeks.';
+      }
+      shipWrap.querySelectorAll('[data-spd]').forEach(function (b) {
+        b.onclick = function () { data.shipSpeed = b.getAttribute('data-spd'); persist(); paintSpd(); };
+      });
+      paintSpd();
+    }
+    scroll.querySelectorAll('[data-ful]').forEach(function (b) {
+      b.onclick = function () { data.fulfillment = b.getAttribute('data-ful'); persist(); paintSeg(); renderShip(); };
+    });
+    paintSeg(); renderShip();
+
+    app.appendChild(scroll);
+
+    var footer = el('div', 'footer');
+    footer.innerHTML =
+      '<button class="btn" data-submit>Send my order 💖</button>' +
+      '<p class="btn__hint" data-hint>Your details stay private, used only for your order.</p>';
+    var submitBtn = footer.querySelector('[data-submit]');
+
+    function validate() {
+      var hasContact = emailEl.value.trim() || phoneEl.value.trim();
+      var needsAddress = data.fulfillment === 'shipping';
+      var addrEl = scroll.querySelector('[data-addr]');
+      var addrOk = !needsAddress || (addrEl && addrEl.value.trim());
+      // paint errors
+      nameEl.classList.toggle('err', !nameEl.value.trim());
+      scroll.querySelector('[data-name-err]').innerHTML = !nameEl.value.trim() ? '<div class="field__err">Please add your name.</div>' : '';
+      emailEl.classList.toggle('err', !hasContact);
+      phoneEl.classList.toggle('err', !hasContact);
+      scroll.querySelector('[data-contact-err]').innerHTML = !hasContact ? '<div class="field__err">Add an email or a phone number so I can reach you.</div>' : '';
+      if (needsAddress && addrEl) {
+        addrEl.classList.toggle('err', !addrEl.value.trim());
+        scroll.querySelector('[data-addr-err]').innerHTML = !addrEl.value.trim() ? '<div class="field__err">Add an address so I can post your set.</div>' : '';
+      }
+      return nameEl.value.trim() && hasContact && addrOk;
+    }
+
+    submitBtn.onclick = function () {
+      if (sending) return;
+      attempted = true;
+      if (!validate()) {
+        var firstErr = scroll.querySelector('.input.err, .textarea.err');
+        if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      if (photos.length && photos.reduce(function (s, p) { return s + p.blob.size; }, 0) > TOTAL_LIMIT) {
+        footer.querySelector('[data-hint]').innerHTML = '<span style="color:var(--rose);font-weight:600">Your photos are a little too large to email — please remove one or two on the previous step.</span>';
+        return;
+      }
+      submitOrder(submitBtn, footer.querySelector('[data-hint]'));
+    };
+    app.appendChild(footer);
+
+    app.querySelector('[data-back]').onclick = function () { go(2); };
+    return app;
+  }
+
+  // ── 4 · THANK YOU ──
+  function ThanksScreen() {
+    var firstName = (data.name.trim().split(' ')[0]) || 'lovely';
+    var sized = FINGERS.filter(function (f) { return data.sizes[f]; }).length;
+    var contact = data.email.trim() || data.phone.trim();
+    var tierName = (TIERS.filter(function (t) { return t.id === data.tier; })[0] || TIERS[0]).name;
+
+    var app = el('div', 'app');
+    app.innerHTML =
+      '<div class="app__scroll"><div class="thanks">' +
+        '<div class="thanks__seal" style="color:var(--rose)">' + Icon.check + '</div>' +
+        '<h1 class="thanks__title">Order received</h1>' +
+        '<p class="lede" style="text-align:center;margin:14px auto 0;max-width:28ch">Thank you, ' + esc(firstName) + '. I\'ll reach out at <strong style="color:var(--ink);font-weight:600">' + esc(contact) + '</strong> with a price and timing.</p>' +
+        '<div class="card recap">' +
+          recapRow('Tier', tierName) +
+          recapRow('Shape', data.shape || 'Noted in person') +
+          recapRow('Sizes', sized + ' of 5 fingers set') +
+          recapRow('Inspiration', photos.length + ' photo' + (photos.length === 1 ? '' : 's') + ' shared') +
+          recapRow('Delivery', data.fulfillment === 'shipping' ? ('Ship · ' + (data.shipSpeed === 'rush' ? 'Rush' : 'Standard')) : 'Booth pickup') +
+        '</div>' +
+        '<p class="handle">Tag your set <span style="color:var(--rose);font-weight:600">@paigemadden.nails</span></p>' +
+      '</div></div>' +
+      '<div class="footer"><button class="btn btn--soft" data-reset>Start another order</button></div>';
+    app.querySelector('[data-reset]').onclick = function () {
+      photos.forEach(function (p) { URL.revokeObjectURL(p.url); });
+      photos = [];
+      data = blankData();
+      step = 0;
+      try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+      render();
+    };
+    return app;
+  }
+  function recapRow(k, v) {
+    return '<div class="recap__row"><span class="recap__k">' + k + '</span><span class="recap__v">' + esc(v) + '</span></div>';
+  }
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  // ── Image compression ──
+  function compressImage(file) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      var url = URL.createObjectURL(file);
+      img.onload = function () {
+        var w = img.naturalWidth, h = img.naturalHeight;
+        if (w > h && w > MAX_DIM) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
+        else if (h >= w && h > MAX_DIM) { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(function (blob) { blob ? resolve(blob) : reject(); }, 'image/jpeg', JPEG_QUALITY);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(); };
+      img.src = url;
+    });
+  }
+
+  // ── Submit to FormSubmit ──
+  function submitOrder(btn, hintEl) {
+    sending = true;
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+
+    var tier = TIERS.filter(function (t) { return t.id === data.tier; })[0] || TIERS[0];
+    var sizesStr = FINGERS.map(function (f) { return f + ' ' + (data.sizes[f] || '—'); }).join('  ·  ');
+
+    var fd = new FormData();
+    fd.append('_subject', 'New custom order — ' + data.name.trim());
+    fd.append('_template', 'table');
+    fd.append('_captcha', 'false');
+
+    fd.append('Name', data.name.trim());
+    if (data.email.trim()) fd.append('Email', data.email.trim());
+    if (data.phone.trim()) fd.append('Phone', data.phone.trim());
+
+    fd.append('Delivery', data.fulfillment === 'shipping' ? 'Ship to me' : 'Booth pickup');
+    if (data.fulfillment === 'shipping') {
+      fd.append('Shipping address', data.address.trim());
+      fd.append('Shipping speed', data.shipSpeed === 'rush' ? 'Rush (about a week, +$8)' : 'Standard (2–3 weeks)');
+    }
+
+    fd.append('Nail shape', data.shape || 'Not selected');
+    fd.append('Sizes (both hands)', sizesStr);
+    fd.append('Design tier', tier.name + ' (' + money(tier.price) + ')');
+    fd.append('Notes', data.notes.trim() || '—');
+
+    photos.forEach(function (p, i) { fd.append('Photo ' + (i + 1), p.blob, 'design-' + (i + 1) + '.jpg'); });
+
+    fetch(FORMSUBMIT_ENDPOINT, { method: 'POST', body: fd, mode: 'no-cors' })
+      .then(function () {
+        sending = false;
+        go(4);
+      })
+      .catch(function () {
+        sending = false;
+        btn.disabled = false;
+        btn.textContent = 'Send my order 💖';
+        hintEl.innerHTML = '<span style="color:var(--rose);font-weight:600">That didn\'t send — please check your connection and try again. 💕</span>';
+      });
+  }
+
+  // boot
+  render();
+  </script>
+</body>
+</html>
