@@ -215,7 +215,7 @@
   .scrim { position: fixed; inset: 0; background: rgba(60,42,38,.34); backdrop-filter: blur(2px); z-index: 90; opacity: 0; transition: opacity .2s; }
   .scrim.show { opacity: 1; }
   .drawer {
-    position: fixed; top: 0; right: 0; height: 100dvh; width: 460px; max-width: 94vw; z-index: 100;
+    position: fixed; top: 0; right: 0; height: 100dvh; width: 600px; max-width: 96vw; z-index: 100;
     background: var(--bg); box-shadow: var(--shadow-pop); transform: translateX(102%); transition: transform .26s cubic-bezier(.4,.0,.2,1);
     display: flex; flex-direction: column;
   }
@@ -229,8 +229,29 @@
   .dr-sec { margin-bottom: 20px; scroll-margin-top: 54px; }
   .dr-sec:first-of-type { margin-top: 4px; }
   .dr-nav { position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 -22px 16px; padding: 12px 22px; background: var(--surface); border-bottom: 1px solid var(--line); }
-  .dr-nav button { font: inherit; font-size: 12px; font-weight: 700; letter-spacing: .01em; color: var(--ink-soft); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; cursor: pointer; white-space: nowrap; transition: all .14s; }
+  .dr-nav button { display: inline-flex; align-items: center; gap: 5px; font: inherit; font-size: 12px; font-weight: 700; letter-spacing: .01em; color: var(--ink-soft); background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 5px 11px 5px 9px; cursor: pointer; white-space: nowrap; transition: all .14s; }
+  .dr-nav button svg { width: 14px; height: 14px; }
   .dr-nav button:hover { color: var(--rose); border-color: var(--dusty); background: var(--blush); }
+
+  /* accordion sections */
+  .acc { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); margin-bottom: 10px; scroll-margin-top: 58px; }
+  .acc-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; padding: 13px 14px; background: transparent; border: 0; cursor: pointer; font: inherit; text-align: left; color: var(--ink); border-radius: 14px; }
+  .acc-h:hover { background: var(--surface-2); }
+  .acc-l { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .acc-r { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .acc-ic { display: inline-flex; color: var(--rose); flex: none; }
+  .acc-ic svg { width: 18px; height: 18px; }
+  .acc-t { font-size: 13.5px; font-weight: 800; letter-spacing: .01em; }
+  .acc-sub { font-size: 12px; font-weight: 600; color: var(--ink-soft); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 230px; display: flex; align-items: center; }
+  .acc-chev { display: inline-flex; color: var(--ink-soft); transition: transform .2s; flex: none; }
+  .acc-chev svg { width: 18px; height: 18px; }
+  .acc.open > .acc-h .acc-sub { display: none; }
+  .acc.open > .acc-h .acc-chev { transform: rotate(180deg); }
+  .acc.open > .acc-h { border-bottom: 1px solid var(--hair); border-radius: 14px 14px 0 0; }
+  .acc-b { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .22s ease; }
+  .acc.open > .acc-b { grid-template-rows: 1fr; }
+  .acc-b-in { overflow: hidden; }
+  .acc-pad { padding: 14px; }
   .dr-sec-t { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 700; margin-bottom: 10px; }
   .dr-card { background: var(--surface); border: 1px solid var(--line); border-radius: 13px; padding: 4px 14px; }
   .kv { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hair); font-size: 13.5px; }
@@ -388,7 +409,14 @@ var I = {
   mail:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m4 7 8 6 8-6"/></svg>',
   phone:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h3l1.5 5-2 1.5a12 12 0 0 0 5 5l1.5-2 5 1.5v3a2 2 0 0 1-2 2A16 16 0 0 1 3 5a2 2 0 0 1 2-2Z"/></svg>',
   pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>',
-  inbox:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l3-8h12l3 8v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6Z"/><path d="M3 13h5a2 2 0 0 0 4 0h0a2 2 0 0 0 4 0h5"/></svg>'
+  inbox:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l3-8h12l3 8v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-6Z"/><path d="M3 13h5a2 2 0 0 0 4 0h0a2 2 0 0 0 4 0h5"/></svg>',
+  chev:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+  flag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"/><path d="M5 4h12l-2.2 3.5L17 11H5"/></svg>',
+  tag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 11 3.8a2 2 0 0 0-1.4-.6H5a2 2 0 0 0-2 2v4.6a2 2 0 0 0 .6 1.4l9.6 9.6a2 2 0 0 0 2.8 0l4.6-4.6a2 2 0 0 0 0-2.8Z"/><circle cx="7.7" cy="7.7" r="1.2"/></svg>',
+  palette:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.6 1.7-1.6H16a5 5 0 0 0 5-5c0-3.9-4-7.3-9-7.3Z"/><circle cx="7.5" cy="11.5" r="1"/><circle cx="9.8" cy="7.4" r="1"/><circle cx="14.2" cy="7.4" r="1"/><circle cx="16.6" cy="11" r="1"/></svg>',
+  image:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg>',
+  note:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/></svg>',
+  user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg>'
 };
 
 /* ───────────────────────── status meta ───────────────────────── */
@@ -962,40 +990,39 @@ function renderDrawer(){
   if(o.email) contact += '<div class="kv"><span class="k">'+I.mail+'</span><span class="v"><a href="mailto:'+esc(o.email)+'">'+esc(o.email)+'</a></span></div>';
   if(o.phone) contact += '<div class="kv"><span class="k">'+I.phone+'</span><span class="v"><a href="tel:'+esc(o.phone)+'">'+esc(o.phone)+'</a></span></div>';
 
-  var fulfil;
-  if(o.fulfillment==='shipping'){
+  var isShip = o.fulfillment==='shipping';
+
+  // ---- shipping is split into two accordions: address + label ----
+  var shipAddrHtml='', shipAddrSub='', shipLabelHtml='', shipLabelSub='';
+  if(isShip){
     var addr=[o.address_line1, o.address_line2, [o.city,o.region].filter(Boolean).join(', '), o.postal_code].filter(Boolean).join(' · ');
     var rush = o.ship_speed==='rush';
-    fulfil = '<div class="dr-card"><div class="kv"><span class="k">Method</span><span class="v">Shipping'+(o.ship_speed?' · '+o.ship_speed:'')+'</span></div>'+
+    shipAddrSub = esc([o.city,o.region].filter(Boolean).join(', ') || (o.ship_to_name||o.customer_name));
+    shipAddrHtml = '<div class="dr-card"><div class="kv"><span class="k">Method</span><span class="v">Shipping'+(o.ship_speed?' · '+esc(o.ship_speed):'')+'</span></div>'+
       '<div class="kv"><span class="k">Ship to</span><span class="v">'+esc(o.ship_to_name||o.customer_name)+'</span></div>'+
       (addr?'<div class="kv"><span class="k">Address</span><span class="v">'+esc(addr)+'</span></div>':'')+'</div>';
 
     if(o.label_url){
-      // Label already bought — show tracking + a reprint button.
-      fulfil += '<div class="dr-card" style="margin-top:10px">'+
+      // Label already bought — tracking + reprint.
+      shipLabelSub = (o.service_level?esc(o.service_level)+' · ':'')+money(o.shipping_cost);
+      shipLabelHtml = '<div class="dr-card">'+
         '<div class="kv"><span class="k">Carrier</span><span class="v">'+esc(o.carrier||'USPS')+(o.service_level?' · '+esc(o.service_level):'')+'</span></div>'+
         '<div class="kv"><span class="k">Tracking</span><span class="v">'+(o.tracking_url?'<a href="'+esc(o.tracking_url)+'" target="_blank" rel="noopener">'+esc(o.tracking_number||'Track')+'</a>':esc(o.tracking_number||'—'))+'</span></div>'+
         '<div class="kv"><span class="k">Postage</span><span class="v">'+money(o.shipping_cost)+'</span></div>'+
         (o.shipped_at?'<div class="kv"><span class="k">Label bought</span><span class="v">'+fmtDate(o.shipped_at)+'</span></div>':'')+
-        '<a class="btn" href="'+esc(o.label_url)+'" target="_blank" rel="noopener" style="margin-top:10px;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none">'+I.box+'Print label</a>'+
-      '</div>';
+        '</div>'+
+        '<a class="btn" href="'+esc(o.label_url)+'" target="_blank" rel="noopener" style="margin-top:10px;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none">'+I.box+'Print label</a>';
     } else {
       // No label yet — parcel inputs + buy button.
-      var pf = function(id,label,val,step,min){ return '<label style="display:flex;flex-direction:column;gap:4px"><span class="muted" style="font-size:11.5px">'+label+'</span><input class="input" id="'+id+'" type="number" min="'+min+'" step="'+step+'" value="'+val+'"></label>'; };
-      fulfil += '<div class="dr-card" style="margin-top:10px">'+
-        '<div class="dr-sec-t" style="margin:0 0 4px">Buy shipping label</div>'+
-        '<div class="muted" style="font-size:12px;margin-bottom:10px">'+(rush?'Rush — buys the quickest Priority/Express rate.':'Standard — buys the cheapest USPS rate.')+'</div>'+
+      shipLabelSub = 'Not bought yet';
+      var pf = function(pid,label,val,step,min){ return '<label style="display:flex;flex-direction:column;gap:4px"><span class="muted" style="font-size:11.5px">'+label+'</span><input class="input" id="'+pid+'" type="number" min="'+min+'" step="'+step+'" value="'+val+'"></label>'; };
+      shipLabelHtml = '<div class="muted" style="font-size:12px;margin:-2px 0 10px">'+(rush?'Rush — buys the quickest Priority/Express rate.':'Standard — buys the cheapest USPS rate.')+'</div>'+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
-          pf('pWeight','Weight (oz)','3','0.1','0.1')+
-          pf('pLen','Length (in)','6','0.5','1')+
-          pf('pWid','Width (in)','4','0.5','1')+
-          pf('pHt','Height (in)','1','0.5','0.5')+
+          pf('pWeight','Weight (oz)','3','0.1','0.1')+pf('pLen','Length (in)','6','0.5','1')+
+          pf('pWid','Width (in)','4','0.5','1')+pf('pHt','Height (in)','1','0.5','0.5')+
         '</div>'+
-        '<button class="btn" id="buyLabel" style="margin-top:12px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px">'+I.truck+'Buy &amp; print label</button>'+
-      '</div>';
+        '<button class="btn" id="buyLabel" style="margin-top:12px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px">'+I.truck+'Buy &amp; print label</button>';
     }
-  } else {
-    fulfil = '<div class="dr-card"><div class="kv"><span class="k">Method</span><span class="v">Local pickup</span></div></div>';
   }
 
   var ph = state.photos[id];
@@ -1012,29 +1039,38 @@ function renderDrawer(){
   }).join('');
 
   var tierName = (state.tiers.find(function(x){return x.id===o.design_tier;})||{}).name||o.design_tier;
-  var isShip = o.fulfillment==='shipping';
 
-  // Sections are built in display order; each gets an id the jump-nav scrolls to.
-  // Shipping/pickup sits right after Status so the label action is reachable up top.
+  // ---- accordion sections (display order). open:true => expanded by default ----
   var sections = [];
-  sections.push({ id:'sec-status', label:'Status', html:
-    '<div class="dr-sec-t">Status</div><div class="stepper">'+steps+'</div>'+
-    (o.status==='cancelled'?'<div style="margin-top:8px">'+statusPill('cancelled')+' <button class="btn-ghost" data-status="new" style="width:auto;display:inline;padding:0 6px;font-size:12.5px">Reopen</button></div>':
-      '<div style="margin-top:8px;text-align:right"><button class="btn-ghost" data-status="cancelled" style="width:auto;display:inline;padding:4px 6px;font-size:12.5px;color:#C9534A">Cancel order</button></div>') });
-  sections.push({ id:'sec-ship', label:(isShip?'Shipping':'Pickup'), html:
-    '<div class="dr-sec-t">'+(isShip?'Shipping':'Pickup')+'</div>'+fulfil });
-  sections.push({ id:'sec-design', label:'Design', html:
-    '<div class="dr-sec-t">Design</div><div class="dr-card"><div class="kv"><span class="k">Shape</span><span class="v">'+esc(o.nail_shape||'—')+'</span></div><div class="kv"><span class="k">Tier</span><span class="v">'+esc(tierName)+'</span></div></div>'+
-    '<div style="margin-top:10px"><div class="dr-sec-t" style="margin-bottom:8px">Sizes</div><div class="sizes">'+sizeCells+'</div></div>' });
-  if(o.notes){ sections.push({ id:'sec-notes', label:'Notes', html:
-    '<div class="dr-sec-t">Notes</div><div class="notes-box">'+esc(o.notes)+'</div>' }); }
-  sections.push({ id:'sec-photos', label:'Photos', html:
-    '<div class="dr-sec-t">Inspiration</div>'+photosHtml });
-  if(contact){ sections.push({ id:'sec-contact', label:'Contact', html:
-    '<div class="dr-sec-t">Contact</div><div class="dr-card">'+contact+'</div>' }); }
+  sections.push({ id:'sec-status', icon:I.flag, label:'Status', open:true, sub:statusPill(o.status), html:
+    '<div class="stepper">'+steps+'</div>'+
+    (o.status==='cancelled'?'<div style="margin-top:10px">'+statusPill('cancelled')+' <button class="btn-ghost" data-status="new" style="width:auto;display:inline;padding:0 6px;font-size:12.5px">Reopen</button></div>':
+      '<div style="margin-top:10px;text-align:right"><button class="btn-ghost" data-status="cancelled" style="width:auto;display:inline;padding:4px 6px;font-size:12.5px;color:#C9534A">Cancel order</button></div>') });
+  if(isShip){
+    sections.push({ id:'sec-ship', icon:I.pin, label:'Shipping', open:false, sub:shipAddrSub, html:shipAddrHtml });
+    sections.push({ id:'sec-label', icon:I.tag, label:'Shipping label', open:true, sub:shipLabelSub, html:shipLabelHtml });
+  } else {
+    sections.push({ id:'sec-ship', icon:I.bag, label:'Pickup', open:false, sub:'Local pickup', html:'<div class="dr-card"><div class="kv"><span class="k">Method</span><span class="v">Local pickup</span></div></div>' });
+  }
+  sections.push({ id:'sec-design', icon:I.palette, label:'Design', open:!isShip, sub:esc((o.nail_shape||'—')+' · '+tierName), html:
+    '<div class="dr-card"><div class="kv"><span class="k">Shape</span><span class="v">'+esc(o.nail_shape||'—')+'</span></div><div class="kv"><span class="k">Tier</span><span class="v">'+esc(tierName)+'</span></div></div>'+
+    '<div style="margin-top:12px"><div class="dr-sec-t" style="margin-bottom:8px">Sizes</div><div class="sizes">'+sizeCells+'</div></div>' });
+  if(o.notes){ sections.push({ id:'sec-notes', icon:I.note, label:'Notes', open:false, sub:'', html:'<div class="notes-box">'+esc(o.notes)+'</div>' }); }
+  sections.push({ id:'sec-photos', icon:I.image, label:'Photos', open:false, sub:(ph&&ph.length?'('+ph.length+')':''), html:photosHtml });
+  if(contact){ sections.push({ id:'sec-contact', icon:I.user, label:'Contact', open:false, sub:esc(o.email||o.phone||''), html:'<div class="dr-card">'+contact+'</div>' }); }
 
-  var navHtml = '<div class="dr-nav">'+sections.map(function(s){ return '<button type="button" data-jump="'+s.id+'">'+s.label+'</button>'; }).join('')+'</div>';
-  var bodyHtml = sections.map(function(s){ return '<div class="dr-sec" id="'+s.id+'">'+s.html+'</div>'; }).join('');
+  function accHtml(s){
+    return '<div class="acc'+(s.open?' open':'')+'" id="'+s.id+'">'+
+      '<button class="acc-h" type="button" data-acc="'+s.id+'">'+
+        '<span class="acc-l"><span class="acc-ic">'+(s.icon||'')+'</span><span class="acc-t">'+s.label+'</span></span>'+
+        '<span class="acc-r">'+(s.sub?'<span class="acc-sub">'+s.sub+'</span>':'')+'<span class="acc-chev">'+I.chev+'</span></span>'+
+      '</button>'+
+      '<div class="acc-b"><div class="acc-b-in"><div class="acc-pad">'+s.html+'</div></div></div>'+
+    '</div>';
+  }
+
+  var navHtml = '<div class="dr-nav">'+sections.map(function(s){ return '<button type="button" data-jump="'+s.id+'">'+(s.icon||'')+s.label+'</button>'; }).join('')+'</div>';
+  var bodyHtml = sections.map(accHtml).join('');
 
   host.innerHTML =
     '<div class="scrim show" data-close></div>'+
@@ -1051,11 +1087,15 @@ function renderDrawer(){
     '</aside>';
 
   // Wire the drawer's own controls here so it works whether or not wire() runs after.
+  host.querySelectorAll('[data-acc]').forEach(function(b){
+    b.onclick = function(){ var sec=host.querySelector('#'+b.getAttribute('data-acc')); if(sec) sec.classList.toggle('open'); };
+  });
   host.querySelectorAll('[data-jump]').forEach(function(b){
     b.onclick = function(){
-      var body=host.querySelector('.dr-body'), t=host.querySelector('#'+b.getAttribute('data-jump'));
-      if(!body||!t) return;
-      var top = t.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - 54; // clear the sticky nav
+      var body=host.querySelector('.dr-body'), sec=host.querySelector('#'+b.getAttribute('data-jump'));
+      if(!body||!sec) return;
+      sec.classList.add('open'); // expand the target so its content is visible
+      var top = sec.getBoundingClientRect().top - body.getBoundingClientRect().top + body.scrollTop - 58; // clear the sticky nav
       body.scrollTo({ top: Math.max(0, top), behavior:'smooth' });
     };
   });
