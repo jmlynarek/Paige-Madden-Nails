@@ -551,6 +551,30 @@
     letter-spacing: 0.02em;
   }
 
+  /* ── Instagram CTA ── */
+  .ig-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    margin: 18px auto 0;
+    padding: 11px 20px;
+    border-radius: 99px;
+    border: 1px solid var(--rose-30);
+    background: rgba(255,255,255,0.6);
+    color: var(--rose);
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 14.5px;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+    box-shadow: var(--shadow-sm);
+    transition: background .15s ease, transform .1s ease, box-shadow .2s ease;
+  }
+  .ig-cta:active { transform: scale(0.97); }
+  .ig-cta:hover { background: #fff; box-shadow: 0 8px 20px rgba(180,104,105,0.16); }
+  .ig-cta svg { flex-shrink: 0; }
+  .ig-cta b { color: var(--ink); font-weight: 600; }
+
   /* ── Thank you ── */
   .thanks {
     height: 100%;
@@ -745,6 +769,7 @@
   </aside>
   <div id="root"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
   /* ============================================================
      PAIGE MADDEN NAILS — custom order app (vanilla JS, static)
@@ -781,6 +806,92 @@
   ];
   var money = function (n) { return '$' + n.toFixed(2).replace(/\.00$/, ''); };
 
+  // ── Supabase (public anon/publishable key — safe in the browser; RLS
+  //    only lets visitors INSERT orders, never read anyone's data) ──
+  var SUPABASE_URL = 'https://rljarolbubpajqgrcbeq.supabase.co';
+  var SUPABASE_KEY = 'sb_publishable_Tj8eIbwwRu542y5_nM67Mg_vB7ttYC0';
+  var sb = (window.supabase && window.supabase.createClient)
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+    : null;
+
+  function uuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
+  // Save the order + upload photos to Supabase. We generate the id client-side
+  // because RLS blocks reading the row back after insert.
+  function saveOrderToSupabase() {
+    if (!sb) return Promise.reject(new Error('Supabase client unavailable'));
+    var tier = TIERS.filter(function (t) { return t.id === data.tier; })[0] || TIERS[0];
+    var shipping = data.fulfillment === 'shipping';
+    var orderId = uuid();
+    var row = {
+      id: orderId,
+      customer_name: data.name.trim(),
+      email: data.email.trim() || null,
+      phone: data.phone.trim() || null,
+      nail_shape: data.shape || null,
+      design_tier: data.tier,
+      tier_price: tier.price,
+      sizes: data.sizes,
+      notes: data.notes.trim() || null,
+      fulfillment: data.fulfillment,
+      ship_speed: shipping ? data.shipSpeed : null,
+      ship_to_name: shipping ? data.name.trim() : null,
+      address_line1: shipping ? (data.address1.trim() || null) : null,
+      address_line2: shipping ? (data.address2.trim() || null) : null,
+      city: shipping ? (data.city.trim() || null) : null,
+      region: shipping ? (data.state.trim() || null) : null,
+      postal_code: shipping ? (data.zip.trim() || null) : null,
+      country: shipping ? 'US' : null
+    };
+    return sb.from('orders').insert(row).then(function (res) {
+      if (res.error) throw res.error;
+      if (!photos.length) return orderId;
+      var uploads = photos.map(function (p, i) {
+        var path = orderId + '/' + (i + 1) + '.jpg';
+        return sb.storage.from('inspiration')
+          .upload(path, p.blob, { contentType: 'image/jpeg', upsert: false })
+          .then(function (up) {
+            if (up.error) throw up.error;
+            return { order_id: orderId, storage_path: path, position: i };
+          });
+      });
+      return Promise.all(uploads).then(function (rows) {
+        return sb.from('order_photos').insert(rows).then(function (pr) {
+          if (pr.error) throw pr.error;
+          return orderId;
+        });
+      });
+    });
+  }
+
+  // Load tiers/shapes from the DB so prices/options can be changed without code.
+  // Falls back silently to the hardcoded defaults if the fetch fails.
+  function loadReferenceData() {
+    if (!sb) return;
+    sb.from('design_tiers').select('id,name,price,description').eq('active', true).order('sort')
+      .then(function (res) {
+        if (!res.error && res.data && res.data.length) {
+          TIERS = res.data.map(function (t) {
+            return { id: t.id, name: t.name, price: Number(t.price), desc: t.description };
+          });
+          if (step === 2) render();
+        }
+      });
+    sb.from('nail_shapes').select('id,image').eq('active', true).order('sort')
+      .then(function (res) {
+        if (!res.error && res.data && res.data.length) {
+          SHAPES = res.data.map(function (s) { return { id: s.id, img: s.image }; });
+          if (step === 1) render();
+        }
+      });
+  }
+
   // Photo compression (keeps several photos under FormSubmit's 10MB total)
   var MAX_DIM = 1600;
   var JPEG_QUALITY = 0.7;
@@ -796,6 +907,7 @@
     check: '<svg width="40" height="40" viewBox="0 0 40 40" fill="none"><path d="M12 20.5l5.5 5.5L28 14.5" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     camera:'<svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M3 7.5A1.5 1.5 0 014.5 6h2l1.2-1.8A1 1 0 019 3.8h4a1 1 0 01.9.5L15 6h2.5A1.5 1.5 0 0119 7.5v8A1.5 1.5 0 0117.5 17h-13A1.5 1.5 0 013 15.5v-8z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="11" cy="11.2" r="3" stroke="currentColor" stroke-width="1.6"/></svg>',
     bag:   '<svg width="17" height="17" viewBox="0 0 18 18" fill="none"><path d="M4 6h10l-.8 8.2a1.4 1.4 0 01-1.4 1.3H6.2a1.4 1.4 0 01-1.4-1.3L4 6z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M6.5 6V5a2.5 2.5 0 015 0v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+    instagram: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="2.5" width="19" height="19" rx="5.4" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4.4" stroke="currentColor" stroke-width="1.8"/><circle cx="17.4" cy="6.6" r="1.25" fill="currentColor"/></svg>',
     truck: '<svg width="19" height="17" viewBox="0 0 20 18" fill="none"><path d="M2 5.5A1.5 1.5 0 013.5 4h7A1.5 1.5 0 0112 5.5V13H2V5.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M12 7.5h3.2a1.5 1.5 0 011.3.8L18 11v2h-6V7.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="6" cy="14" r="1.6" stroke="currentColor" stroke-width="1.5"/><circle cx="14.5" cy="14" r="1.6" stroke="currentColor" stroke-width="1.5"/></svg>',
   };
 
@@ -805,7 +917,8 @@
     return {
       shape: '', sizes: {}, notes: '',
       name: '', email: '', phone: '',
-      fulfillment: 'pickup', address: '', shipSpeed: 'standard',
+      fulfillment: 'pickup', shipSpeed: 'standard',
+      address1: '', address2: '', city: '', state: '', zip: '',
       tier: 'classic',
     };
   }
@@ -876,6 +989,7 @@
         '<div class="welcome__spacer"></div>' +
         '<img class="welcome__logo" src="logo.jpeg" alt="Paige Madden Nails" />' +
         '<p class="welcome__tag">Custom press-ons, made just for you.</p>' +
+        '<a class="ig-cta" href="https://instagram.com/paigemadden.nails" target="_blank" rel="noopener">' + Icon.instagram + 'Follow me on Instagram</a>' +
         '<div class="welcome__spacer"></div>' +
         '<div class="welcome__feats"><span>Custom sizing</span><i></i><span>Handmade</span><i></i><span>Pickup or ship</span></div>' +
       '</div></div>' +
@@ -1104,15 +1218,26 @@
       if (data.fulfillment !== 'shipping') { shipWrap.innerHTML = ''; return; }
       shipWrap.innerHTML =
         '<div class="reveal">' +
-          '<div class="field"><label class="field__label">Shipping address</label>' +
-            '<textarea class="textarea textarea--sm" data-addr placeholder="Street address, city, state, ZIP"></textarea><div data-addr-err></div></div>' +
+          '<div class="field"><label class="field__label">Street address</label>' +
+            '<input class="input" data-addr1 placeholder="123 Main St" /><div data-addr1-err></div></div>' +
+          '<div class="field"><label class="field__label">Apt / suite<span class="opt"> · optional</span></label>' +
+            '<input class="input" data-addr2 placeholder="Apt 4B" /></div>' +
+          '<div class="field"><label class="field__label">City</label>' +
+            '<input class="input" data-city placeholder="City" /><div data-city-err></div></div>' +
+          '<div class="field"><label class="field__label">State</label>' +
+            '<input class="input" data-state placeholder="State" maxlength="40" /><div data-state-err></div></div>' +
+          '<div class="field"><label class="field__label">ZIP code</label>' +
+            '<input class="input" type="text" inputmode="numeric" data-zip placeholder="00000" maxlength="10" /><div data-zip-err></div></div>' +
           '<div class="field"><label class="field__label">Shipping speed</label>' +
             '<div class="seg"><button data-spd="standard">Standard</button><button data-spd="rush">Rush</button></div>' +
             '<p class="microhint" data-spdhint style="margin:8px 2px 0"></p></div>' +
         '</div>';
-      var addr = shipWrap.querySelector('[data-addr]');
-      addr.value = data.address;
-      addr.oninput = function () { data.address = addr.value; persist(); if (attempted) validate(); };
+      [['[data-addr1]','address1'],['[data-addr2]','address2'],['[data-city]','city'],['[data-state]','state'],['[data-zip]','zip']]
+        .forEach(function (pair) {
+          var inp = shipWrap.querySelector(pair[0]);
+          inp.value = data[pair[1]] || '';
+          inp.oninput = function () { data[pair[1]] = inp.value; persist(); if (attempted) validate(); };
+        });
       function paintSpd() {
         shipWrap.querySelectorAll('[data-spd]').forEach(function (b) {
           b.classList.toggle('on', b.getAttribute('data-spd') === data.shipSpeed);
@@ -1141,17 +1266,34 @@
     function validate() {
       var hasContact = emailEl.value.trim() || phoneEl.value.trim();
       var needsAddress = data.fulfillment === 'shipping';
-      var addrEl = scroll.querySelector('[data-addr]');
-      var addrOk = !needsAddress || (addrEl && addrEl.value.trim());
       // paint errors
       nameEl.classList.toggle('err', !nameEl.value.trim());
       scroll.querySelector('[data-name-err]').innerHTML = !nameEl.value.trim() ? '<div class="field__err">Please add your name.</div>' : '';
       emailEl.classList.toggle('err', !hasContact);
       phoneEl.classList.toggle('err', !hasContact);
       scroll.querySelector('[data-contact-err]').innerHTML = !hasContact ? '<div class="field__err">Add an email or a phone number so I can reach you.</div>' : '';
-      if (needsAddress && addrEl) {
-        addrEl.classList.toggle('err', !addrEl.value.trim());
-        scroll.querySelector('[data-addr-err]').innerHTML = !addrEl.value.trim() ? '<div class="field__err">Add an address so I can post your set.</div>' : '';
+
+      var addrOk = true;
+      if (needsAddress) {
+        [['[data-addr1]','[data-addr1-err]','Add a street address.'],
+         ['[data-city]','[data-city-err]','Add a city.'],
+         ['[data-state]','[data-state-err]','Add a state.'],
+         ['[data-zip]','[data-zip-err]','Add a ZIP code.']].forEach(function (r) {
+          var inp = shipWrap.querySelector(r[0]);
+          if (!inp) { addrOk = false; return; }
+          var empty = !inp.value.trim();
+          inp.classList.toggle('err', empty);
+          var box = shipWrap.querySelector(r[1]);
+          if (box) box.innerHTML = empty ? '<div class="field__err">' + r[2] + '</div>' : '';
+          if (empty) addrOk = false;
+        });
+        // light ZIP format check (US 5-digit or ZIP+4)
+        var zipEl = shipWrap.querySelector('[data-zip]');
+        if (zipEl && zipEl.value.trim() && !/^\d{5}(-\d{4})?$/.test(zipEl.value.trim())) {
+          zipEl.classList.add('err');
+          shipWrap.querySelector('[data-zip-err]').innerHTML = '<div class="field__err">Enter a 5-digit ZIP.</div>';
+          addrOk = false;
+        }
       }
       return nameEl.value.trim() && hasContact && addrOk;
     }
@@ -1260,7 +1402,13 @@
 
     fd.append('Delivery', data.fulfillment === 'shipping' ? 'Ship to me' : 'Booth pickup');
     if (data.fulfillment === 'shipping') {
-      fd.append('Shipping address', data.address.trim());
+      var addrBlock = [
+        data.address1.trim(),
+        data.address2.trim(),
+        [data.city.trim(), data.state.trim(), data.zip.trim()].filter(Boolean).join(', '),
+        'USA'
+      ].filter(Boolean).join('\n');
+      fd.append('Shipping address', addrBlock);
       fd.append('Shipping speed', data.shipSpeed === 'rush' ? 'Rush (about a week, +$8)' : 'Standard (2–3 weeks)');
     }
 
@@ -1271,21 +1419,30 @@
 
     photos.forEach(function (p, i) { fd.append('Photo ' + (i + 1), p.blob, 'design-' + (i + 1) + '.jpg'); });
 
-    fetch(FORMSUBMIT_ENDPOINT, { method: 'POST', body: fd, mode: 'no-cors' })
-      .then(function () {
-        sending = false;
-        go(4);
-      })
-      .catch(function () {
-        sending = false;
+    // Save to Supabase (the durable order record) and email via FormSubmit,
+    // in parallel. Proceed to the thank-you if either one succeeds.
+    var emailJob = fetch(FORMSUBMIT_ENDPOINT, { method: 'POST', body: fd, mode: 'no-cors' })
+      .then(function () { return true; })
+      .catch(function () { return false; });
+    var dbJob = saveOrderToSupabase()
+      .then(function () { return true; })
+      .catch(function (e) { if (window.console) console.error('Supabase save failed:', e); return false; });
+
+    Promise.all([emailJob, dbJob]).then(function (res) {
+      sending = false;
+      if (!res[0] && !res[1]) {
         btn.disabled = false;
         btn.textContent = 'Send my order 💖';
         hintEl.innerHTML = '<span style="color:var(--rose);font-weight:600">That didn\'t send — please check your connection and try again. 💕</span>';
-      });
+        return;
+      }
+      go(4);
+    });
   }
 
   // boot
   render();
+  loadReferenceData();
   </script>
 </body>
 </html>
