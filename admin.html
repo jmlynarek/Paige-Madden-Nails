@@ -416,45 +416,28 @@ function renderAuth(msg, kind){
       '<div class="auth-mark">'+I.nail+'</div>'+
       '<div class="auth-script">Paige Madden</div>'+
       '<div class="auth-sub">Orders Admin</div>'+
-      (authStep==='email'
-        ? '<p class="auth-hint">Enter your email and we’ll send a 6-digit sign-in code.</p>'+
-          '<div class="field"><label>Email</label><input class="input" id="aEmail" type="email" autocomplete="email" value="'+esc(authEmail)+'" placeholder="you@email.com"></div>'+
-          '<button class="btn" id="aSend">Send code</button>'
-        : '<p class="auth-hint">We sent a code to <b>'+esc(authEmail)+'</b>. Enter it below.</p>'+
-          '<div class="field"><label>6-digit code</label><input class="input otp" id="aCode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000"></div>'+
-          '<button class="btn" id="aVerify">Verify &amp; sign in</button>'+
-          '<button class="btn btn-ghost" id="aBack" style="margin-top:6px">Use a different email</button>'
-      )+
+      '<p class="auth-hint">Sign in to manage your orders.</p>'+
+      '<div class="field"><label>Email</label><input class="input" id="aEmail" type="email" autocomplete="email" value="'+esc(authEmail)+'" placeholder="you@email.com"></div>'+
+      '<div class="field"><label>Password</label><input class="input" id="aPass" type="password" autocomplete="current-password" placeholder="••••••••"></div>'+
+      '<button class="btn" id="aSignin">Sign in</button>'+
       '<div class="auth-msg '+(kind||'')+'" id="aMsg">'+(msg||'')+'</div>'+
     '</div></div>';
 
-  if(authStep==='email'){
-    var send = $('#aSend'), em = $('#aEmail');
-    em.addEventListener('keydown', function(e){ if(e.key==='Enter') send.click(); });
-    send.onclick = function(){
-      authEmail = em.value.trim().toLowerCase();
-      if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(authEmail)){ $('#aMsg').className='auth-msg err'; $('#aMsg').textContent='Please enter a valid email.'; return; }
-      send.disabled=true; send.innerHTML='<span class="spin"></span>';
-      sb.auth.signInWithOtp({ email: authEmail, options:{ shouldCreateUser:true } }).then(function(r){
-        if(r.error){ send.disabled=false; send.textContent='Send code'; $('#aMsg').className='auth-msg err'; $('#aMsg').textContent=r.error.message; return; }
-        authStep='code'; renderAuth('Code sent — check your inbox.','ok');
-      });
-    };
-  } else {
-    var ver=$('#aVerify'), code=$('#aCode');
-    code.focus();
-    code.addEventListener('keydown', function(e){ if(e.key==='Enter') ver.click(); });
-    ver.onclick = function(){
-      var token=code.value.trim();
-      if(token.length<6){ $('#aMsg').className='auth-msg err'; $('#aMsg').textContent='Enter the 6-digit code.'; return; }
-      ver.disabled=true; ver.innerHTML='<span class="spin"></span>';
-      sb.auth.verifyOtp({ email: authEmail, token: token, type:'email' }).then(function(r){
-        if(r.error){ ver.disabled=false; ver.innerHTML='Verify &amp; sign in'; $('#aMsg').className='auth-msg err'; $('#aMsg').textContent=r.error.message; return; }
-        // onAuthStateChange handles the rest
-      });
-    };
-    $('#aBack').onclick=function(){ authStep='email'; renderAuth(); };
+  var btn=$('#aSignin'), em=$('#aEmail'), pw=$('#aPass');
+  function submit(){
+    authEmail = em.value.trim().toLowerCase();
+    var pass = pw.value;
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(authEmail)){ $('#aMsg').className='auth-msg err'; $('#aMsg').textContent='Please enter a valid email.'; return; }
+    if(!pass){ $('#aMsg').className='auth-msg err'; $('#aMsg').textContent='Enter your password.'; return; }
+    btn.disabled=true; btn.innerHTML='<span class="spin"></span>';
+    sb.auth.signInWithPassword({ email: authEmail, password: pass }).then(function(r){
+      if(r.error){ btn.disabled=false; btn.textContent='Sign in'; $('#aMsg').className='auth-msg err'; $('#aMsg').textContent=r.error.message; return; }
+      // onAuthStateChange handles the rest
+    });
   }
+  em.addEventListener('keydown', function(e){ if(e.key==='Enter') pw.focus(); });
+  pw.addEventListener('keydown', function(e){ if(e.key==='Enter') submit(); });
+  btn.onclick=submit;
 }
 
 /* ───────────────────────── data ───────────────────────── */
