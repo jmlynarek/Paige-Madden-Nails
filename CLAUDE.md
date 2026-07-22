@@ -24,6 +24,7 @@ CDN `<script>` tag.
 | `supabase/functions/buy-shipping-label/` | Deno edge fn — buys the cheapest USPS label via Shippo |
 | `supabase/functions/send-order-email/` | Deno edge fn — sends customer status emails via Resend (admin-only) |
 | `supabase/functions/send-order-confirmation/` | Deno edge fn — sends the customer's "order received" email on order creation (anon-callable, locked to the `new` template) |
+| `supabase/functions/forward-inbound-email/` | Deno edge fn — Resend Inbound webhook; forwards replies to `orders@paigemadden.app` → the Gmail (Svix-verified, `verify_jwt=false`) |
 | `*.png`, `*.jpeg`, `favicon.*` | Static assets served from repo root |
 
 ## Run / build / deploy
@@ -117,7 +118,7 @@ Edge Functions → Secrets, or `supabase secrets set KEY=value`). Claude does no
 set these — the user does. Currently set:
 
 - **Shippo:** `SHIPPO_TOKEN` (test key), `SHIP_FROM_NAME/STREET1/CITY/STATE/ZIP/PHONE/COUNTRY/EMAIL`.
-- **Resend:** `RESEND_API_KEY`, `MAIL_FROM` (`Paige Madden Nails <orders@paigemadden.app>`); `MAIL_REPLY_TO` defaults to the Gmail.
+- **Resend:** `RESEND_API_KEY`, `MAIL_FROM` (`Paige Madden Nails <orders@paigemadden.app>`); `MAIL_REPLY_TO` defaults to the Gmail. For inbound forwarding: `RESEND_INBOUND_SECRET` (the webhook's `whsec_…` signing secret; `forward-inbound-email` rejects everything until it's set) and optional `INBOUND_FORWARD_TO` (defaults to the Gmail).
 - The Supabase **service-role** key is auto-injected into edge fns (`SUPABASE_SERVICE_ROLE_KEY`) — do not hardcode it.
 
 Note: there is **no Supabase MCP tool for secrets**, and the `supabase` CLI is **not installed** locally — secrets can only be set via the dashboard/CLI by the user. Likewise, **storage objects can only be deleted with the service-role key** (Postgres blocks direct SQL deletes; anon/publishable is denied) — delete via the Supabase Storage dashboard.
@@ -157,10 +158,15 @@ pricing, booth gallery). Confirmed S/M/L default nail sizes are recorded in Clau
 - Payment handles (Venmo/Zelle/Cash App/Apple Pay) set in admin → Settings.
 
 **Bugs / gaps:**
-- **BUG — reply-to forwarding:** customer notifications reply-to the Gmail, but some
-  clients reply to the *From* (`orders@paigemadden.app`), which **has no inbox**, so those
-  replies vanish. Fix: forward `orders@paigemadden.app → paigemaddennails@gmail.com`
-  (e.g. free ImprovMX: add MX + SPF records to Vercel DNS). Not yet done.
+- **Reply-to forwarding — code done, pending Resend config:** replies to the *From*
+  (`orders@paigemadden.app`) used to vanish (apex had no MX/inbox). Fix built via
+  **Resend Inbound → `forward-inbound-email` edge fn** (forwards to the Gmail, Reply-To =
+  the customer). To finish, the user must: enable Inbound on `paigemadden.app` in Resend,
+  add the apex MX record Resend shows to Vercel DNS, create a webhook →
+  `https://ggvjyzragfxbnsthpvso.supabase.co/functions/v1/forward-inbound-email` for the
+  `email.received` event, and set the `RESEND_INBOUND_SECRET` (whsec_…) edge-fn secret.
+  (v1 forwards body + Reply-To; attachment *content* isn't re-attached — filenames listed,
+  originals live in the Resend dashboard.)
 - **Deleting an order orphans its inspiration photos** — no storage cleanup / cascade;
   and there's no admin "delete photo" capability (needs a bucket delete policy).
 - **Shippo is on a TEST key** — swap to a live key (dashboard) before real shipments.
