@@ -155,10 +155,13 @@ pricing, booth gallery). Confirmed S/M/L default nail sizes are recorded in Clau
 - Customer status emails send via Resend from `orders@paigemadden.app` (domain verified).
 - Auto "order received" email to the customer on order creation (new `send-order-confirmation`
   edge fn; `index.html` fires it fire-and-forget after the DB save).
-- Reply-to forwarding **live & verified**: replies to `orders@paigemadden.app` now route via
-  Resend Inbound → `forward-inbound-email` → the Gmail, Reply-To = the customer. Resend
+- Reply-to forwarding **live & verified end-to-end**: replies to `orders@paigemadden.app` route via
+  Resend Inbound → `forward-inbound-email` → the Gmail, with Reply-To = the customer. Resend
   Receiving enabled (apex MX `inbound-smtp.us-east-1.amazonaws.com`), webhook on `email.received`,
-  `RESEND_INBOUND_SECRET` set. Tested end-to-end (webhook 200, mail delivered).
+  `RESEND_INBOUND_SECRET` set. Confirmed the full round-trip: webhook returned 200, the forward
+  landed in the Gmail with a DKIM-signed `Reply-To: <customer>`, and hitting Reply in Gmail
+  correctly addresses the customer (not `orders@`). (Aiming a reply at `orders@` itself just loops
+  back to the Gmail — harmless, and not the normal path.)
 - Payment handles (Venmo/Zelle/Cash App/Apple Pay) set in admin → Settings.
 
 **Bugs / gaps:**
@@ -169,6 +172,9 @@ pricing, booth gallery). Confirmed S/M/L default nail sizes are recorded in Clau
   the Attachments API, base64, include in the send).
 - **Deleting an order orphans its inspiration photos** — no storage cleanup / cascade;
   and there's no admin "delete photo" capability (needs a bucket delete policy).
+- **DMARC on forwarded mail shows FAIL in Gmail (cosmetic, low-pri):** forwarded replies still
+  land in the inbox because DKIM passes *and* aligns (`dkim=pass header.i=@paigemadden.app`), which
+  carries DMARC. Not worth chasing unless forwards start hitting spam; if so, revisit alignment.
 - **Shippo is on a TEST key** — swap to a live key (dashboard) before real shipments.
 - **Cash App handle** is still the placeholder `$cashtag`.
 - **Admin email hardcoded in 3 places** (`is_admin()`, `admin.html`, edge fns) — blocks multi-admin (P4).
