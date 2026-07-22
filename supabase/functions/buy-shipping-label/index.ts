@@ -3,7 +3,7 @@
 // Buys a USPS shipping label via Shippo for one order and writes
 // the tracking number + label PDF back to the order row.
 //
-// Auth: caller must be the signed-in admin (paige@idealtraits.com).
+// Auth: caller must be the signed-in admin (jeremy@idealtraits.com).
 //       This function spends money, so it refuses everyone else and
 //       refuses to buy a second label for an order that already has one.
 //
@@ -23,7 +23,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
-const ADMIN_EMAIL = "paige@idealtraits.com";
+const ADMIN_EMAIL = "jeremy@idealtraits.com";
 const SHIPPO_BASE = "https://api.goshippo.com";
 
 const CORS = {
