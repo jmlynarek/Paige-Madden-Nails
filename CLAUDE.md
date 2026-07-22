@@ -119,7 +119,7 @@ secrets. Set them with `supabase secrets set KEY=value`.
 
 ## Open items
 
-- **Payment handles** are blank — set them in admin → Settings, or checkout shows no payment options.
+- **Payment handles** — Venmo, Zelle, Cash App, and Apple Pay are set and enabled in admin → Settings. Cash App is still the placeholder `$cashtag`; set a real value before relying on it.
 - **Order emails**: `FORMSUBMIT_ENDPOINT` → `jeremy@idealtraits.com`; the first real UI order triggers a one-time FormSubmit activation email (click to enable). The raw address is exposed in the page; swap to FormSubmit's hashed endpoint when convenient.
 - **Shipping labels**: the `buy-shipping-label` edge function is **not deployed** to this Supabase project yet, and no Shippo secrets are set — "buy label" won't work until that's done.
 - A test order **PM-488** ("TEST ORDER (safe to delete)") is intentionally in the DB.
