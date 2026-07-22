@@ -907,11 +907,21 @@ function notifyCustomer(order, status){
   if(!tpl || tpl.enabled===false) return;        // template turned off → don't notify
   if(!order || !order.email) return;             // no email on file → nothing to send
   var html = renderEmailHtml(tpl, order);
-  // TODO: wire provider here so the email actually sends automatically.
-  // A Supabase edge function keeps the API key server-side, e.g.:
-  //   sb.functions.invoke('send-order-email', { body:{ to:order.email, subject:tpl.subject, html:html } });
-  // Until that's built, this is intentionally a no-op (logged for sanity).
-  console.log('[notifyCustomer] would email', order.email, '·', tpl.subject, '· '+html.length+' bytes');
+  // Send via the send-order-email edge function (keeps the API key server-side).
+  // Fire-and-report: never blocks the status change; surfaces failures as a toast.
+  sb.functions.invoke('send-order-email', { body:{ to:order.email, subject:tpl.subject, html:html } })
+    .then(function(r){
+      if(r.error){
+        var ctx=r.error.context;
+        if(ctx && typeof ctx.json==='function'){ ctx.json().then(function(b){ toast('Email not sent',(b&&b.error)||r.error.message,'err'); }).catch(function(){ toast('Email not sent', r.error.message, 'err'); }); }
+        else toast('Email not sent', r.error.message||'Could not send the email', 'err');
+        return;
+      }
+      var d=r.data||{};
+      if(d.error){ toast('Email not sent', d.error, 'err'); return; }
+      toast('Email sent', tpl.subject+' → '+order.email, 'ok');
+    })
+    .catch(function(e){ toast('Email not sent', String((e&&e.message)||e), 'err'); });
 }
 
 function toggleTemplate(status, btn){
