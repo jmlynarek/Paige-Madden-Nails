@@ -1202,17 +1202,25 @@
 
   function orderLabel(no) { return 'PM-' + no; }
 
-  // Deposit due now: 50% of the set price, plus a flat $10 for rush shipping.
-  var RUSH_FEE = 10;
+  // Full payment due now: set price + flat shipping + rush, as separate lines.
+  // IMPORTANT: these amounts must match the create_order RPC in the DB, which
+  // records ship_fee / rush_fee server-side so admin sees the same total.
+  var SHIP_FEE = 7;   // flat shipping, charged on any ship-to-me order
+  var RUSH_FEE = 10;  // rush production fee, charged on rush orders
   function selectedTier() {
     return TIERS.filter(function (t) { return t.id === data.tier; })[0] || TIERS[0];
+  }
+  function isShipping() {
+    return data.fulfillment === 'shipping';
   }
   function isRush() {
     return data.fulfillment === 'shipping' && data.shipSpeed === 'rush';
   }
-  function depositAmount() {
+  function shipFee() { return isShipping() ? SHIP_FEE : 0; }
+  function rushFee() { return isRush() ? RUSH_FEE : 0; }
+  function totalAmount() {
     var price = Number(selectedTier().price) || 0;
-    return price * 0.5 + (isRush() ? RUSH_FEE : 0);
+    return price + shipFee() + rushFee();
   }
 
   function persist() {
@@ -1520,7 +1528,9 @@
           b.classList.toggle('on', b.getAttribute('data-spd') === data.shipSpeed);
         });
         shipWrap.querySelector('[data-spdhint]').textContent =
-          data.shipSpeed === 'rush' ? 'Rush: ready in about a week (+$10).' : 'Standard: ready in 2–3 weeks.';
+          data.shipSpeed === 'rush'
+            ? 'Rush: ready in about a week. + ' + money(RUSH_FEE) + ' rush · + ' + money(SHIP_FEE) + ' shipping.'
+            : 'Standard: ready in 2–3 weeks. + ' + money(SHIP_FEE) + ' shipping.';
       }
       shipWrap.querySelectorAll('[data-spd]').forEach(function (b) {
         b.onclick = function () { data.shipSpeed = b.getAttribute('data-spd'); persist(); paintSpd(); };
@@ -1624,6 +1634,10 @@
           recapRow('Sizes', sized + ' of 5 fingers set') +
           recapRow('Inspiration', photos.length + ' photo' + (photos.length === 1 ? '' : 's') + ' shared') +
           recapRow('Delivery', data.fulfillment === 'shipping' ? ('Ship · ' + (data.shipSpeed === 'rush' ? 'Rush' : 'Standard')) : 'Booth pickup') +
+          recapRow('Set price', money(Number(selectedTier().price) || 0)) +
+          (isShipping() ? recapRow('Shipping', '+ ' + money(SHIP_FEE)) : '') +
+          (isRush() ? recapRow('Rush', '+ ' + money(RUSH_FEE)) : '') +
+          recapRow('Total due', money(totalAmount())) +
         '</div>' +
       '</div>' +
       '<div class="footer">' +
@@ -1638,11 +1652,12 @@
   // ── 6 · PAYMENT (page 2 of 2) ──
   function PaymentScreen() {
     var code = (lastOrder && lastOrder.order_no != null) ? orderLabel(lastOrder.order_no) : null;
-    var deposit = depositAmount();
-    var amountParam = deposit ? String(deposit) : '';
+    var total = totalAmount();
+    var amountParam = total ? String(total) : '';
     var tier = selectedTier();
-    var subline = '50% deposit on your ' + money(Number(tier.price) || 0) + ' ' + tier.name + ' set' +
-      (isRush() ? ' · incl. ' + money(RUSH_FEE) + ' rush' : '');
+    var subline = 'Full payment for your ' + money(Number(tier.price) || 0) + ' ' + tier.name + ' set' +
+      (isShipping() ? ' · ' + money(SHIP_FEE) + ' shipping' : '') +
+      (isRush() ? ' · ' + money(RUSH_FEE) + ' rush' : '');
 
     var app = el('div', 'app step');
 
@@ -1678,12 +1693,13 @@
 
     body.innerHTML =
       '<div class="pay__lead">' +
-        '<h1 class="title">Send your deposit</h1>' +
+        '<h1 class="title">Send your payment</h1>' +
       '</div>' +
       '<div class="paycode">' +
-        '<div class="paycode__label">Pay this deposit now</div>' +
-        '<div class="paycode__amount">' + esc(money(deposit)) + '</div>' +
+        '<div class="paycode__label">Total due now</div>' +
+        '<div class="paycode__amount">' + esc(money(total)) + '</div>' +
         '<div class="paycode__sub">' + esc(subline) + '</div>' +
+        '<div class="paycode__sub" style="margin-top:6px;opacity:.75">Your set begins once payment is received in full.</div>' +
         (code ?
           '<div class="paycode__div"></div>' +
           '<div class="paycode__codelabel">Add your order number to the note</div>' +
@@ -1853,12 +1869,18 @@
           'USA'
         ].filter(Boolean).join('\n');
         fd.append('Shipping address', addrBlock);
-        fd.append('Shipping speed', data.shipSpeed === 'rush' ? 'Rush (about a week, +$8)' : 'Standard (2–3 weeks)');
+        fd.append('Shipping speed', data.shipSpeed === 'rush' ? 'Rush (about a week, +$10)' : 'Standard (2–3 weeks)');
       }
 
       fd.append('Nail shape', data.shape || 'Not selected');
       fd.append('Sizes (both hands)', sizesStr);
       fd.append('Design tier', tier.name + ' (' + money(tier.price) + ')');
+      fd.append('Total due', money(totalAmount()) +
+        ((shipFee() || rushFee())
+          ? ' (' + money(Number(tier.price) || 0) + ' set' +
+            (shipFee() ? ' + ' + money(SHIP_FEE) + ' ship' : '') +
+            (rushFee() ? ' + ' + money(RUSH_FEE) + ' rush' : '') + ')'
+          : ''));
       fd.append('Notes', data.notes.trim() || '—');
 
       photos.forEach(function (p, i) { fd.append('Photo ' + (i + 1), p.blob, 'design-' + (i + 1) + '.jpg'); });

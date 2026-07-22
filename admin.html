@@ -453,7 +453,9 @@ function $(s, r){ return (r||document).querySelector(s); }
 function el(tag, cls, html){ var n=document.createElement(tag); if(cls)n.className=cls; if(html!=null)n.innerHTML=html; return n; }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
 function money(n){ n = Number(n||0); return '$' + n.toLocaleString('en-US',{minimumFractionDigits: n%1?2:0, maximumFractionDigits:2}); }
-function orderValue(o){ return Number(o.quoted_price != null ? o.quoted_price : (o.tier_price != null ? o.tier_price : 0)); }
+function orderSetPrice(o){ return Number(o.quoted_price != null ? o.quoted_price : (o.tier_price != null ? o.tier_price : 0)); }
+// Total the customer was asked to pay: set price + shipping + rush line items.
+function orderValue(o){ return orderSetPrice(o) + Number(o.ship_fee || 0) + Number(o.rush_fee || 0); }
 function shortId(o){ return o.order_no != null ? 'PM-' + o.order_no : '#' + String(o.id).replace(/-/g,'').slice(0,7).toUpperCase(); }
 function initials(name){ var p=String(name||'?').trim().split(/\s+/); return ((p[0]||'')[0]||'?').toUpperCase() + ((p[1]||'')[0]||'').toUpperCase(); }
 var AV = ['#B46869','#DC8289','#C98A12','#7C5CDA','#0E9E8E','#3B7DD8','#2BA05A','#B69886'];
@@ -1055,6 +1057,13 @@ function renderDrawer(){
   } else {
     sections.push({ id:'sec-ship', icon:I.bag, label:'Pickup', open:false, sub:'Local pickup', html:'<div class="dr-card"><div class="kv"><span class="k">Method</span><span class="v">Local pickup</span></div></div>' });
   }
+  sections.push({ id:'sec-pay', icon:I.cart, label:'Payment', open:true, sub:money(orderValue(o))+' to collect', html:
+    '<div class="dr-card">'+
+      '<div class="kv"><span class="k">Set price</span><span class="v">'+money(orderSetPrice(o))+'</span></div>'+
+      (Number(o.ship_fee)>0?'<div class="kv"><span class="k">Shipping</span><span class="v">'+money(o.ship_fee)+'</span></div>':'')+
+      (Number(o.rush_fee)>0?'<div class="kv"><span class="k">Rush</span><span class="v">'+money(o.rush_fee)+'</span></div>':'')+
+      '<div class="kv"><span class="k"><b>Total to collect</b></span><span class="v"><b>'+money(orderValue(o))+'</b></span></div>'+
+    '</div>' });
   sections.push({ id:'sec-design', icon:I.palette, label:'Design', open:!isShip, sub:esc((o.nail_shape||'—')+' · '+tierName), html:
     '<div class="dr-card"><div class="kv"><span class="k">Shape</span><span class="v">'+esc(o.nail_shape||'—')+'</span></div><div class="kv"><span class="k">Tier</span><span class="v">'+esc(tierName)+'</span></div></div>'+
     '<div style="margin-top:12px"><div class="dr-sec-t" style="margin-bottom:8px">Sizes</div><div class="sizes">'+sizeCells+'</div></div>' });
