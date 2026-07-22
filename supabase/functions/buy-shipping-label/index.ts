@@ -7,11 +7,9 @@
 //       This function spends money, so it refuses everyone else and
 //       refuses to buy a second label for an order that already has one.
 //
-// Rate choice keys off the order's ship_speed (set at order time):
-//   standard -> cheapest rate
-//   rush     -> cheapest Priority/Express-class rate (the upgrade the
-//               customer paid extra for); falls back to cheapest if the
-//               carrier returns no priority tier.
+// Rate choice: always the cheapest available rate (Standard shipping) for
+// every order. Rush is a production-speed upgrade (Paige works on the set
+// faster) — it does NOT change the shipping service.
 //
 // Secrets (set with `supabase secrets set ...`):
 //   SHIPPO_TOKEN      shippo_test_... or shippo_live_...
@@ -166,15 +164,12 @@ Deno.serve(async (req) => {
     return json({ error: "No shipping rates were returned." + (msgs ? " " + msgs : "") }, 502);
   }
 
-  // ---- pick the rate based on ship_speed ----
+  // ---- pick the rate: always the cheapest (Standard) for everyone ----
+  // Rush is a production-speed upgrade, not a shipping upgrade, so the label
+  // is the cheapest available rate regardless of ship_speed.
   const cheapest = (list: any[]) =>
     list.slice().sort((a, b) => Number(a.amount) - Number(b.amount))[0];
-  const isFast = (r: any) =>
-    /priority|express/i.test(`${r?.servicelevel?.token ?? ""} ${r?.servicelevel?.name ?? ""}`);
-
-  const rush = order.ship_speed === "rush";
-  const fast = rates.filter(isFast);
-  const chosen = rush ? cheapest(fast.length ? fast : rates) : cheapest(rates);
+  const chosen = cheapest(rates);
 
   // ---- buy the label ----
   const tx = await shippo("/transactions/", {

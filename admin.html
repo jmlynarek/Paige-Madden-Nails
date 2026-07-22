@@ -1001,8 +1001,7 @@ function renderDrawer(){
   var shipAddrHtml='', shipAddrSub='', shipLabelHtml='', shipLabelSub='';
   if(isShip){
     var addr=[o.address_line1, o.address_line2, [o.city,o.region].filter(Boolean).join(', '), o.postal_code].filter(Boolean).join(' · ');
-    var rush = o.ship_speed==='rush';
-    shipAddrSub = esc([o.city,o.region].filter(Boolean).join(', ') || (o.ship_to_name||o.customer_name));
+    shipAddrSub =esc([o.city,o.region].filter(Boolean).join(', ') || (o.ship_to_name||o.customer_name));
     shipAddrHtml = '<div class="dr-card"><div class="kv"><span class="k">Method</span><span class="v">Shipping'+(o.ship_speed?' · '+esc(o.ship_speed):'')+'</span></div>'+
       '<div class="kv"><span class="k">Ship to</span><span class="v">'+esc(o.ship_to_name||o.customer_name)+'</span></div>'+
       (addr?'<div class="kv"><span class="k">Address</span><span class="v">'+esc(addr)+'</span></div>':'')+'</div>';
@@ -1021,7 +1020,7 @@ function renderDrawer(){
       // No label yet — parcel inputs + buy button.
       shipLabelSub = 'Not bought yet';
       var pf = function(pid,label,val,step,min){ return '<label style="display:flex;flex-direction:column;gap:4px"><span class="muted" style="font-size:11.5px">'+label+'</span><input class="input" id="'+pid+'" type="number" min="'+min+'" step="'+step+'" value="'+val+'"></label>'; };
-      shipLabelHtml = '<div class="muted" style="font-size:12px;margin:-2px 0 10px">'+(rush?'Rush — buys the quickest Priority/Express rate.':'Standard — buys the cheapest USPS rate.')+'</div>'+
+      shipLabelHtml = '<div class="muted" style="font-size:12px;margin:-2px 0 10px">Buys the cheapest USPS rate (Standard).</div>'+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
           pf('pWeight','Weight (oz)','3','0.1','0.1')+pf('pLen','Length (in)','6','0.5','1')+
           pf('pWid','Width (in)','4','0.5','1')+pf('pHt','Height (in)','1','0.5','0.5')+
@@ -1124,8 +1123,7 @@ function buyLabel(id){
   if(!o) return;
   var num = function(sel, d){ var n=$(sel); var v=n?Number(n.value):NaN; return (isFinite(v)&&v>0)?v:d; };
   var parcel = { weight:num('#pWeight',3), length:num('#pLen',6), width:num('#pWid',4), height:num('#pHt',1) };
-  var rush = o.ship_speed==='rush';
-  if(!confirm('Buy a '+(rush?'rush (Priority/Express)':'standard (cheapest)')+' USPS label for '+(o.ship_to_name||o.customer_name)+'?\n\nThis charges your Shippo account for the postage.')) return;
+  if(!confirm('Buy a USPS label (cheapest rate) for '+(o.ship_to_name||o.customer_name)+'?\n\nThis charges your Shippo account for the postage.')) return;
 
   var btn = $('#buyLabel');
   var reset = function(){ if(btn){ btn.disabled=false; btn.innerHTML=I.truck+'Buy &amp; print label'; } };
