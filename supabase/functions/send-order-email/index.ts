@@ -1,26 +1,29 @@
 // ============================================================
 // send-order-email
-// Sends ONE customer notification email (order status update),
-// genuinely FROM paigemaddennails@gmail.com via Gmail's SMTP.
-// Called from admin.html's notifyCustomer() on a status change — the
-// branded HTML is rendered client-side and passed in, so this function
-// is a thin send step.
+// Sends ONE customer notification email (order status update) via
+// Resend. Called from admin.html's notifyCustomer() on a status change
+// — the branded HTML is rendered client-side and passed in, so this
+// function is a thin, provider-specific send step.
+//
+// Sender identity: "Paige Madden Nails <orders@paigemadden.app>" with
+// reply-to set to the Gmail, so customers see the brand and replies land
+// in paigemaddennails@gmail.com.
 //
 // Auth: admin-only (jeremy@idealtraits.com), same gate as buy-shipping-label.
 //
 // Secrets (set with `supabase secrets set ...`):
-//   GMAIL_APP_PASSWORD  16-char Google App Password (requires 2FA on the
-//                       account). Generate at myaccount.google.com → Security
-//                       → 2-Step Verification → App passwords.
-//   GMAIL_USER          optional, defaults to paigemaddennails@gmail.com
+//   RESEND_API_KEY   re_...  (from https://resend.com)
+//   MAIL_FROM        e.g. "Paige Madden Nails <orders@paigemadden.app>"
+//                    (requires the domain verified in Resend). Defaults to
+//                    Resend's onboarding sender for immediate testing, which
+//                    only delivers to the Resend account owner's own email.
+//   MAIL_REPLY_TO    defaults to paigemaddennails@gmail.com
 // ============================================================
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const ADMIN_EMAIL = "jeremy@idealtraits.com";
-const FROM_NAME = "Paige Madden Nails";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -38,17 +41,6 @@ function json(body: unknown, status = 200) {
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 
-// Plain-text fallback for clients that don't render HTML.
-function toText(html: string): string {
-  return html
-    .replace(/<style[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 2000) || "Your Paige Madden Nails order update.";
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -62,11 +54,12 @@ Deno.serve(async (req) => {
     return json({ error: "Not authorized." }, 403);
   }
 
-  const GMAIL_USER = env("GMAIL_USER") || "paigemaddennails@gmail.com";
-  const GMAIL_APP_PASSWORD = env("GMAIL_APP_PASSWORD");
-  if (!GMAIL_APP_PASSWORD) {
-    return json({ error: "Email is not configured yet (missing GMAIL_APP_PASSWORD)." }, 500);
+  const RESEND_API_KEY = env("RESEND_API_KEY");
+  if (!RESEND_API_KEY) {
+    return json({ error: "Email is not configured yet (missing RESEND_API_KEY)." }, 500);
   }
+  const from = env("MAIL_FROM") || "Paige Madden Nails <onboarding@resend.dev>";
+  const replyTo = env("MAIL_REPLY_TO") || "paigemaddennails@gmail.com";
 
   // ---- read the message ----
   let payload: any = {};
@@ -78,29 +71,19 @@ Deno.serve(async (req) => {
     return json({ error: "Missing recipient, subject, or body." }, 400);
   }
 
-  // ---- send via Gmail SMTP ----
-  const client = new SMTPClient({
-    connection: {
-      hostname: "smtp.gmail.com",
-      port: 465,
-      tls: true,
-      auth: { username: GMAIL_USER, password: GMAIL_APP_PASSWORD },
+  // ---- send via Resend ----
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify({ from, to: [to], reply_to: replyTo, subject, html }),
   });
-
-  try {
-    await client.send({
-      from: `${FROM_NAME} <${GMAIL_USER}>`,
-      to,
-      subject,
-      content: toText(html),
-      html,
-    });
-    await client.close();
-    return json({ ok: true });
-  } catch (e) {
-    try { await client.close(); } catch { /* ignore */ }
-    const msg = (e && (e as any).message) ? (e as any).message : String(e);
-    return json({ error: "Could not send the email: " + msg }, 502);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return json({ error: (data?.message || "The email provider rejected the message."), detail: data }, 502);
   }
+
+  return json({ ok: true, id: data?.id ?? null });
 });
