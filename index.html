@@ -81,9 +81,12 @@
   }
   .iconbtn {
     width: 40px; height: 40px;
+    padding: 0;
+    -webkit-appearance: none; appearance: none;
     border-radius: 50%;
     border: 1px solid var(--hair);
     background: rgba(255,255,255,0.6);
+    color: var(--ink);
     display: flex; align-items: center; justify-content: center;
     cursor: pointer;
     flex-shrink: 0;
@@ -187,6 +190,24 @@
     font-size: 15px;
   }
   .btn[disabled] { opacity: 0.42; box-shadow: none; cursor: default; }
+  /* Keyboard focus visibility (pointer taps stay ring-free). */
+  .btn:focus-visible, .iconbtn:focus-visible, .shape:focus-visible, .tier:focus-visible,
+  .sizechip:focus-visible, .step__btn:focus-visible, .seg button:focus-visible,
+  .paytile:focus-visible, .ig-cta:focus-visible, .paycode__chip:focus-visible,
+  .thumb__x:focus-visible, .drop:focus-visible {
+    outline: 2.5px solid var(--rose);
+    outline-offset: 2px;
+  }
+  .btn__spin {
+    display: inline-block; width: 16px; height: 16px;
+    margin-right: 9px; vertical-align: -2px;
+    border: 2px solid rgba(255,255,255,0.45);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: btnspin .6s linear infinite;
+  }
+  @keyframes btnspin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .btn__spin { animation: none; } }
   .btn__hint {
     text-align: center;
     font-size: 13px;
@@ -203,6 +224,8 @@
 
   /* ── Form fields ── */
   .field { margin-top: 18px; }
+  .field-2col { display: flex; gap: 12px; }
+  .field-2col .field { flex: 1; min-width: 0; }
   .field__label {
     display: block;
     font-size: 13.5px;
@@ -358,6 +381,53 @@
   }
   .frow .selwrap { width: 124px; flex-shrink: 0; }
 
+  /* ── Size presets (S/M/L chips) ── */
+  .sizechips { display: flex; gap: 10px; }
+  .sizechip {
+    flex: 1;
+    min-height: 46px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--ink);
+    cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, box-shadow .2s ease, transform .1s ease;
+  }
+  .sizechip:active { transform: scale(0.97); }
+  .sizechip.on { border-color: var(--rose); background: #FBF1F0; color: var(--rose); box-shadow: 0 0 0 3px rgba(180,104,105,0.12); }
+
+  /* ── Per-finger stepper ── */
+  .stepper {
+    width: 124px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 6px;
+  }
+  .step__btn {
+    width: 40px; height: 40px; flex-shrink: 0;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    background: var(--surface);
+    color: var(--rose);
+    font-size: 22px; font-weight: 500; line-height: 1;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s ease, border-color .15s ease, transform .1s ease;
+  }
+  .step__btn:active { transform: scale(0.92); }
+  .step__btn:disabled { opacity: 0.32; cursor: default; }
+  .step__val {
+    flex: 1; text-align: center;
+    font-size: 16px; font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .step__val.unset { color: var(--ink-soft); font-weight: 500; }
+  .footer__err { margin-bottom: 8px; }
+  .footer__err:empty { display: none; }
+
   /* ── Shape picker ── */
   .subhead {
     font-size: 13.5px;
@@ -450,7 +520,7 @@
   .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .thumb__x {
     position: absolute; top: 6px; right: 6px;
-    width: 24px; height: 24px;
+    width: 28px; height: 28px;
     border-radius: 50%;
     border: none;
     background: rgba(95,70,63,0.78);
@@ -459,6 +529,8 @@
     cursor: pointer;
     backdrop-filter: blur(2px);
   }
+  /* Enlarge the tap target beyond the visible dot for booth phones. */
+  .thumb__x::after { content: ''; position: absolute; inset: -9px; }
   @keyframes pop { from { opacity: 0; transform: scale(.86); } to { opacity: 1; transform: scale(1); } }
   .photohint { font-size: 12.5px; color: var(--ink-soft); margin: 12px 2px 0; }
   .photohint.warn { color: var(--rose); font-weight: 600; }
@@ -487,6 +559,9 @@
     transition: color .2s ease;
   }
   .seg button.on { background: var(--rose); color: #fff; box-shadow: 0 4px 12px rgba(180,104,105,0.28); }
+  .seg--stack button { flex-direction: column; gap: 1px; height: 52px; }
+  .seg--stack .seg__t { font-size: 14.5px; font-weight: 600; line-height: 1.1; }
+  .seg--stack .seg__s { font-size: 11.5px; font-weight: 500; opacity: 0.85; line-height: 1.1; }
 
   /* ── Welcome ── */
   .welcome {
@@ -574,6 +649,8 @@
   .ig-cta:hover { background: #fff; box-shadow: 0 8px 20px rgba(180,104,105,0.16); }
   .ig-cta svg { flex-shrink: 0; }
   .ig-cta b { color: var(--ink); font-weight: 600; }
+  .socials { display: flex; justify-content: center; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
+  .socials .ig-cta { margin: 0; }
 
   /* ── Thank you ── */
   .thanks {
@@ -597,7 +674,6 @@
     font-weight: 600;
     font-size: 31px;
     line-height: 1.12;
-    white-space: nowrap;
     color: var(--ink);
     margin: 20px 0 0;
   }
@@ -759,6 +835,17 @@
     margin: 11px auto 0; max-width: 30ch; font-weight: 500;
   }
   .paycode__note b { color: var(--rose); font-weight: 700; }
+  .paynote {
+    margin: 13px 0 0;
+    padding: 12px 14px;
+    background: var(--blush);
+    border: 1px solid var(--rose-30);
+    border-radius: 13px;
+    font-size: 13px; line-height: 1.45; font-weight: 500;
+    color: var(--ink);
+    text-align: center;
+  }
+  .paynote b { color: var(--rose); font-weight: 700; }
 
   /* Tap-to-pay method tiles */
   .paymethods { margin-top: 11px; display: flex; flex-direction: column; gap: 7px; }
@@ -992,6 +1079,16 @@
   // ── Config ──
   var FINGERS = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'];
   var SIZE_OPTS = ['0','1','2','3','4','5','6','7','8','9','10','11'];
+  var SIZE_MIN = 0, SIZE_MAX = 11; // press-on sizes run 0 (largest) → 11 (smallest)
+  // Paige's standard per-finger defaults. Tapping S/M/L prefills these; the
+  // customer can then +/- any single finger. Values are strings to match
+  // data.sizes storage (so recap / DB / email are unaffected).
+  var SIZE_PRESETS = {
+    Small:  { Thumb: '2', Index: '8', Middle: '6', Ring: '7', Pinky: '11' },
+    Medium: { Thumb: '1', Index: '6', Middle: '4', Ring: '5', Pinky: '10' },
+    Large:  { Thumb: '0', Index: '4', Middle: '3', Ring: '4', Pinky: '8'  },
+  };
+  var SIZE_PRESET_NAMES = ['Small', 'Medium', 'Large'];
   var TIERS = [
     { id: 'classic', name: 'Classic', price: 40, desc: 'Solid colours, French tips, glitter or one simple accent nail.' },
     { id: 'custom',  name: 'Custom',  price: 50, desc: 'Hand-painted art, charms, chrome, or intricate multi-nail designs.' },
@@ -1038,7 +1135,7 @@
       p_design_tier: data.tier,
       p_tier_price: tier.price,
       p_sizes: data.sizes,
-      p_notes: data.notes.trim() || null,
+      p_notes: notesForSave(),
       p_fulfillment: data.fulfillment,
       p_ship_speed: shipping ? data.shipSpeed : null,
       p_ship_to_name: shipping ? data.name.trim() : null,
@@ -1107,7 +1204,7 @@
   // Photo compression (keeps several photos under FormSubmit's 10MB total)
   var MAX_DIM = 1600;
   var JPEG_QUALITY = 0.7;
-  var MAX_PHOTOS = 9;
+  var MAX_PHOTOS = 2;
   var TOTAL_LIMIT = 9 * 1024 * 1024;
 
   // ── Icons ──
@@ -1122,6 +1219,7 @@
     copy:  '<svg width="15" height="15" viewBox="0 0 18 18" fill="none"><rect x="6.4" y="6.4" width="9" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M11.6 6.4V4.6a2 2 0 00-2-2H4.6a2 2 0 00-2 2v5a2 2 0 002 2h1.8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
     checkSm:'<svg width="15" height="15" viewBox="0 0 18 18" fill="none"><path d="M4 9.5l3.2 3.2L14 6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     instagram: '<svg width="19" height="19" viewBox="0 0 24 24" fill="none"><rect x="2.5" y="2.5" width="19" height="19" rx="5.4" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="4.4" stroke="currentColor" stroke-width="1.8"/><circle cx="17.4" cy="6.6" r="1.25" fill="currentColor"/></svg>',
+    tiktok: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M13.2 3v10.8a2.9 2.9 0 11-2.9-2.9c.3 0 .6 0 .9.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.2 5.4A4.8 4.8 0 0018 8.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     truck: '<svg width="19" height="17" viewBox="0 0 20 18" fill="none"><path d="M2 5.5A1.5 1.5 0 013.5 4h7A1.5 1.5 0 0112 5.5V13H2V5.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M12 7.5h3.2a1.5 1.5 0 011.3.8L18 11v2h-6V7.5z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><circle cx="6" cy="14" r="1.6" stroke="currentColor" stroke-width="1.5"/><circle cx="14.5" cy="14" r="1.6" stroke="currentColor" stroke-width="1.5"/></svg>',
     chevR: '<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M6 3.5L10.5 8 6 12.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     extern:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 3h7v7M13 3L6.5 9.5M9.5 3.5H4A1.5 1.5 0 002.5 5v7A1.5 1.5 0 004 13.5h7A1.5 1.5 0 0012.5 12V6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -1168,7 +1266,7 @@
   var STORAGE_KEY = 'pmn-order-v1';
   function blankData() {
     return {
-      shape: '', sizes: {}, notes: '',
+      shape: '', sizes: {}, sizePreset: '', notes: '', inspoLink: '',
       name: '', email: '', phone: '',
       fulfillment: 'pickup', shipSpeed: 'standard',
       address1: '', address2: '', city: '', state: '', zip: '',
@@ -1188,7 +1286,7 @@
   }
 
   var init = loadState();
-  var step = init.step;           // 0 welcome · 1 sizing · 2 design · 3 details · 4 confirm · 5 gallery · 6 payment
+  var step = init.step;           // 0 welcome · 1 shape · 1.5 size · 2 design · 3 details · 4 confirm · 5 gallery · 6 payment
   var data = init.data;
   var photos = [];                // { id, url, blob, name } — not persisted
   var showErr = false;
@@ -1217,6 +1315,14 @@
     var price = Number(selectedTier().price) || 0;
     return price + shipFee() + rushFee();
   }
+  // The order has no dedicated inspo-link column, so fold any link into the
+  // notes the business/DB receives (keeps the RPC + email unchanged).
+  function notesForSave() {
+    var parts = [];
+    if (data.notes.trim()) parts.push(data.notes.trim());
+    if (data.inspoLink.trim()) parts.push('Inspo link: ' + data.inspoLink.trim());
+    return parts.join('\n') || null;
+  }
 
   function persist() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: step, data: data })); }
@@ -1236,10 +1342,10 @@
   function topBar(label, n, total) {
     var bar = el('div', 'topbar');
     bar.innerHTML =
-      '<div class="iconbtn" data-back style="color:var(--ink)">' + Icon.back + '</div>' +
+      '<button type="button" class="iconbtn" data-back aria-label="Go back" style="color:var(--ink)">' + Icon.back + '</button>' +
       '<div class="progress">' +
         '<div class="progress__meta">' + label + ' · Step ' + n + ' of ' + total + '</div>' +
-        '<div class="progress__track"><div class="progress__bar" style="width:' + ((n/total)*100) + '%"></div></div>' +
+        '<div class="progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="' + total + '" aria-valuenow="' + n + '"><div class="progress__bar" style="width:' + ((n/total)*100) + '%"></div></div>' +
       '</div>';
     return bar;
   }
@@ -1250,7 +1356,8 @@
     document.documentElement.setAttribute('data-step', step);
     root.innerHTML = '';
     if (step === 0) root.appendChild(WelcomeScreen());
-    else if (step === 1) root.appendChild(SizingScreen());
+    else if (step === 1) root.appendChild(ShapeScreen());
+    else if (step === 1.5) root.appendChild(SizeScreen());
     else if (step === 2) root.appendChild(DesignScreen());
     else if (step === 3) root.appendChild(DetailsScreen());
     else if (step === 5) root.appendChild(GalleryScreen());
@@ -1268,7 +1375,10 @@
         '<div class="welcome__spacer"></div>' +
         '<img class="welcome__logo" src="logo.jpeg" alt="Paige Madden Nails" />' +
         '<p class="welcome__tag">Custom press-ons, made just for you.</p>' +
-        '<a class="ig-cta" href="https://instagram.com/paigemadden.nails" target="_blank" rel="noopener">' + Icon.instagram + 'Follow me on Instagram</a>' +
+        '<div class="socials">' +
+          '<a class="ig-cta" href="https://instagram.com/paigemadden.nails" target="_blank" rel="noopener">' + Icon.instagram + 'Instagram</a>' +
+          '<a class="ig-cta" href="https://www.tiktok.com/@paigemadden.nails" target="_blank" rel="noopener">' + Icon.tiktok + 'TikTok</a>' +
+        '</div>' +
         '<div class="welcome__spacer"></div>' +
         '<div class="welcome__feats"><span>Custom sizing</span><i></i><span>Handmade</span><i></i><span>Pickup or ship</span></div>' +
       '</div></div>' +
@@ -1281,105 +1391,193 @@
     return app;
   }
 
-  // ── 1 · SIZING (shape + finger sizes) ──
-  function SizingScreen() {
+  // ── 1 · SHAPE (tap a shape to continue) ──
+  function ShapeScreen() {
     var app = el('div', 'app step');
-    app.appendChild(topBar('Sizing', 1, 3));
+    app.appendChild(topBar('Shape', 1, 4));
 
     var scroll = el('div', 'app__scroll');
     scroll.innerHTML =
       '<div class="sectionlead pad">' +
         '<div class="eyebrow">Find your fit</div>' +
-        '<h1 class="title">Shape &amp; sizes</h1>' +
-        '<p class="lede">Choose your shape, then size each nail using the sample set on the table.</p>' +
+        '<h1 class="title">Your shape</h1>' +
+        '<p class="lede">Tap the shape you want — I\'ll take you straight to sizing.</p>' +
       '</div>' +
-      '<div class="pad"><div class="subhead">Nail shape</div><div class="shapes" data-shapes></div></div>' +
-      '<div class="pad" style="margin-top:22px"><div class="subhead">Your sizes</div></div>' +
-      '<div class="hand card" style="margin-top:0">' +
-        '<div class="hand__head"><span class="hand__title">Each finger</span><span class="hand__count" data-count></span></div>' +
-        '<div data-rows></div>' +
-      '</div>' +
-      '<p class="microhint pad">Not the same on both hands? Add a note on the next step and I\'ll sort it out.</p>' +
+      '<div class="pad"><div class="shapes" data-shapes></div></div>' +
       '<div style="height:14px"></div>';
 
-    // shapes
+    // Tapping a shape sets it and advances automatically (the back arrow is the
+    // escape hatch). Picking a shape is therefore also the gate to the size step.
     var shapesWrap = scroll.querySelector('[data-shapes]');
     SHAPES.forEach(function (s) {
       var b = el('button', 'shape' + (data.shape === s.id ? ' on' : ''));
       b.innerHTML = '<span class="shape__silbox"><img class="shape__icon" src="' + s.img + '" alt="' + s.id + '" /></span><span class="shape__name">' + s.id + '</span>';
-      b.onclick = function () {
-        data.shape = s.id; persist();
-        shapesWrap.querySelectorAll('.shape').forEach(function (x) { x.classList.remove('on'); });
-        b.classList.add('on');
-      };
+      b.onclick = function () { data.shape = s.id; persist(); go(1.5); };
       shapesWrap.appendChild(b);
     });
 
-    // finger rows
+    app.appendChild(scroll);
+    app.querySelector('[data-back]').onclick = function () { go(0); };
+    return app;
+  }
+
+  // ── 1.5 · SIZE (S/M/L presets + per-finger steppers) ──
+  function SizeScreen() {
+    var app = el('div', 'app step');
+    app.appendChild(topBar('Size', 2, 4));
+
+    var scroll = el('div', 'app__scroll');
+    scroll.innerHTML =
+      '<div class="sectionlead pad">' +
+        '<div class="eyebrow">Find your fit</div>' +
+        '<h1 class="title">Your sizes</h1>' +
+        '<p class="lede">Tap Small, Medium or Large — then fine-tune any finger with the buttons.</p>' +
+      '</div>' +
+      '<div class="pad"><div class="sizechips" data-chips></div></div>' +
+      '<div class="hand card">' +
+        '<div class="hand__head"><span class="hand__title">Each finger</span><span class="hand__count" data-count></span></div>' +
+        '<div data-rows></div>' +
+      '</div>' +
+      '<div style="height:14px"></div>';
+
+    var chipsWrap = scroll.querySelector('[data-chips]');
     var rows = scroll.querySelector('[data-rows]');
     var countEl = scroll.querySelector('[data-count]');
-    function updateCount() {
-      var c = FINGERS.filter(function (f) { return data.sizes[f]; }).length;
-      countEl.textContent = c + '/5 set';
+    var rowRefs = {}; // finger -> { val, dec, inc }
+
+    function isSet(f) { return data.sizes[f] != null && data.sizes[f] !== ''; }
+    function matchPreset() {
+      for (var i = 0; i < SIZE_PRESET_NAMES.length; i++) {
+        var name = SIZE_PRESET_NAMES[i];
+        var all = FINGERS.every(function (f) { return data.sizes[f] === SIZE_PRESETS[name][f]; });
+        if (all) return name;
+      }
+      return '';
     }
+    function paint() {
+      var count = 0;
+      FINGERS.forEach(function (f) {
+        var r = rowRefs[f];
+        var set = isSet(f);
+        if (set) count++;
+        var v = set ? Number(data.sizes[f]) : null;
+        r.val.textContent = set ? data.sizes[f] : '–';
+        r.val.classList.toggle('unset', !set);
+        r.dec.disabled = set && v <= SIZE_MIN;
+        r.inc.disabled = set && v >= SIZE_MAX;
+      });
+      countEl.textContent = count + '/5 set';
+      chipsWrap.querySelectorAll('.sizechip').forEach(function (c) {
+        c.classList.toggle('on', c.getAttribute('data-preset') === data.sizePreset);
+      });
+      if (count === 5) clearErr();
+    }
+    function applyPreset(name) {
+      FINGERS.forEach(function (f) { data.sizes[f] = SIZE_PRESETS[name][f]; });
+      data.sizePreset = name;
+      persist(); paint();
+    }
+    function bump(f, delta) {
+      var next;
+      if (!isSet(f)) {
+        // Seed an untouched finger from Medium on first tap (sensible mid-point).
+        next = Number(SIZE_PRESETS.Medium[f]);
+      } else {
+        next = Number(data.sizes[f]) + delta;
+      }
+      next = Math.max(SIZE_MIN, Math.min(SIZE_MAX, next));
+      data.sizes[f] = String(next);
+      data.sizePreset = matchPreset();
+      persist(); paint();
+    }
+
+    // chips
+    SIZE_PRESET_NAMES.forEach(function (name) {
+      var c = el('button', 'sizechip' + (data.sizePreset === name ? ' on' : ''));
+      c.setAttribute('data-preset', name);
+      c.textContent = name;
+      c.onclick = function () { applyPreset(name); };
+      chipsWrap.appendChild(c);
+    });
+
+    // finger rows with +/- steppers
     FINGERS.forEach(function (f) {
       var row = el('div', 'frow');
-      var opts = '<option value="">Size</option>' + SIZE_OPTS.map(function (o) {
-        return '<option value="' + o + '"' + (data.sizes[f] === o ? ' selected' : '') + '>Size ' + o + '</option>';
-      }).join('');
-      row.innerHTML = '<span class="finger">' + f + '</span><div class="selwrap"><select class="sel ' + (data.sizes[f] ? 'filled' : 'unset') + '">' + opts + '</select>' + Icon.chev + '</div>';
-      var sel = row.querySelector('select');
-      sel.onchange = function () {
-        data.sizes[f] = sel.value;
-        if (!sel.value) delete data.sizes[f];
-        sel.className = 'sel ' + (sel.value ? 'filled' : 'unset');
-        persist(); updateCount();
-      };
+      row.innerHTML =
+        '<span class="finger">' + f + '</span>' +
+        '<div class="stepper">' +
+          '<button class="step__btn" type="button" data-dec aria-label="Lower size number">&minus;</button>' +
+          '<span class="step__val"></span>' +
+          '<button class="step__btn" type="button" data-inc aria-label="Higher size number">+</button>' +
+        '</div>';
+      var dec = row.querySelector('[data-dec]');
+      var inc = row.querySelector('[data-inc]');
+      dec.onclick = function () { bump(f, -1); };
+      inc.onclick = function () { bump(f, 1); };
+      rowRefs[f] = { val: row.querySelector('.step__val'), dec: dec, inc: inc };
       rows.appendChild(row);
     });
-    updateCount();
+
+    // keep the highlighted chip honest if sizes were restored from storage
+    if (!data.sizePreset) data.sizePreset = matchPreset();
+    paint();
 
     app.appendChild(scroll);
 
     var footer = el('div', 'footer');
-    footer.innerHTML = '<button class="btn" data-next>Continue' + Icon.arrow + '</button>';
-    footer.querySelector('[data-next]').onclick = function () { go(2); };
+    footer.innerHTML =
+      '<div class="footer__err" data-err></div>' +
+      '<button class="btn" data-next>Continue' + Icon.arrow + '</button>';
+    function clearErr() { var e = footer && footer.querySelector('[data-err]'); if (e) e.innerHTML = ''; }
+    footer.querySelector('[data-next]').onclick = function () {
+      if (FINGERS.some(function (f) { return !isSet(f); })) {
+        footer.querySelector('[data-err]').innerHTML = '<div class="field__err">Please set a size for all five fingers — tap a preset to fill them fast.</div>';
+        return;
+      }
+      go(2);
+    };
     app.appendChild(footer);
 
-    app.querySelector('[data-back]').onclick = function () { go(0); };
+    app.querySelector('[data-back]').onclick = function () { go(1); };
     return app;
   }
 
   // ── 2 · DESIGN (photos, notes, tier) ──
   function DesignScreen() {
     var app = el('div', 'app step');
-    app.appendChild(topBar('Design', 2, 3));
+    app.appendChild(topBar('Design', 3, 4));
 
     var scroll = el('div', 'app__scroll pad');
     scroll.innerHTML =
       '<div class="sectionlead" style="padding:6px 0 2px">' +
         '<div class="eyebrow">Your design</div>' +
         '<h1 class="title">Your inspiration</h1>' +
-        '<p class="lede">Add a few photos: colours, shapes, lengths or sets you love. Optional, but it helps me get it right.</p>' +
+        '<p class="lede">Add up to 2 photos of a set you love, or paste an inspo link — this is how I know what to make.</p>' +
       '</div>' +
       '<input type="file" accept="image/*" multiple data-file style="display:none" />' +
       '<div class="field">' +
         '<div class="drop" data-drop><div class="drop__circle" style="color:var(--rose)">' + Icon.camera + '</div>' +
-          '<div class="drop__t" data-droptitle></div><div class="drop__s">Tap to upload from your camera roll</div></div>' +
+          '<div class="drop__t" data-droptitle></div><div class="drop__s">Tap to upload from your camera roll · up to 2</div></div>' +
         '<div class="thumbs" data-thumbs></div>' +
         '<div class="photohint" data-photohint></div>' +
       '</div>' +
-      '<div class="field"><label class="field__label">Additional notes or requests<span class="opt"> · optional</span></label>' +
-        '<textarea class="textarea" data-notes placeholder="e.g. love this design but in hot pink"></textarea></div>' +
+      '<div class="field"><label class="field__label" for="f-inspo">Or paste an inspo link<span class="opt"> · Pinterest, TikTok…</span></label>' +
+        '<input id="f-inspo" class="input" type="url" inputmode="url" data-inspo placeholder="https://pin.it/..." /></div>' +
+      '<div class="field"><label class="field__label" for="f-notes">Additional notes or requests<span class="opt"> · optional</span></label>' +
+        '<textarea id="f-notes" class="textarea" data-notes placeholder="e.g. love this design but in hot pink"></textarea></div>' +
       '<div class="subhead" style="margin-top:22px">Design tier</div>' +
       '<div class="tiers" data-tiers></div>' +
-      '<p class="microhint" style="margin:10px 2px 0">Not sure which? Pick your best guess. I\'ll confirm the final price with you before I start.</p>' +
       '<div style="height:8px"></div>';
 
     // notes
     var notesEl = scroll.querySelector('[data-notes]');
     notesEl.value = data.notes;
     notesEl.oninput = function () { data.notes = notesEl.value; persist(); };
+
+    // inspo link (an alternative to a photo — either one satisfies the gate)
+    var inspoEl = scroll.querySelector('[data-inspo]');
+    inspoEl.value = data.inspoLink;
+    inspoEl.oninput = function () { data.inspoLink = inspoEl.value; persist(); updateGate(); };
 
     // tiers
     var tiersWrap = scroll.querySelector('[data-tiers]');
@@ -1407,7 +1605,7 @@
       thumbs.innerHTML = '';
       photos.forEach(function (p) {
         var t = el('div', 'thumb');
-        t.innerHTML = '<img src="' + p.url + '" alt="inspiration" /><button class="thumb__x">' + Icon.x + '</button>';
+        t.innerHTML = '<img src="' + p.url + '" alt="inspiration" /><button type="button" class="thumb__x" aria-label="Remove photo">' + Icon.x + '</button>';
         t.querySelector('.thumb__x').onclick = function () {
           URL.revokeObjectURL(p.url);
           photos = photos.filter(function (x) { return x.id !== p.id; });
@@ -1415,6 +1613,7 @@
         };
         thumbs.appendChild(t);
       });
+      updateGate();
       if (!photos.length) { photoHint.textContent = ''; photoHint.className = 'photohint'; return; }
       var mb = (totalBytes() / (1024 * 1024)).toFixed(1);
       if (totalBytes() > TOTAL_LIMIT) {
@@ -1442,37 +1641,48 @@
         renderPhotos();
       });
     };
-    renderPhotos();
-
     app.appendChild(scroll);
 
+    // Inspo is required, but a photo OR a link satisfies it. Gray out Continue
+    // until one is present, with a line explaining why.
     var footer = el('div', 'footer');
-    footer.innerHTML = '<button class="btn" data-next>Continue' + Icon.arrow + '</button>';
-    footer.querySelector('[data-next]').onclick = function () { go(3); };
+    footer.innerHTML =
+      '<div class="footer__err" data-gatehint></div>' +
+      '<button class="btn" data-next>Continue' + Icon.arrow + '</button>';
+    var nextBtn = footer.querySelector('[data-next]');
+    var gateHint = footer.querySelector('[data-gatehint]');
+    function hasInspo() { return photos.length > 0 || data.inspoLink.trim() !== ''; }
+    function updateGate() {
+      var ok = hasInspo();
+      nextBtn.disabled = !ok;
+      gateHint.innerHTML = ok ? '' : '<div class="field__err">Add at least one photo or an inspo link to continue.</div>';
+    }
+    nextBtn.onclick = function () { if (hasInspo()) go(3); };
     app.appendChild(footer);
 
-    app.querySelector('[data-back]').onclick = function () { go(1); };
+    renderPhotos(); // paints thumbs + calls updateGate for the initial state
+
+    app.querySelector('[data-back]').onclick = function () { go(1.5); };
     return app;
   }
 
   // ── 3 · DETAILS ──
   function DetailsScreen() {
     var app = el('div', 'app step');
-    app.appendChild(topBar('Details', 3, 3));
+    app.appendChild(topBar('Details', 4, 4));
 
     var scroll = el('div', 'app__scroll pad');
     scroll.innerHTML =
       '<div class="sectionlead" style="padding:6px 0 2px">' +
         '<div class="eyebrow">Almost done</div>' +
         '<h1 class="title">Your details</h1>' +
-        '<p class="lede">I\'ll be in touch to confirm your design, a price and timing.</p>' +
       '</div>' +
-      '<div class="field"><label class="field__label">Your name</label>' +
-        '<input class="input" data-name placeholder="First &amp; last name" /><div data-name-err></div></div>' +
-      '<div class="field"><label class="field__label">Email</label>' +
-        '<input class="input" type="email" inputmode="email" data-email placeholder="you@email.com" /></div>' +
-      '<div class="field"><label class="field__label">Phone</label>' +
-        '<input class="input" type="tel" inputmode="tel" data-phone placeholder="(000) 000-0000" /><div data-contact-err></div></div>' +
+      '<div class="field"><label class="field__label" for="f-name">Your name</label>' +
+        '<input id="f-name" class="input" data-name placeholder="First &amp; last name" /><div data-name-err></div></div>' +
+      '<div class="field"><label class="field__label" for="f-email">Email</label>' +
+        '<input id="f-email" class="input" type="email" inputmode="email" data-email placeholder="you@email.com" /></div>' +
+      '<div class="field"><label class="field__label" for="f-phone">Phone</label>' +
+        '<input id="f-phone" class="input" type="tel" inputmode="tel" data-phone placeholder="(000) 000-0000" /><div data-contact-err></div></div>' +
       '<div class="field"><label class="field__label">Pickup or shipping?</label>' +
         '<div class="seg"><button data-ful="pickup">' + Icon.bag + ' Pickup</button><button data-ful="shipping">' + Icon.truck + ' Ship to me</button></div></div>' +
       '<div data-ship></div>' +
@@ -1491,26 +1701,33 @@
     var shipWrap = scroll.querySelector('[data-ship]');
     function paintSeg() {
       scroll.querySelectorAll('[data-ful]').forEach(function (b) {
-        b.classList.toggle('on', b.getAttribute('data-ful') === data.fulfillment);
+        var on = b.getAttribute('data-ful') === data.fulfillment;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
       });
     }
     function renderShip() {
       if (data.fulfillment !== 'shipping') { shipWrap.innerHTML = ''; return; }
       shipWrap.innerHTML =
         '<div class="reveal">' +
-          '<div class="field"><label class="field__label">Street address</label>' +
-            '<input class="input" data-addr1 placeholder="123 Main St" /><div data-addr1-err></div></div>' +
-          '<div class="field"><label class="field__label">Apt / suite<span class="opt"> · optional</span></label>' +
-            '<input class="input" data-addr2 placeholder="Apt 4B" /></div>' +
-          '<div class="field"><label class="field__label">City</label>' +
-            '<input class="input" data-city placeholder="City" /><div data-city-err></div></div>' +
-          '<div class="field"><label class="field__label">State</label>' +
-            '<input class="input" data-state placeholder="State" maxlength="40" /><div data-state-err></div></div>' +
-          '<div class="field"><label class="field__label">ZIP code</label>' +
-            '<input class="input" type="text" inputmode="numeric" data-zip placeholder="00000" maxlength="10" /><div data-zip-err></div></div>' +
+          '<div class="field"><label class="field__label" for="f-addr1">Street address</label>' +
+            '<input id="f-addr1" class="input" data-addr1 placeholder="123 Main St" /><div data-addr1-err></div></div>' +
+          '<div class="field"><label class="field__label" for="f-addr2">Apt / suite<span class="opt"> · optional</span></label>' +
+            '<input id="f-addr2" class="input" data-addr2 placeholder="Apt 4B" /></div>' +
+          '<div class="field"><label class="field__label" for="f-city">City</label>' +
+            '<input id="f-city" class="input" data-city placeholder="City" /><div data-city-err></div></div>' +
+          '<div class="field-2col">' +
+            '<div class="field"><label class="field__label" for="f-state">State</label>' +
+              '<input id="f-state" class="input" data-state placeholder="State" maxlength="40" /><div data-state-err></div></div>' +
+            '<div class="field"><label class="field__label" for="f-zip">ZIP code</label>' +
+              '<input id="f-zip" class="input" type="text" inputmode="numeric" data-zip placeholder="00000" maxlength="10" /><div data-zip-err></div></div>' +
+          '</div>' +
           '<div class="field"><label class="field__label">Shipping speed</label>' +
-            '<div class="seg"><button data-spd="standard">Standard</button><button data-spd="rush">Rush</button></div>' +
-            '<p class="microhint" data-spdhint style="margin:8px 2px 0"></p></div>' +
+            '<div class="seg seg--stack">' +
+              '<button data-spd="standard"><span class="seg__t">Standard</span><span class="seg__s">2–3 weeks</span></button>' +
+              '<button data-spd="rush"><span class="seg__t">Rush</span><span class="seg__s">~1 week · +' + money(RUSH_FEE) + '</span></button>' +
+            '</div>' +
+            '<p class="microhint" style="margin:8px 2px 0">Flat ' + money(SHIP_FEE) + ' shipping on every order.</p></div>' +
         '</div>';
       [['[data-addr1]','address1'],['[data-addr2]','address2'],['[data-city]','city'],['[data-state]','state'],['[data-zip]','zip']]
         .forEach(function (pair) {
@@ -1520,12 +1737,10 @@
         });
       function paintSpd() {
         shipWrap.querySelectorAll('[data-spd]').forEach(function (b) {
-          b.classList.toggle('on', b.getAttribute('data-spd') === data.shipSpeed);
+          var on = b.getAttribute('data-spd') === data.shipSpeed;
+          b.classList.toggle('on', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
         });
-        shipWrap.querySelector('[data-spdhint]').textContent =
-          data.shipSpeed === 'rush'
-            ? 'Rush: ready in about a week. + ' + money(RUSH_FEE) + ' rush · + ' + money(SHIP_FEE) + ' shipping.'
-            : 'Standard: ready in 2–3 weeks. + ' + money(SHIP_FEE) + ' shipping.';
       }
       shipWrap.querySelectorAll('[data-spd]').forEach(function (b) {
         b.onclick = function () { data.shipSpeed = b.getAttribute('data-spd'); persist(); paintSpd(); };
@@ -1541,7 +1756,7 @@
 
     var footer = el('div', 'footer');
     footer.innerHTML =
-      '<button class="btn" data-submit>Send my order 💖</button>' +
+      '<button class="btn" data-submit>Submit my order' + Icon.arrow + '</button>' +
       '<p class="btn__hint" data-hint>Your details stay private, used only for your order.</p>';
     var submitBtn = footer.querySelector('[data-submit]');
 
@@ -1622,12 +1837,12 @@
       '<div class="confirm">' +
         '<div class="thanks__seal" style="color:var(--rose)">' + Icon.check + '</div>' +
         '<h1 class="thanks__title">Order received</h1>' +
-        '<p class="lede" style="text-align:center;margin:13px auto 0;max-width:28ch">Thank you, ' + esc(firstName) + '. I\'ll confirm your design, price and timing at <strong style="color:var(--ink);font-weight:600">' + esc(contact) + '</strong>.</p>' +
+        '<p class="lede" style="text-align:center;margin:13px auto 0;max-width:30ch">Thank you, ' + esc(firstName) + ' — I\'ll confirm your design and reach out at <strong style="color:var(--ink);font-weight:600">' + esc(contact) + '</strong> if I have any questions.</p>' +
         '<div class="card recap">' +
           recapRow('Tier', tierName) +
           recapRow('Shape', data.shape || 'Noted in person') +
           recapRow('Sizes', sized + ' of 5 fingers set') +
-          recapRow('Inspiration', photos.length + ' photo' + (photos.length === 1 ? '' : 's') + ' shared') +
+          recapRow('Inspiration', inspoSummary()) +
           recapRow('Delivery', data.fulfillment === 'shipping' ? ('Ship · ' + (data.shipSpeed === 'rush' ? 'Rush' : 'Standard')) : 'Booth pickup') +
           recapRow('Set price', money(Number(selectedTier().price) || 0)) +
           (isShipping() ? recapRow('Shipping', '+ ' + money(SHIP_FEE)) : '') +
@@ -1637,10 +1852,8 @@
       '</div>' +
       '<div class="footer">' +
         '<button class="btn" data-pay>Continue to payment' + Icon.arrow + '</button>' +
-        '<button class="btn btn--soft" data-reset style="margin-top:2px">Start another order</button>' +
       '</div>';
     app.querySelector('[data-pay]').onclick = function () { go(6); };
-    app.querySelector('[data-reset]').onclick = resetOrder;
     return app;
   }
 
@@ -1658,7 +1871,7 @@
 
     var bar = el('div', 'topbar');
     bar.innerHTML =
-      '<div class="iconbtn" data-back style="color:var(--ink)">' + Icon.back + '</div>' +
+      '<button type="button" class="iconbtn" data-back aria-label="Go back" style="color:var(--ink)">' + Icon.back + '</button>' +
       '<div class="progress"><div class="progress__meta">Final step · Payment</div></div>';
     app.appendChild(bar);
 
@@ -1694,7 +1907,6 @@
         '<div class="paycode__label">Total due now</div>' +
         '<div class="paycode__amount">' + esc(money(total)) + '</div>' +
         '<div class="paycode__sub">' + esc(subline) + '</div>' +
-        '<div class="paycode__sub" style="margin-top:6px;opacity:.75">Your set begins once payment is received in full.</div>' +
         (code ?
           '<div class="paycode__div"></div>' +
           '<div class="paycode__codelabel">Add your order number to the note</div>' +
@@ -1705,13 +1917,14 @@
           '<p class="paycode__note">Your payment <b>must</b> include <b>' + esc(code) + '</b> so I can match it to your set.</p>'
           : '') +
       '</div>' +
+      '<div class="paynote">Your set is only started once payment is received <b>in full</b>. Please send the full amount above with your order number in the note.</div>' +
       (PAY_METHODS.length ?
         '<div class="paymethods">' + tiles + '</div>' :
-        '<p class="pay__empty">I\'ll send you my payment details along with your quote. Nothing to pay just yet 💕</p>');
+        '<p class="pay__empty">I\'ll send you my payment details along with your quote. Nothing to pay just yet.</p>');
     app.appendChild(body);
 
     var footer = el('div', 'footer');
-    footer.innerHTML = '<button class="btn btn--soft" data-reset>Start another order</button>';
+    footer.innerHTML = '<button class="btn btn--soft" data-reset>Done</button>';
     app.appendChild(footer);
 
     // Copy the order code chip
@@ -1778,6 +1991,13 @@
   function recapRow(k, v) {
     return '<div class="recap__row"><span class="recap__k">' + k + '</span><span class="recap__v">' + esc(v) + '</span></div>';
   }
+  // Reflect both photos and a pasted link in the confirmation recap.
+  function inspoSummary() {
+    var bits = [];
+    if (photos.length) bits.push(photos.length + ' photo' + (photos.length === 1 ? '' : 's'));
+    if (data.inspoLink.trim()) bits.push('link');
+    return bits.length ? bits.join(' + ') + ' shared' : 'To discuss';
+  }
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -1790,7 +2010,7 @@
 
     var bar = el('div', 'topbar');
     bar.innerHTML =
-      '<div class="iconbtn" data-back style="color:var(--ink)">' + Icon.back + '</div>' +
+      '<button type="button" class="iconbtn" data-back aria-label="Go back" style="color:var(--ink)">' + Icon.back + '</button>' +
       '<div class="progress"><div class="progress__meta">Inspiration</div></div>';
     app.appendChild(bar);
 
@@ -1838,7 +2058,7 @@
   function submitOrder(btn, hintEl) {
     sending = true;
     btn.disabled = true;
-    btn.textContent = 'Sending…';
+    btn.innerHTML = '<span class="btn__spin" aria-hidden="true"></span>Sending…';
 
     var tier = TIERS.filter(function (t) { return t.id === data.tier; })[0] || TIERS[0];
     var sizesStr = FINGERS.map(function (f) { return f + ' ' + (data.sizes[f] || '—'); }).join('  ·  ');
@@ -1876,6 +2096,7 @@
             (shipFee() ? ' + ' + money(SHIP_FEE) + ' ship' : '') +
             (rushFee() ? ' + ' + money(RUSH_FEE) + ' rush' : '') + ')'
           : ''));
+      if (data.inspoLink.trim()) fd.append('Inspo link', data.inspoLink.trim());
       fd.append('Notes', data.notes.trim() || '—');
 
       photos.forEach(function (p, i) { fd.append('Photo ' + (i + 1), p.blob, 'design-' + (i + 1) + '.jpg'); });
@@ -1911,8 +2132,8 @@
       sending = false;
       if (!r.db && !r.emailed) {
         btn.disabled = false;
-        btn.textContent = 'Send my order 💖';
-        hintEl.innerHTML = '<span style="color:var(--rose);font-weight:600">That didn\'t send — please check your connection and try again. 💕</span>';
+        btn.innerHTML = 'Submit my order' + Icon.arrow;
+        hintEl.innerHTML = '<span style="color:var(--rose);font-weight:600">That didn\'t send — please check your connection and try again.</span>';
         return;
       }
       go(4);
