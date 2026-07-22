@@ -1891,6 +1891,17 @@
     // thank-you if either one succeeds.
     saveOrderToSupabase().then(function (order) {
       lastOrder = order;
+      // Fire-and-forget the customer's "order received" confirmation. It's
+      // best-effort: never awaited, never blocks the thank-you, and a failure
+      // is silent to the customer (the business still gets its FormSubmit
+      // alert). The edge fn only sends the "new" template to this order's own
+      // email, so passing just the id is safe.
+      if (order && order.id) {
+        try {
+          sb.functions.invoke('send-order-confirmation', { body: { order_id: order.id } })
+            .catch(function () {});
+        } catch (e) { /* ignore — confirmation email is best-effort */ }
+      }
       return emailOrder(order.order_no).then(function (emailed) { return { db: true, emailed: emailed }; });
     }, function (e) {
       if (window.console) console.error('Supabase save failed:', e);

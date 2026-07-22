@@ -22,7 +22,8 @@ CDN `<script>` tag.
 | `vercel.json` | `cleanUrls: true` so `/admin` serves `admin.html` |
 | `supabase/migrations/*.sql` | Schema history (8 files) |
 | `supabase/functions/buy-shipping-label/` | Deno edge fn — buys the cheapest USPS label via Shippo |
-| `supabase/functions/send-order-email/` | Deno edge fn — sends customer status emails via Resend |
+| `supabase/functions/send-order-email/` | Deno edge fn — sends customer status emails via Resend (admin-only) |
+| `supabase/functions/send-order-confirmation/` | Deno edge fn — sends the customer's "order received" email on order creation (anon-callable, locked to the `new` template) |
 | `*.png`, `*.jpeg`, `favicon.*` | Static assets served from repo root |
 
 ## Run / build / deploy
@@ -66,7 +67,7 @@ The customer-facing business runs off a dedicated free Gmail — **`paigemaddenn
 - **Order alerts (customer → business):** `index.html` posts each new order to **FormSubmit**, activated and using its **hashed endpoint** (`formsubmit.co/0e620942…`) so the Gmail isn't exposed in page source. Alerts land in `paigemaddennails@gmail.com`.
 - **Customer emails (business → customer):** `admin.html` `notifyCustomer()` → the `send-order-email` edge fn → **Resend**. Sends from **`Paige Madden Nails <orders@paigemadden.app>`** with **reply-to `paigemaddennails@gmail.com`**. The `paigemadden.app` domain is **verified in Resend** (DKIM/SPF/MX auto-added to Vercel DNS). Resend account is under the Gmail.
 - **Shipping (Shippo):** account under the Gmail. `buy-shipping-label` edge fn is **deployed** and working; currently on a **TEST key** (labels print "SAMPLE – DO NOT MAIL"). Always buys the **cheapest (Standard/Ground Advantage) USPS rate** for every order — rush is a *production*-speed upsell, not a shipping upgrade. Return address = 540 Northshore Ct, Lake Orion, MI 48362.
-- **Edge functions live on Supabase** (deploy separately from Git): `buy-shipping-label`, `send-order-email`. Deploy via the Supabase MCP `deploy_edge_function` or `supabase functions deploy <name>`. The `ADMIN_EMAIL` gate inside **both** edge fns is `jeremy@idealtraits.com`.
+- **Edge functions live on Supabase** (deploy separately from Git): `buy-shipping-label`, `send-order-email`, `send-order-confirmation`. Deploy via the Supabase MCP `deploy_edge_function` or `supabase functions deploy <name>`. The `ADMIN_EMAIL` gate applies to `buy-shipping-label` + `send-order-email` (`jeremy@idealtraits.com`); `send-order-confirmation` is intentionally **anon-callable** but locked to sending only the `new` template to a given order's own on-file email.
 
 ## Config in the HTML (these are the load-bearing constants)
 
@@ -151,6 +152,8 @@ pricing, booth gallery). Confirmed S/M/L default nail sizes are recorded in Clau
 - Shipping labels working end-to-end (Shippo edge fn deployed; cheapest/Standard label for all).
 - Full-payment pricing with `$7` shipping + `$10` rush line items.
 - Customer status emails send via Resend from `orders@paigemadden.app` (domain verified).
+- Auto "order received" email to the customer on order creation (new `send-order-confirmation`
+  edge fn; `index.html` fires it fire-and-forget after the DB save).
 - Payment handles (Venmo/Zelle/Cash App/Apple Pay) set in admin → Settings.
 
 **Bugs / gaps:**
@@ -160,8 +163,6 @@ pricing, booth gallery). Confirmed S/M/L default nail sizes are recorded in Clau
   (e.g. free ImprovMX: add MX + SPF records to Vercel DNS). Not yet done.
 - **Deleting an order orphans its inspiration photos** — no storage cleanup / cascade;
   and there's no admin "delete photo" capability (needs a bucket delete policy).
-- **No auto "order received" email to the customer** — `notifyCustomer()` only fires on an
-  admin status *change*, so the `new` template is never sent on order creation.
 - **Shippo is on a TEST key** — swap to a live key (dashboard) before real shipments.
 - **Cash App handle** is still the placeholder `$cashtag`.
 - **Admin email hardcoded in 3 places** (`is_admin()`, `admin.html`, edge fns) — blocks multi-admin (P4).
