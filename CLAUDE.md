@@ -155,18 +155,18 @@ pricing, booth gallery). Confirmed S/M/L default nail sizes are recorded in Clau
 - Customer status emails send via Resend from `orders@paigemadden.app` (domain verified).
 - Auto "order received" email to the customer on order creation (new `send-order-confirmation`
   edge fn; `index.html` fires it fire-and-forget after the DB save).
+- Reply-to forwarding **live & verified**: replies to `orders@paigemadden.app` now route via
+  Resend Inbound → `forward-inbound-email` → the Gmail, Reply-To = the customer. Resend
+  Receiving enabled (apex MX `inbound-smtp.us-east-1.amazonaws.com`), webhook on `email.received`,
+  `RESEND_INBOUND_SECRET` set. Tested end-to-end (webhook 200, mail delivered).
 - Payment handles (Venmo/Zelle/Cash App/Apple Pay) set in admin → Settings.
 
 **Bugs / gaps:**
-- **Reply-to forwarding — code done, pending Resend config:** replies to the *From*
-  (`orders@paigemadden.app`) used to vanish (apex had no MX/inbox). Fix built via
-  **Resend Inbound → `forward-inbound-email` edge fn** (forwards to the Gmail, Reply-To =
-  the customer). To finish, the user must: enable Inbound on `paigemadden.app` in Resend,
-  add the apex MX record Resend shows to Vercel DNS, create a webhook →
-  `https://ggvjyzragfxbnsthpvso.supabase.co/functions/v1/forward-inbound-email` for the
-  `email.received` event, and set the `RESEND_INBOUND_SECRET` (whsec_…) edge-fn secret.
-  (v1 forwards body + Reply-To; attachment *content* isn't re-attached — filenames listed,
-  originals live in the Resend dashboard.)
+- **Inbound forwarding v1 doesn't re-attach files:** `forward-inbound-email` forwards the
+  message body + Reply-To, but attachment *content* isn't re-attached (the retrieve payload is
+  metadata only) — the forward lists filenames and points to the Resend dashboard for originals.
+  If customers routinely attach photos to replies, build attachment pass-through (fetch each via
+  the Attachments API, base64, include in the send).
 - **Deleting an order orphans its inspiration photos** — no storage cleanup / cascade;
   and there's no admin "delete photo" capability (needs a bucket delete policy).
 - **Shippo is on a TEST key** — swap to a live key (dashboard) before real shipments.
