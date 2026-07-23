@@ -443,6 +443,7 @@ var ALL_STATUSES = ['new','in_progress','ready_to_ship','ready_for_label','compl
 var state = {
   user: null, ready: false, loading: true,
   orders: [], tiers: [], shapes: [], payments: [], templates: [],
+  scheduled: [], optouts: [], settings: {},
   view: 'dashboard', filter: 'all', q: '',
   range: 30, sidebarOpen: false, notifOpen: false,
   drawerId: null, photos: {}
@@ -525,7 +526,10 @@ function loadAll(){
     sb.from('design_tiers').select('*'),
     sb.from('nail_shapes').select('*'),
     sb.from('payment_methods').select('*').order('sort'),
-    sb.from('notification_templates').select('*').order('sort')
+    sb.from('notification_templates').select('*').order('sort'),
+    sb.from('scheduled_sends').select('*').order('created_at',{ascending:false}),
+    sb.from('email_optouts').select('*').order('opted_out_at',{ascending:false}),
+    sb.from('app_settings').select('*')
   ]).then(function(res){
     if(res[0].error) throw res[0].error;
     state.orders    = res[0].data || [];
@@ -533,6 +537,10 @@ function loadAll(){
     state.shapes    = res[2].data || [];
     state.payments  = res[3].data || [];
     state.templates = res[4].data || [];
+    state.scheduled = (res[5] && res[5].data) || [];
+    state.optouts   = (res[6] && res[6].data) || [];
+    state.settings  = {};
+    ((res[7] && res[7].data) || []).forEach(function(r){ state.settings[r.key] = r.value; });
     state.loading = false;
     render();
   }).catch(function(e){
@@ -555,7 +563,17 @@ function subscribeRealtime(){
       var i = state.orders.findIndex(function(x){return x.id===p.new.id;});
       if(i>=0){ state.orders[i]=p.new; render(); }
     })
+    .on('postgres_changes', { event:'*', schema:'public', table:'scheduled_sends' }, function(){
+      refreshScheduled();
+    })
     .subscribe();
+}
+
+// Re-pull the send queue (cheap; low volume) after any change.
+function refreshScheduled(){
+  sb.from('scheduled_sends').select('*').order('created_at',{ascending:false}).then(function(r){
+    if(!r.error){ state.scheduled = r.data || []; if(state.view==='marketing') render(); }
+  });
 }
 
 /* ───────────────────────── derived ───────────────────────── */
@@ -859,10 +877,18 @@ function sampleOrderFor(status){
 function renderEmailHtml(tpl, order){
   order = order || {};
   var heading = esc(tpl.heading || '');
-  var bodyHtml = esc(tpl.body || '').replace(/\n/g, '<br>');
+  var bodyHtml = esc((tpl.body || '').replace(/\{\{\s*reorder_link\s*\}\}/g,'').trim()).replace(/\n/g, '<br>');
   var orderNo = order.order_no!=null ? 'Order PM-'+order.order_no : '';
   var name = esc(order.customer_name || 'there');
   var tracking = '';
+  // Re-engagement email carries a "Start a new order" CTA (the reorder link
+  // is added per-recipient by the send-reengagement edge function).
+  if(tpl.status==='re_engagement'){
+    tracking =
+      '<tr><td style="padding:8px 0 4px">'+
+        '<span style="display:inline-block;background:#B46869;color:#fff;font-weight:600;font-size:15px;padding:13px 26px;border-radius:999px;font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif">Start a new order</span>'+
+      '</td></tr>';
+  }
   if(tpl.status==='ready_for_label' && order.tracking_url){
     tracking =
       '<tr><td style="padding:8px 0 4px">'+
@@ -968,6 +994,162 @@ function refreshTemplatePreview(status){
     body: card.querySelector('[data-nt-body]').value
   };
   frame.srcdoc = renderEmailHtml(draft, sampleOrderFor(status));
+}
+
+/* ───────────────────────── marketing ───────────────────────── */
+// Send-queue status meta (distinct from order STATUS).
+var SEND_STATUS = {
+  pending:   { label:'Waiting',   color:'#8A7F87', bg:'#F0ECEF' },
+  scheduled: { label:'Scheduled', color:'#C98A12', bg:'#FBF1DC' },
+  sent:      { label:'Sent',      color:'#2BA05A', bg:'#E5F4EA' },
+  cancelled: { label:'Cancelled', color:'#8A7F87', bg:'#F0ECEF' },
+  failed:    { label:'Failed',    color:'#C9534A', bg:'#FBE9E7' }
+};
+function sendPill(s){ var m=SEND_STATUS[s]||{label:s,color:'#888',bg:'#eee'}; return '<span class="pill" style="background:'+m.bg+';color:'+m.color+'"><span class="pdot" style="background:'+m.color+'"></span>'+m.label+'</span>'; }
+function fmtDay(d){ if(!d) return '—'; return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+function isOptedOut(email){ email=String(email||'').toLowerCase(); return state.optouts.some(function(o){return String(o.email||'').toLowerCase()===email;}); }
+
+function viewMarketing(){
+  var enabled = String(state.settings.reengage_enabled) !== 'false';
+  var delay = state.settings.reengage_delay_days || '30';
+  var t = tplFor('re_engagement');
+  var tOn = t.enabled !== false;
+
+  // ---- reminder on/off + timing ----
+  var settingsPanel =
+    '<div class="panel" style="max-width:880px">'+
+      '<div class="panel-h"><div class="panel-t">Reminder emails'+
+        '<small>A gentle nudge to past customers to order again — their sizes are saved, so they just pick a new design. Turn the whole thing off here, or change how many days after an order is finished the reminder goes out.</small></div></div>'+
+      '<div class="panel-b"><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'+
+        '<button class="switch'+(enabled?' on':'')+'" data-reengage-toggle role="switch" aria-checked="'+(enabled?'true':'false')+'"><span class="switch-dot"></span></button>'+
+        '<span class="muted" style="font-size:14px">'+(enabled?'Reminders are on':'Reminders are off')+'</span>'+
+        '<span style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:14px">Send after <input class="input" data-reengage-delay value="'+esc(delay)+'" style="width:64px;text-align:center" inputmode="numeric"> days'+
+        '<button class="btn" data-reengage-save>Save</button></span>'+
+      '</div></div>'+
+    '</div>';
+
+  // ---- editable reminder template (reuses the notifications editor) ----
+  var tplPanel =
+    '<div class="panel" style="max-width:880px;margin-top:16px">'+
+      '<div class="panel-h"><div class="panel-t">Reminder message'+
+        '<small>Edit the wording, watch the live preview, and Save. A “Start a new order” button is added automatically.</small></div></div>'+
+      '<div class="panel-b"><div class="nt-list">'+
+        '<div class="nt-card'+(tOn?'':' off')+'" data-nt="re_engagement">'+
+          '<div class="nt-head">'+
+            '<span class="pill" style="background:#FBF1F0;color:#B46869"><span class="pdot" style="background:#B46869"></span>Reminder email</span>'+
+            '<button class="switch'+(tOn?' on':'')+'" data-nt-toggle="re_engagement" role="switch" aria-checked="'+(tOn?'true':'false')+'"><span class="switch-dot"></span></button>'+
+          '</div>'+
+          '<p class="nt-hint">Sent about '+esc(delay)+' days after an order is finished.</p>'+
+          '<div class="nt-grid">'+
+            '<div class="nt-edit">'+
+              '<label class="nt-lbl">Email subject</label>'+
+              '<input class="input" data-nt-subject value="'+esc(t.subject||'')+'" placeholder="Subject line">'+
+              '<label class="nt-lbl">Heading</label>'+
+              '<input class="input" data-nt-heading value="'+esc(t.heading||'')+'" placeholder="Big headline in the email">'+
+              '<label class="nt-lbl">Message</label>'+
+              '<textarea class="input nt-area" data-nt-body rows="5" placeholder="What the customer reads">'+esc(t.body||'')+'</textarea>'+
+              '<button class="btn" data-nt-save="re_engagement" style="margin-top:10px">Save</button>'+
+            '</div>'+
+            '<div class="nt-preview-wrap"><div class="nt-lbl">Live preview</div>'+
+              '<iframe class="nt-preview" data-nt-preview title="Email preview" sandbox="allow-same-origin"></iframe>'+
+            '</div>'+
+          '</div>'+
+        '</div>'+
+      '</div></div>'+
+    '</div>';
+
+  // ---- the scheduled-send queue ----
+  var q = state.scheduled;
+  var qRows = q.length ? q.map(function(s){
+    var o = state.orders.find(function(x){return x.id===s.order_id;}) || {};
+    var email = o.email || '';
+    var when = s.status==='sent' ? fmtDay(s.sent_at)
+             : s.scheduled_for ? fmtDay(s.scheduled_for)
+             : 'After the set is finished';
+    var acts = '';
+    if(s.status==='pending' || s.status==='scheduled') acts += '<button class="ico" data-cancel-send="'+s.id+'" title="Cancel this reminder">'+I.x+'</button>';
+    if(email && !isOptedOut(email)) acts += '<button class="ico" data-unsub="'+esc(email)+'" title="Unsubscribe this person">'+I.mail+'</button>';
+    return '<tr>'+
+      '<td data-label="Customer"><div class="cust">'+avatar(o.customer_name)+'<div><div class="cust-name">'+esc(o.customer_name||'—')+'</div><div class="muted" style="font-size:11.5px">'+esc(email||o.phone||'')+'</div></div></div></td>'+
+      '<td data-label="Order">'+(o.id?'<span class="oid" data-open="'+o.id+'" style="cursor:pointer">'+shortId(o)+'</span>':'—')+'</td>'+
+      '<td data-label="Finished" class="hide-sm muted">'+fmtDay(o.completed_at)+'</td>'+
+      '<td data-label="Reminder date">'+esc(when)+'</td>'+
+      '<td data-label="Status">'+sendPill(s.status)+'</td>'+
+      '<td class="col-act"><div class="row-actions">'+(acts||'<span class="muted">—</span>')+'</div></td>'+
+    '</tr>';
+  }).join('') : '<tr><td colspan="6"><div class="empty">'+I.inbox+'<div>No reminders queued yet. Each new order appears here.</div></div></td></tr>';
+
+  var queuePanel =
+    '<div class="panel" style="margin-top:16px">'+
+      '<div class="panel-h"><div class="panel-t">Scheduled reminders'+
+        '<small>One row per order. A reminder is scheduled once you mark the order finished. Cancel a single reminder, or unsubscribe a customer entirely.</small></div></div>'+
+      '<div class="panel-b"><div class="table-wrap"><table class="tbl"><thead><tr>'+
+        '<th>Customer</th><th>Order</th><th class="hide-sm">Finished</th><th>Reminder date</th><th>Status</th><th></th>'+
+      '</tr></thead><tbody>'+qRows+'</tbody></table></div></div>'+
+    '</div>';
+
+  // ---- opted-out list ----
+  var optPanel = '';
+  if(state.optouts.length){
+    var optRows = state.optouts.map(function(r){
+      return '<tr><td data-label="Email">'+esc(r.email)+'</td><td data-label="Since" class="hide-sm muted">'+fmtDay(r.opted_out_at)+'</td>'+
+        '<td class="col-act"><div class="row-actions"><button class="ico" data-resub="'+esc(r.email)+'" title="Resubscribe">'+I.check+'</button></div></td></tr>';
+    }).join('');
+    optPanel =
+      '<div class="panel" style="max-width:680px;margin-top:16px">'+
+        '<div class="panel-h"><div class="panel-t">Unsubscribed'+
+          '<small>These people won’t get reminder emails. Order updates still reach them. Resubscribe only if they’ve asked.</small></div></div>'+
+        '<div class="panel-b"><div class="table-wrap"><table class="tbl"><thead><tr><th>Email</th><th class="hide-sm">Since</th><th></th></tr></thead><tbody>'+optRows+'</tbody></table></div></div>'+
+      '</div>';
+  }
+
+  return '<div class="view">'+settingsPanel+tplPanel+queuePanel+optPanel+'</div>';
+}
+
+function cancelSend(id){
+  var i=state.scheduled.findIndex(function(x){return x.id===id;});
+  var prev=i>=0?Object.assign({},state.scheduled[i]):null;
+  if(i>=0){ state.scheduled[i]=Object.assign({},state.scheduled[i],{status:'cancelled'}); }
+  render();
+  sb.from('scheduled_sends').update({status:'cancelled'}).eq('id',id).then(function(r){
+    if(r.error){ if(prev){state.scheduled[i]=prev;} render(); toast('Couldn’t cancel', r.error.message,'err'); }
+    else toast('Reminder cancelled','','ok');
+  });
+}
+function unsubscribePerson(email){
+  email=String(email||'').trim(); if(!email) return;
+  if(isOptedOut(email)){ toast('Already unsubscribed','','ok'); return; }
+  sb.from('email_optouts').upsert({email:email.toLowerCase(), source:'admin'},{onConflict:'email'}).then(function(r){
+    if(r.error){ toast('Couldn’t unsubscribe', r.error.message,'err'); return; }
+    state.optouts.unshift({email:email.toLowerCase(), opted_out_at:new Date().toISOString(), source:'admin'});
+    toast('Unsubscribed', email,'ok'); render();
+  });
+}
+function resubscribe(email){
+  email=String(email||'').toLowerCase();
+  sb.from('email_optouts').delete().eq('email',email).then(function(r){
+    if(r.error){ toast('Couldn’t update', r.error.message,'err'); return; }
+    state.optouts=state.optouts.filter(function(o){return String(o.email||'').toLowerCase()!==email;});
+    toast('Resubscribed', email,'ok'); render();
+  });
+}
+function saveReengageSettings(btn){
+  var scope = document.querySelector('[data-reengage-toggle]');
+  var enabled = scope ? scope.classList.contains('on') : true;
+  var di = document.querySelector('[data-reengage-delay]');
+  var delay = String(parseInt((di&&di.value)||'30',10) || 30);
+  btn.disabled=true; var orig=btn.textContent; btn.innerHTML='<span class="spin"></span>';
+  Promise.all([
+    sb.from('app_settings').update({value:delay}).eq('key','reengage_delay_days'),
+    sb.from('app_settings').update({value:enabled?'true':'false'}).eq('key','reengage_enabled')
+  ]).then(function(rs){
+    btn.disabled=false; btn.textContent=orig;
+    var err=rs.filter(function(r){return r.error;})[0];
+    if(err){ toast('Couldn’t save', err.error.message,'err'); return; }
+    state.settings.reengage_delay_days=delay;
+    state.settings.reengage_enabled=enabled?'true':'false';
+    toast('Reminder settings saved','','ok'); render();
+  });
 }
 
 /* ───────────────────────── drawer ───────────────────────── */
@@ -1223,6 +1405,7 @@ function render(){
     {k:'dashboard', label:'Dashboard', icon:I.grid},
     {k:'orders', label:'Orders', icon:I.cart, count:c.all},
     {k:'customers', label:'Customers', icon:I.users},
+    {k:'marketing', label:'Marketing', icon:I.spark},
     {k:'settings', label:'Settings', icon:I.cog}
   ];
   var navHtml = nav.map(function(n){
@@ -1230,12 +1413,13 @@ function render(){
       (n.count?'<span class="nav-count">'+n.count+'</span>':'')+'</button>';
   }).join('');
 
-  var titles = { dashboard:['Dashboard','Your studio at a glance'], orders:['Orders','Manage every custom request'], customers:['Customers',''], settings:['Settings',''] };
+  var titles = { dashboard:['Dashboard','Your studio at a glance'], orders:['Orders','Manage every custom request'], customers:['Customers',''], marketing:['Marketing','Reminder emails & repeat customers'], settings:['Settings',''] };
   var t = titles[state.view]||['',''];
 
   var content = state.view==='dashboard'?viewDashboard()
     : state.view==='orders'?viewOrders()
     : state.view==='customers'?viewSimple('Customers','Every order is grouped by customer here in a future update. For now, open any order to see full contact details and reach out by email or phone.')
+    : state.view==='marketing'?viewMarketing()
     : viewSettings();
 
   $('#root').innerHTML =
@@ -1286,6 +1470,11 @@ function wire(){
     card.querySelectorAll('[data-nt-heading],[data-nt-body]').forEach(function(inp){ inp.oninput=function(){ refreshTemplatePreview(s); }; });
     refreshTemplatePreview(s); // paint the initial preview
   });
+  document.querySelectorAll('[data-cancel-send]').forEach(function(b){ b.onclick=function(){ cancelSend(b.getAttribute('data-cancel-send')); }; });
+  document.querySelectorAll('[data-unsub]').forEach(function(b){ b.onclick=function(){ unsubscribePerson(b.getAttribute('data-unsub')); }; });
+  document.querySelectorAll('[data-resub]').forEach(function(b){ b.onclick=function(){ resubscribe(b.getAttribute('data-resub')); }; });
+  document.querySelectorAll('[data-reengage-toggle]').forEach(function(b){ b.onclick=function(){ var on=!b.classList.contains('on'); b.classList.toggle('on',on); b.setAttribute('aria-checked',on?'true':'false'); }; });
+  document.querySelectorAll('[data-reengage-save]').forEach(function(b){ b.onclick=function(){ saveReengageSettings(b); }; });
 
   var bell=$('#bell'); if(bell) bell.onclick=function(e){ e.stopPropagation(); state.notifOpen=!state.notifOpen; renderNotif(); };
   var burger=$('#burger'); if(burger) burger.onclick=function(e){ e.stopPropagation(); state.sidebarOpen=!state.sidebarOpen; var s=$('#sidebar'); if(s)s.classList.toggle('open',state.sidebarOpen); };

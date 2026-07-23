@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Start a new order · Paige Madden Nails</title>
+<link rel="icon" href="/favicon.svg">
+<link href="https://fonts.googleapis.com/css2?family=Pinyon+Script&family=Cormorant+Garamond:wght@600;700&family=Hanken+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{ --rose:#B46869; --ink:#5F463F; --muted:#8C6A60; }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+    background:linear-gradient(160deg,#F2ECE6 0%,#E7DDD4 100%);
+    font-family:'Hanken Grotesk',Helvetica,Arial,sans-serif;color:var(--ink);}
+  .card{background:#FFFDFB;border-radius:24px;box-shadow:0 18px 48px rgba(95,70,63,.16);
+    max-width:420px;width:100%;padding:38px 34px;text-align:center;}
+  .mark{font-family:'Pinyon Script',cursive;color:var(--rose);font-size:38px;line-height:1}
+  .sub{font-size:11px;letter-spacing:4px;text-transform:uppercase;color:var(--muted);margin-top:2px}
+  h1{font-family:'Cormorant Garamond',Georgia,serif;font-weight:700;font-size:26px;margin:22px 0 6px}
+  p{color:var(--muted);font-size:15px;line-height:1.6;margin:0 auto;max-width:30ch}
+  .spin{width:26px;height:26px;border:3px solid #EEE3DA;border-top-color:var(--rose);border-radius:50%;
+    margin:22px auto 0;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .btn{display:inline-block;margin-top:22px;background:var(--rose);color:#fff;text-decoration:none;
+    font-weight:600;font-size:15px;padding:13px 28px;border-radius:999px}
+  .hide{display:none}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="mark">Paige Madden</div>
+    <div class="sub">Nails</div>
+    <div id="loading">
+      <h1>Welcome back 💕</h1>
+      <p>Pulling up your details so you can start a fresh set…</p>
+      <div class="spin"></div>
+    </div>
+    <div id="fail" class="hide">
+      <h1>Let's start fresh</h1>
+      <p>We couldn't find that saved order, but you can begin a brand-new one anytime.</p>
+      <a class="btn" href="/">Start an order</a>
+    </div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  var SUPABASE_URL = 'https://ggvjyzragfxbnsthpvso.supabase.co';
+  var SUPABASE_KEY = 'sb_publishable_cwjdd7fSLlGqA7o8qLdLRA_qdk7xKhh';
+  var STORAGE_KEY = 'pmn-order-v1';
+
+  function fail(){
+    document.getElementById('loading').classList.add('hide');
+    document.getElementById('fail').classList.remove('hide');
+  }
+
+  var token = new URLSearchParams(location.search).get('t');
+  if (!token || !window.supabase) { fail(); return; }
+
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  sb.rpc('get_order_by_token', { p_token: token }).then(function(res){
+    var o = res && res.data && (Array.isArray(res.data) ? res.data[0] : res.data);
+    if (res.error || !o) { fail(); return; }
+
+    // Pre-fill the STABLE fields (the tedious bits); leave the design blank so
+    // the customer picks something new. Field names match index.html blankData().
+    var data = {
+      shape:       o.nail_shape || '',
+      sizes:       o.sizes || {},
+      name:        o.customer_name || '',
+      email:       o.email || '',
+      phone:       o.phone || '',
+      fulfillment: o.fulfillment || 'pickup',
+      address1:    o.address_line1 || '',
+      address2:    o.address_line2 || '',
+      city:        o.city || '',
+      state:       o.region || '',
+      zip:         o.postal_code || ''
+      // tier, notes, inspoLink intentionally left at defaults/blank → fresh design
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: 2, data: data }));
+    } catch (e) { /* if storage is blocked, the wizard just starts clean */ }
+    location.replace('/');
+  }).catch(fail);
+})();
+</script>
+</body>
+</html>

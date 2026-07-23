@@ -47,14 +47,24 @@ function esc(s: unknown): string {
 // The "new" template never carries tracking, so the tracking branch that
 // exists in admin is intentionally omitted here — keep the two shells in
 // visual sync if either is restyled.
+const SITE_URL = "https://paigemadden.app";
+
 function renderEmailHtml(
   tpl: { heading?: string; body?: string },
-  order: { order_no?: number | null; customer_name?: string | null },
+  order: { order_no?: number | null; customer_name?: string | null; public_token?: string | null },
 ): string {
   const heading = esc(tpl.heading || "");
   const bodyHtml = esc(tpl.body || "").replace(/\n/g, "<br>");
   const orderNo = order.order_no != null ? "Order PM-" + order.order_no : "";
   const name = esc(order.customer_name || "there");
+  // A permanent, login-free link to view this order and start a new one
+  // later with saved sizes/details pre-filled (design blank).
+  const reorderBtn = order.public_token
+    ? '<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:20px"><tr><td>' +
+        '<a href="' + SITE_URL + '/reorder?t=' + esc(order.public_token) + '" style="display:inline-block;background:#B46869;color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:13px 26px;border-radius:999px;font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif">View your order</a>' +
+      '</td></tr>' +
+      '<tr><td style="padding:8px 0 0;color:#8C6A60;font-size:12.5px;font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif">Keep this link — you can reorder anytime and we\'ll remember your sizes.</td></tr></table>'
+    : "";
   return '<!doctype html><html><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<link href="https://fonts.googleapis.com/css2?family=Pinyon+Script&family=Cormorant+Garamond:wght@600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">' +
@@ -71,6 +81,7 @@ function renderEmailHtml(
           '<h1 style="font-family:\'Cormorant Garamond\',Georgia,serif;font-weight:700;color:#5F463F;font-size:30px;line-height:1.2;margin:16px 0 4px">' + heading + '</h1>' +
           '<p style="font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif;color:#8C6A60;font-size:15.5px;line-height:1.65;margin:10px 0 0">Hi ' + name + ',</p>' +
           '<p style="font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif;color:#8C6A60;font-size:15.5px;line-height:1.65;margin:8px 0 0">' + bodyHtml + '</p>' +
+          reorderBtn +
         '</td></tr>' +
         '<tr><td style="padding:14px 38px 30px">' +
           '<p style="font-family:\'Cormorant Garamond\',Georgia,serif;color:#B46869;font-size:21px;margin:8px 0 0">With love, Paige 💕</p>' +
@@ -102,7 +113,7 @@ Deno.serve(async (req) => {
 
   const { data: order, error: orderErr } = await admin
     .from("orders")
-    .select("id, order_no, customer_name, email")
+    .select("id, order_no, customer_name, email, public_token")
     .eq("id", orderId)
     .maybeSingle();
   if (orderErr) return json({ error: "Could not load the order." }, 500);
