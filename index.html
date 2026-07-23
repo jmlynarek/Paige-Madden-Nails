@@ -345,6 +345,12 @@
   .tier__name { font-size: 16px; font-weight: 700; color: var(--ink); }
   .tier__price { font-size: 16px; font-weight: 700; color: var(--rose); }
   .tier__desc { display: block; font-size: 13px; line-height: 1.4; color: var(--ink-soft); margin-top: 4px; }
+  /* Compact 2-up tiers for the no-scroll design step */
+  .tiers--tight { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tiers--tight .tier { padding: 12px 14px; align-items: center; }
+  .tiers--tight .tier__radio { display: none; }
+  .tiers--tight .tier__top { flex-direction: column; align-items: flex-start; gap: 1px; }
+  .tiers--tight .tier__desc { display: none; }
 
   /* ── Sizing rows ── */
   .hand { margin: 16px 22px 0; padding: 6px 18px 8px; }
@@ -502,6 +508,10 @@
   }
   .drop__t { font-weight: 600; font-size: 15.5px; color: var(--ink); }
   .drop__s { font-size: 13px; color: var(--ink-soft); margin-top: 4px; line-height: 1.4; }
+  /* Compact drop for the no-scroll design step */
+  .drop--sm { padding: 13px 16px; display: flex; align-items: center; gap: 13px; text-align: left; }
+  .drop--sm .drop__circle { width: 40px; height: 40px; margin: 0; flex-shrink: 0; }
+  .drop--sm .drop__s { margin-top: 2px; }
   .thumbs {
     margin-top: 14px;
     display: grid;
@@ -753,7 +763,14 @@
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
-  .confirm .recap { margin-top: 18px; }
+  .confirm .recap { margin-top: 14px; }
+  /* Compact the confirmation so it fits without scrolling */
+  .confirm { padding-top: calc(var(--safe-top) + 22px); }
+  .confirm .thanks__seal { width: 60px; height: 60px; }
+  .confirm .thanks__seal svg { width: 30px; height: 30px; }
+  .confirm .thanks__title { font-size: 27px; margin-top: 10px; }
+  .confirm .lede { margin-top: 8px !important; font-size: 14.5px; }
+  .confirm .recap__row { padding: 8px 2px; font-size: 14px; }
 
   /* ── Payment (page 2 of 2) ── */
   .pay {
@@ -1281,6 +1298,7 @@
       return {
         step: typeof parsed.step === 'number' ? parsed.step : 0,
         data: Object.assign(blankData(), parsed.data || {}),
+        lastOrder: parsed.lastOrder || null,
       };
     } catch (e) { return { step: 0, data: blankData() }; }
   }
@@ -1291,7 +1309,7 @@
   var photos = [];                // { id, url, blob, name } — not persisted
   var showErr = false;
   var sending = false;
-  var lastOrder = null;           // { id, order_no } from the most recent submit
+  var lastOrder = init.lastOrder || null;  // { id, order_no }; persisted so the PM-### code survives a reload on the payment screen
 
   function orderLabel(no) { return 'PM-' + no; }
 
@@ -1325,7 +1343,7 @@
   }
 
   function persist() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: step, data: data })); }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: step, data: data, lastOrder: lastOrder })); }
     catch (e) {}
   }
   function go(n) { step = n; showErr = false; render(); }
@@ -1401,7 +1419,6 @@
       '<div class="sectionlead pad">' +
         '<div class="eyebrow">Find your fit</div>' +
         '<h1 class="title">Your shape</h1>' +
-        '<p class="lede">Tap the shape you want — I\'ll take you straight to sizing.</p>' +
       '</div>' +
       '<div class="pad"><div class="shapes" data-shapes></div></div>' +
       '<div style="height:14px"></div>';
@@ -1431,7 +1448,6 @@
       '<div class="sectionlead pad">' +
         '<div class="eyebrow">Find your fit</div>' +
         '<h1 class="title">Your sizes</h1>' +
-        '<p class="lede">Tap Small, Medium or Large — then fine-tune any finger with the buttons.</p>' +
       '</div>' +
       '<div class="pad"><div class="sizechips" data-chips></div></div>' +
       '<div class="hand card">' +
@@ -1518,9 +1534,14 @@
       rows.appendChild(row);
     });
 
-    // keep the highlighted chip honest if sizes were restored from storage
-    if (!data.sizePreset) data.sizePreset = matchPreset();
-    paint();
+    // Default to Medium so the set arrives pre-filled; only when nothing is set
+    // yet (don't clobber a customer who already picked/adjusted sizes).
+    if (!FINGERS.some(isSet)) {
+      applyPreset('Medium');
+    } else {
+      if (!data.sizePreset) data.sizePreset = matchPreset();
+      paint();
+    }
 
     app.appendChild(scroll);
 
@@ -1549,25 +1570,24 @@
 
     var scroll = el('div', 'app__scroll pad');
     scroll.innerHTML =
-      '<div class="sectionlead" style="padding:6px 0 2px">' +
+      '<div class="sectionlead" style="padding:4px 0 2px">' +
         '<div class="eyebrow">Your design</div>' +
         '<h1 class="title">Your inspiration</h1>' +
-        '<p class="lede">Add up to 2 photos of a set you love, or paste an inspo link — this is how I know what to make.</p>' +
       '</div>' +
       '<input type="file" accept="image/*" multiple data-file style="display:none" />' +
-      '<div class="field">' +
-        '<div class="drop" data-drop><div class="drop__circle" style="color:var(--rose)">' + Icon.camera + '</div>' +
-          '<div class="drop__t" data-droptitle></div><div class="drop__s">Tap to upload from your camera roll · up to 2</div></div>' +
+      '<div class="field" style="margin-top:12px">' +
+        '<div class="drop drop--sm" data-drop><div class="drop__circle" style="color:var(--rose)">' + Icon.camera + '</div>' +
+          '<div><div class="drop__t" data-droptitle></div><div class="drop__s">Add up to 2 — or paste a link below</div></div></div>' +
         '<div class="thumbs" data-thumbs></div>' +
         '<div class="photohint" data-photohint></div>' +
       '</div>' +
-      '<div class="field"><label class="field__label" for="f-inspo">Or paste an inspo link<span class="opt"> · Pinterest, TikTok…</span></label>' +
+      '<div class="field" style="margin-top:12px"><label class="field__label" for="f-inspo">Or paste an inspo link<span class="opt"> · Pinterest, TikTok…</span></label>' +
         '<input id="f-inspo" class="input" type="url" inputmode="url" data-inspo placeholder="https://pin.it/..." /></div>' +
-      '<div class="field"><label class="field__label" for="f-notes">Additional notes or requests<span class="opt"> · optional</span></label>' +
-        '<textarea id="f-notes" class="textarea" data-notes placeholder="e.g. love this design but in hot pink"></textarea></div>' +
-      '<div class="subhead" style="margin-top:22px">Design tier</div>' +
-      '<div class="tiers" data-tiers></div>' +
-      '<div style="height:8px"></div>';
+      '<div class="subhead" style="margin-top:16px">Design tier</div>' +
+      '<div class="tiers tiers--tight" data-tiers></div>' +
+      '<div class="field" style="margin-top:14px"><label class="field__label" for="f-notes">Notes or requests<span class="opt"> · optional</span></label>' +
+        '<textarea id="f-notes" class="textarea textarea--sm" data-notes placeholder="e.g. love this design but in hot pink"></textarea></div>' +
+      '<div style="height:6px"></div>';
 
     // notes
     var notesEl = scroll.querySelector('[data-notes]');
@@ -1837,7 +1857,7 @@
       '<div class="confirm">' +
         '<div class="thanks__seal" style="color:var(--rose)">' + Icon.check + '</div>' +
         '<h1 class="thanks__title">Order received</h1>' +
-        '<p class="lede" style="text-align:center;margin:13px auto 0;max-width:30ch">Thank you, ' + esc(firstName) + ' — I\'ll confirm your design and reach out at <strong style="color:var(--ink);font-weight:600">' + esc(contact) + '</strong> if I have any questions.</p>' +
+        '<p class="lede" style="text-align:center;margin:13px auto 0;max-width:30ch">Thanks, ' + esc(firstName) + '! I\'ll confirm your design and reach out at <strong style="color:var(--ink);font-weight:600">' + esc(contact) + '</strong>.</p>' +
         '<div class="card recap">' +
           recapRow('Tier', tierName) +
           recapRow('Shape', data.shape || 'Noted in person') +
