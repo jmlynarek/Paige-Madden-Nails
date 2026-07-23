@@ -424,21 +424,20 @@ var I = {
 var STATUS = {
   new:            { label:'New',             color:'#3B7DD8', bg:'#EAF1FC' },
   in_progress:    { label:'In Progress',     color:'#7C5CDA', bg:'#EDEAFB' },
-  ready_to_ship:  { label:'Ready to Ship',   color:'#0E9E8E', bg:'#E1F4F1' },
-  ready_for_label:{ label:'Ready for Label', color:'#C98A12', bg:'#FBF1DC' },
+  ready:          { label:'Ready',           color:'#0E9E8E', bg:'#E1F4F1' },
   completed:      { label:'Completed',       color:'#2BA05A', bg:'#E5F4EA' },
   cancelled:      { label:'Cancelled',       color:'#C9534A', bg:'#FBE9E7' }
 };
-// Status flow branches on fulfillment: shipping orders end at the
-// label step; pickup orders end at completed.
+// One unified flow for every order — pickup and shipping alike:
+// New → In Progress → Ready → Completed. "Ready" means the set is finished
+// (pickup: ready to grab; shipping: ready to ship — buy the label in the
+// drawer); "Completed" means handed off (picked up / shipped).
 function flowFor(o){
-  return o && o.fulfillment === 'shipping'
-    ? ['new','in_progress','ready_to_ship','ready_for_label']
-    : ['new','in_progress','completed'];
+  return ['new','in_progress','ready','completed'];
 }
 // Full ordered status set (drives tabs, the pipeline chart, and the
-// editable notification templates). Each one carries a customer email.
-var ALL_STATUSES = ['new','in_progress','ready_to_ship','ready_for_label','completed','cancelled'];
+// editable notification templates). Each one can carry a customer email.
+var ALL_STATUSES = ['new','in_progress','ready','completed','cancelled'];
 
 /* ───────────────────────── state ───────────────────────── */
 var state = {
@@ -649,7 +648,7 @@ function donut(parts, total){
 function viewDashboard(){
   var c = counts();
   var revenue = state.orders.filter(function(o){return o.status==='completed';}).reduce(function(s,o){return s+orderValue(o);},0);
-  var pipeline = state.orders.filter(function(o){return ['new','in_progress','ready_to_ship','ready_for_label'].indexOf(o.status)>=0;}).reduce(function(s,o){return s+orderValue(o);},0);
+  var pipeline = state.orders.filter(function(o){return ['new','in_progress','ready'].indexOf(o.status)>=0;}).reduce(function(s,o){return s+orderValue(o);},0);
   var avg = c.completed ? revenue/c.completed : 0;
   // last 7d vs prior 7d order count trend
   var now=Date.now(), d7=7*864e5;
@@ -663,7 +662,7 @@ function viewDashboard(){
   };
   var kpis = '<div class="kpis">'+
     kpi(I.cash,'#E5F4EA','#2BA05A','Revenue (completed)', money(revenue), c.completed+' completed order'+(c.completed===1?'':'s'))+
-    kpi(I.spark,'#FBF1DC','#C98A12','Open pipeline', money(pipeline), (c.new+c.in_progress+c.ready_to_ship+c.ready_for_label)+' active')+
+    kpi(I.spark,'#FBF1DC','#C98A12','Open pipeline', money(pipeline), (c.new+c.in_progress+c.ready)+' active')+
     kpi(I.cart,'#EAF1FC','#3B7DD8','Total orders', c.all, '<span class="trend '+(tr>=0?'up':'down')+'">'+(tr>=0?'▲':'▼')+' '+Math.abs(tr)+'%</span> last 7 days')+
     kpi(I.bell,'#FBE9EA','#B46869','Needs attention', c.new, c.new?'New order'+(c.new===1?'':'s')+' to review':'All caught up ✨')+
   '</div>';
@@ -888,11 +887,10 @@ function savePayment(id, btn){
 // A short hint shown under each template card in Settings.
 var NT_HINT = {
   new:             'Sent the moment an order comes in.',
-  in_progress:     'Sent when you start painting the set.',
-  ready_to_ship:   'Sent when a shipping order is finished and packed.',
-  ready_for_label: 'Sent when a shipping order is on its way (includes tracking if available).',
-  completed:       'Sent when a pickup order is ready, or any order is marked done.',
-  cancelled:       'Sent if you cancel an order.'
+  in_progress:     'Sent when you start painting the set. Off by default.',
+  ready:           'Sent to pickup customers when their set is ready to grab. Delivery orders skip this.',
+  completed:       'Sent when an order is done — pickup: a thank-you; delivery: shipped, with the tracking link.',
+  cancelled:       'Not sent automatically — use “Send cancellation email” on the order when you cancel.'
 };
 
 function tplFor(status){
@@ -902,9 +900,11 @@ function tplFor(status){
 
 // A representative order so the preview shows a realistic email.
 function sampleOrderFor(status){
+  // 'completed' previews the delivery variant so the tracking button shows;
+  // everything else previews as a pickup order.
   var o = { customer_name:'Ava Bennett', order_no:491, tier_price:120,
-    fulfillment: status==='ready_for_label'||status==='ready_to_ship' ? 'shipping' : 'pickup' };
-  if(status==='ready_for_label'){ o.tracking_number='9400 1000 0000 0000 0000 00'; o.tracking_url='https://tools.usps.com/go/TrackConfirmAction'; }
+    fulfillment: status==='completed' ? 'shipping' : 'pickup' };
+  if(status==='completed'){ o.tracking_number='9400 1000 0000 0000 0000 00'; o.tracking_url='https://tools.usps.com/go/TrackConfirmAction'; }
   return o;
 }
 
@@ -927,7 +927,7 @@ function renderEmailHtml(tpl, order){
         '<span style="display:inline-block;background:#B46869;color:#fff;font-weight:600;font-size:15px;padding:13px 26px;border-radius:999px;font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif">Start a new order</span>'+
       '</td></tr>';
   }
-  if(tpl.status==='ready_for_label' && order.tracking_url){
+  if(tpl.status==='completed' && order.tracking_url){
     tracking =
       '<tr><td style="padding:8px 0 4px">'+
         '<a href="'+esc(order.tracking_url)+'" style="display:inline-block;background:#B46869;color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:13px 26px;border-radius:999px;font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif">Track your package</a>'+
@@ -970,6 +970,9 @@ function notifyCustomer(order, status){
   var tpl = tplFor(status);
   if(!tpl || tpl.enabled===false) return;        // template turned off → don't notify
   if(!order || !order.email) return;             // no email on file → nothing to send
+  // Delivery orders skip the "Ready" email — it's Paige's internal cue to buy
+  // the label; the customer hears from us at Completed (shipped + tracking).
+  if(status==='ready' && order.fulfillment==='shipping') return;
   var html = renderEmailHtml(tpl, order);
   // Send via the send-order-email edge function (keeps the API key server-side).
   // Fire-and-report: never blocks the status change; surfaces failures as a toast.
@@ -1449,7 +1452,7 @@ function renderDrawer(){
   var sections = [];
   sections.push({ id:'sec-status', icon:I.flag, label:'Status', open:true, sub:statusPill(o.status), html:
     '<div class="stepper">'+steps+'</div>'+
-    (o.status==='cancelled'?'<div style="margin-top:10px">'+statusPill('cancelled')+' <button class="btn-ghost" data-status="new" style="width:auto;display:inline;padding:0 6px;font-size:12.5px">Reopen</button></div>':
+    (o.status==='cancelled'?'<div style="margin-top:10px;display:flex;flex-wrap:wrap;align-items:center;gap:8px">'+statusPill('cancelled')+' <button class="btn-ghost" data-status="new" style="width:auto;display:inline;padding:0 6px;font-size:12.5px">Reopen</button><button class="btn-ghost" data-cancel-email="'+id+'" style="width:auto;display:inline;padding:0 6px;font-size:12.5px">Send cancellation email</button></div>':
       '<div style="margin-top:10px;text-align:right"><button class="btn-ghost" data-status="cancelled" style="width:auto;display:inline;padding:4px 6px;font-size:12.5px;color:#C9534A">Cancel order</button></div>') });
   if(isShip){
     sections.push({ id:'sec-ship', icon:I.pin, label:'Shipping', open:false, sub:shipAddrSub, html:shipAddrHtml });
@@ -1518,6 +1521,7 @@ function renderDrawer(){
   });
   host.querySelectorAll('[data-close]').forEach(function(b){ b.onclick = closeDrawer; });
   host.querySelectorAll('[data-status]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); setStatus(id, b.getAttribute('data-status')); }; });
+  host.querySelectorAll('[data-cancel-email]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); sendCancelEmail(b.getAttribute('data-cancel-email')); }; });
   host.querySelectorAll('[data-del]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); delOrder(b.getAttribute('data-del')); }; });
   var buyBtn = $('#buyLabel');
   if(buyBtn){ buyBtn.onclick = function(){ buyLabel(id); }; }
@@ -1571,12 +1575,23 @@ function updateOrder(id, patch, okMsg){
 function setStatus(id, status){
   var patch = { status: status };
   var o = state.orders.find(function(x){return x.id===id;});
-  // Both endpoints (pickup → completed, shipping → ready_for_label) are
-  // "finished" — lock in the tier price as the quote if none was set.
-  if((status==='completed' || status==='ready_for_label') && o && o.quoted_price==null){ patch.quoted_price = o.tier_price; }
+  var changed = !o || o.status!==status;
+  // Completed is the single finish line (pickup: picked up; shipping: shipped) —
+  // lock in the tier price as the quote if none was set.
+  if(status==='completed' && o && o.quoted_price==null){ patch.quoted_price = o.tier_price; }
   updateOrder(id, patch, 'Moved to '+(STATUS[status]?STATUS[status].label:status));
-  // Tell the customer about the new status (no-op until sending is wired).
-  if(o) notifyCustomer(Object.assign({}, o, patch), status);
+  // Email the customer about the new status. Cancellation is sent manually
+  // (see sendCancelEmail); skip re-sends when the status didn't change (dedupe).
+  if(o && changed && status!=='cancelled') notifyCustomer(Object.assign({}, o, patch), status);
+}
+// Manually send the cancellation email (never auto-fired — Paige sends it
+// deliberately, alongside issuing the refund).
+function sendCancelEmail(id){
+  var o = state.orders.find(function(x){return x.id===id;});
+  if(!o) return;
+  if(!o.email){ toast('No email on file', 'This order has no email address.', 'err'); return; }
+  if(!confirm('Send the cancellation email to '+o.email+'?')) return;
+  notifyCustomer(o, 'cancelled');
 }
 function markSeen(ids){
   ids.forEach(function(id){ var i=state.orders.findIndex(function(x){return x.id===id;}); if(i>=0)state.orders[i].admin_seen=true; });

@@ -998,6 +998,7 @@
         '<input class="rb-inp rb-name" data-name placeholder="First & last name *" autocomplete="name" />' +
         '<input class="rb-inp rb-phone" data-phone placeholder="Phone *" inputmode="numeric" autocomplete="tel-national" maxlength="12" />' +
       '</div>' +
+      '<input class="rb-inp" data-email type="email" placeholder="Email *" autocomplete="email" inputmode="email" style="margin-top:8px" />' +
       '<div class="rb-seg">' +
         '<button type="button" data-ful="pickup">Pickup · free</button>' +
         '<button type="button" data-ful="shipping">Ship to me · ' + money(SHIP_FEE) + '</button>' +
@@ -1019,13 +1020,15 @@
 
     var nameEl = card.querySelector('[data-name]');
     var phoneEl = card.querySelector('[data-phone]');
+    var emailEl = card.querySelector('[data-email]');
     var addrWrap = card.querySelector('[data-addr]');
     var sumEl = card.querySelector('[data-sum]');
     var giftEl = card.querySelector('[data-gift]');
     var giftMsg = card.querySelector('[data-gift-msg]');
 
-    nameEl.value = data.name; phoneEl.value = data.phone; giftEl.value = data.giftCode || '';
+    nameEl.value = data.name; phoneEl.value = data.phone; emailEl.value = data.email; giftEl.value = data.giftCode || '';
     nameEl.oninput = function () { data.name = nameEl.value; persist(); paintFooter(); };
+    emailEl.oninput = function () { data.email = emailEl.value; persist(); paintFooter(); };
     phoneEl.oninput = function () {
       var d = phoneEl.value.replace(/\D/g, '').slice(0, 10);
       var v = d;
@@ -1158,14 +1161,15 @@
     }
     // section 4
     var digits = data.phone.replace(/\D/g, '');
-    var ok = !!data.name.trim() && digits.length === 10 &&
+    var emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim());
+    var ok = !!data.name.trim() && emailOk && digits.length === 10 &&
       (!isShipping() || (data.address1.trim() && data.city.trim() && data.state.trim() && data.zip.trim()));
     var due = amountDue();
     return {
       label: sending ? 'Sending…' : (due > 0 ? 'Submit & pay ' + money(due) : 'Submit my order'),
       enabled: ok && !sending,
       spin: sending,
-      hint: ok ? 'Your set starts once payment lands' : 'Name + phone is all Paige needs',
+      hint: ok ? 'Your set starts once payment lands' : 'Name, email + phone is all Paige needs',
       go: function () {
         if (sending) return;
         if (photos.length && photos.reduce(function (s, p) { return s + p.blob.size; }, 0) > TOTAL_LIMIT) {
