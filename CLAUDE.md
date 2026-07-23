@@ -187,6 +187,16 @@ desktop **brand-rail** two-pane (now a centered ~480px column). **Preserved & ve
 field in the delivery card), DB-driven tiers/shapes/**payment methods**, phone auto-format,
 `lastOrder` persistence.
 
+**Post-launch fixes (2026-07-23):** (1) Inspo upload — the drop zone had no drag-and-drop and only
+the tiny "+ Add" tile was clickable (broke desktop upload); the **whole zone** is now clickable +
+a real drag-and-drop target. (2) Photo upload is now **best-effort**: it runs after `create_order`
+has already committed the row, so a storage failure used to reject the save and blank the PM-###
+code on the payment screen — now the order + code always show (photos also go out via FormSubmit).
+(3) **`create_order` fee regression fixed** — the gift-cards rewrite of the function had dropped the
+`ship_fee`/`rush_fee` computation, so orders since stored `$0` fees and admin under-counted; restored
+via migration `create_order_restore_fee_line_items` (`$7` shipping / `$10` rush). **When editing
+`create_order`, keep the fee `case` expressions in the INSERT.**
+
 **Prior step-wizard overhaul (2026-07-23, now REPLACED by the above):** Welcome → **Shape**
 (auto-advance) → **Size** (S/M/L presets + steppers) → **Design** (photo-OR-link, 2-up tiers) →
 **Details** → **Turnaround** (3.5) → Confirmation → Payment, using fractional step keys. The
