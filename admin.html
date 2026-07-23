@@ -568,7 +568,12 @@ function subscribeRealtime(){
     .on('postgres_changes', { event:'*', schema:'public', table:'scheduled_sends' }, function(){
       refreshScheduled();
     })
-    .on('postgres_changes', { event:'*', schema:'public', table:'gift_cards' }, function(){
+    .on('postgres_changes', { event:'*', schema:'public', table:'gift_cards' }, function(p){
+      // Live nudge when a customer buys a gift online (a new 'pending' card).
+      if(p.eventType==='INSERT' && p.new && p.new.status==='pending'){
+        var g=p.new, total=Number(g.amount||0)+Number(g.ship_fee||0);
+        toast('New gift purchase — '+(g.purchase_ref||''), money(total)+' · awaiting payment', 'ok');
+      }
       refreshGiftCards();
     })
     .subscribe();
@@ -898,8 +903,38 @@ function tplFor(status){
     || { status:status, subject:'', heading:'', body:'', enabled:true };
 }
 
+// A notification-template editor card (subject/heading/body + live preview).
+// Wiring (save/toggle/preview) is generic on [data-nt]; see bindEvents.
+function ntEditorCard(status, pillLabel, hint){
+  var t = tplFor(status); var on = t.enabled !== false;
+  return '<div class="nt-card'+(on?'':' off')+'" data-nt="'+status+'">'+
+    '<div class="nt-head">'+
+      '<span class="pill" style="background:#FBF1F0;color:#B46869"><span class="pdot" style="background:#B46869"></span>'+esc(pillLabel)+'</span>'+
+      '<button class="switch'+(on?' on':'')+'" data-nt-toggle="'+status+'" role="switch" aria-checked="'+(on?'true':'false')+'"><span class="switch-dot"></span></button>'+
+    '</div>'+
+    '<p class="nt-hint">'+hint+'</p>'+
+    '<div class="nt-grid">'+
+      '<div class="nt-edit">'+
+        '<label class="nt-lbl">Email subject</label>'+
+        '<input class="input" data-nt-subject value="'+esc(t.subject||'')+'" placeholder="Subject line">'+
+        '<label class="nt-lbl">Heading</label>'+
+        '<input class="input" data-nt-heading value="'+esc(t.heading||'')+'" placeholder="Big headline in the email">'+
+        '<label class="nt-lbl">Message</label>'+
+        '<textarea class="input nt-area" data-nt-body rows="5" placeholder="What they read">'+esc(t.body||'')+'</textarea>'+
+        '<button class="btn" data-nt-save="'+status+'" style="margin-top:10px">Save</button>'+
+      '</div>'+
+      '<div class="nt-preview-wrap"><div class="nt-lbl">Live preview</div>'+
+        '<iframe class="nt-preview" data-nt-preview title="Email preview" sandbox="allow-same-origin"></iframe>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
 // A representative order so the preview shows a realistic email.
 function sampleOrderFor(status){
+  // Gift templates preview with sample gift fields so {{code}}/{{from}}/etc. fill in.
+  if(status==='gift_recipient') return { customer_name:'Jamie', gift_amount:50, gift_code:'ABC123', gift_from:'Alex', gift_recipient:'Jamie', gift_message:'Happy birthday — treat yourself! 🤍' };
+  if(status==='gift_buyer_receipt') return { customer_name:'Alex', gift_amount:50, gift_recipient:'Jamie' };
   // 'completed' previews the delivery variant so the tracking button shows;
   // everything else previews as a pickup order.
   var o = { customer_name:'Ava Bennett', order_no:491, tier_price:120,
@@ -914,7 +949,16 @@ function renderEmailHtml(tpl, order){
   order = order || {};
   var heading = esc(tpl.heading || '');
   var amtStr = order.gift_amount!=null ? money(order.gift_amount) : '$50';
-  var bodyRaw = (tpl.body || '').replace(/\{\{\s*reorder_link\s*\}\}/g,'').replace(/\{\{\s*amount\s*\}\}/g, amtStr).trim();
+  // Gift-email placeholders ({{code}} only ever lands in the recipient email).
+  var bodyRaw = (tpl.body || '')
+    .replace(/\{\{\s*reorder_link\s*\}\}/g,'')
+    .replace(/\{\{\s*amount\s*\}\}/g, amtStr)
+    .replace(/\{\{\s*code\s*\}\}/g, order.gift_code || '')
+    .replace(/\{\{\s*from\s*\}\}/g, order.gift_from || 'Someone')
+    .replace(/\{\{\s*recipient\s*\}\}/g, order.gift_recipient || 'them')
+    .replace(/\{\{\s*message\s*\}\}/g, order.gift_message || '')
+    .replace(/\n{3,}/g, '\n\n')   // collapse gaps left by an empty {{message}}
+    .trim();
   var bodyHtml = esc(bodyRaw).replace(/\n/g, '<br>');
   var orderNo = order.order_no!=null ? 'Order PM-'+order.order_no : '';
   var name = esc(order.customer_name || 'there');
@@ -958,7 +1002,11 @@ function renderEmailHtml(tpl, order){
         '<tr><td style="padding:14px 38px 30px">'+
           '<p style="font-family:\'Cormorant Garamond\',Georgia,serif;color:#B46869;font-size:21px;margin:8px 0 0">With love, Paige 💕</p>'+
           '<hr style="border:none;border-top:1px solid #EEE3DA;margin:22px 0 14px">'+
-          '<p style="font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif;color:#B8A79E;font-size:11.5px;line-height:1.55;margin:0">You\'re receiving this because you placed an order with Paige Madden Nails.</p>'+
+          '<p style="font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif;color:#B8A79E;font-size:11.5px;line-height:1.55;margin:0">'+
+            (tpl.status==='gift_recipient' ? 'You\'re receiving this because someone sent you a Paige Madden Nails gift.'
+             : (tpl.status==='gift_buyer_receipt'||tpl.status==='gift_card') ? 'You\'re receiving this because you bought a Paige Madden Nails gift card.'
+             : 'You\'re receiving this because you placed an order with Paige Madden Nails.')+
+          '</p>'+
         '</td></tr>'+
       '</table>'+
     '</td></tr></table>'+
@@ -1052,18 +1100,67 @@ function isOptedOut(email){ email=String(email||'').toLowerCase(); return state.
 
 /* ───────────────────────── gift cards ───────────────────────── */
 var GC_STATUS = {
+  pending:  { label:'Pending payment', color:'#C98A12', bg:'#FBF1DC' },
   active:   { label:'Active',   color:'#0E7E5B', bg:'#E4F5EC' },
   redeemed: { label:'Redeemed', color:'#8C6A60', bg:'#F3EAE4' },
   void:     { label:'Void',     color:'#B03A3A', bg:'#F9E7E7' }
 };
 function gcPill(s){ var m=GC_STATUS[s]||{label:s,color:'#888',bg:'#eee'}; return '<span class="pill" style="background:'+m.bg+';color:'+m.color+'"><span class="pdot" style="background:'+m.color+'"></span>'+m.label+'</span>'; }
 
+function giftAddr(c){
+  return [c.ship_line1, c.ship_line2, [c.ship_city, c.ship_region, c.ship_postal].filter(Boolean).join(', ')]
+    .filter(Boolean).join(', ');
+}
+
 function viewGiftCards(){
   var cards = state.giftCards || [];
   var active = cards.filter(function(c){return c.status==='active';});
   var activeVal = active.reduce(function(s,c){return s+Number(c.amount||0);},0);
+  var pending = cards.filter(function(c){return c.status==='pending';});
   var t = tplFor('gift_card');
   var tOn = t.enabled !== false;
+
+  // ---- pending online purchases (awaiting offline payment) ----
+  var pendRows = pending.map(function(c){
+    var total = Number(c.amount||0) + Number(c.ship_fee||0);
+    var isCard = c.delivery_method==='card';
+    var deliv = isCard ? 'Mail a physical card' : 'Email the recipient';
+    var to = isCard
+      ? esc(c.recipient_name||'—')+' · '+esc(giftAddr(c)||'no address on file')
+      : esc(c.recipient_name||'—')+' · '+esc(c.recipient_email||'no email');
+    return '<div style="border:1px solid #F0E4C9;background:#FFFDF7;border-radius:12px;padding:14px 16px;margin-bottom:10px">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'+
+        '<div><span class="oid" style="letter-spacing:1px">'+esc(c.purchase_ref||'—')+'</span> '+gcPill('pending')+'</div>'+
+        '<div class="money">'+money(total)+' <span class="muted" style="font-weight:400">to collect</span></div>'+
+      '</div>'+
+      '<div class="muted" style="margin-top:7px;font-size:13px">'+money(c.amount)+' gift'+
+        (Number(c.ship_fee)?' + '+money(c.ship_fee)+' shipping':'')+' · '+esc(deliv)+'</div>'+
+      '<div style="margin-top:4px;font-size:13px"><b>To:</b> '+to+'</div>'+
+      '<div style="margin-top:2px;font-size:13px"><b>From:</b> '+esc(c.buyer_name||'—')+' · '+esc(c.buyer_email||'—')+'</div>'+
+      (c.gift_message ? '<div style="margin-top:2px;font-size:13px"><b>Message:</b> '+esc(c.gift_message)+'</div>' : '')+
+      '<div style="margin-top:11px;display:flex;gap:8px;flex-wrap:wrap">'+
+        '<button class="btn" data-gc-issue="'+c.id+'" style="width:auto;padding:0 20px">Issue &amp; send →</button>'+
+        '<button class="btn btn-ghost danger" data-gc-void="'+c.id+'" style="width:auto;padding:0 16px">Void</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  var pendingPanel = pending.length ?
+    '<div class="panel" style="max-width:880px;border:1.5px solid #F0D9B0">'+
+      '<div class="panel-h"><div class="panel-t">Pending gift purchases · '+pending.length+
+        '<small>Bought online, awaiting payment. Confirm the money landed (the <b>ref</b> is in the payment note), then <b>Issue &amp; send</b> — that releases the code and emails it out (or shows it to write on the card). The buyer gets a receipt either way.</small></div></div>'+
+      '<div class="panel-b">'+pendRows+'</div>'+
+    '</div>' : '';
+
+  // ---- online gift emails (sent at Issue & send) ----
+  var giftEmailsPanel =
+    '<div class="panel" style="max-width:880px;margin-top:16px">'+
+      '<div class="panel-h"><div class="panel-t">Online gift emails'+
+        '<small>Sent when you Issue &amp; send a pending purchase. The <b>recipient</b> email is the only one that carries the code — placeholders: <b>{{amount}}</b>, <b>{{code}}</b>, <b>{{from}}</b>, <b>{{recipient}}</b>, <b>{{message}}</b>.</small></div></div>'+
+      '<div class="panel-b"><div class="nt-list">'+
+        ntEditorCard('gift_recipient', 'Recipient gift', 'Sent to the recipient with their code when you issue an emailed gift.')+
+        ntEditorCard('gift_buyer_receipt', 'Buyer receipt', 'Sent to the buyer confirming their gift went out (never contains the code).')+
+      '</div></div>'+
+    '</div>';
 
   // ---- generate a code (the booth flow) ----
   var genPanel =
@@ -1114,8 +1211,9 @@ function viewGiftCards(){
       '</div></div>'+
     '</div>';
 
-  // ---- the card ledger ----
-  var rows = cards.length ? cards.map(function(c){
+  // ---- the card ledger (issued/booth cards; pending live in their own panel) ----
+  var ledgerCards = cards.filter(function(c){return c.status!=='pending';});
+  var rows = ledgerCards.length ? ledgerCards.map(function(c){
     var ord = c.redeemed_order_id ? state.orders.find(function(o){return o.id===c.redeemed_order_id;}) : null;
     var acts = c.status==='active'
       ? '<button class="ico" data-gc-redeem="'+c.id+'" title="Mark redeemed (used in person)">'+I.check+'</button>'+
@@ -1144,7 +1242,7 @@ function viewGiftCards(){
       '</tr></thead><tbody>'+rows+'</tbody></table></div></div>'+
     '</div>';
 
-  return '<div class="view">'+genPanel+tplPanel+ledgerPanel+'</div>';
+  return '<div class="view">'+pendingPanel+genPanel+ledgerPanel+tplPanel+giftEmailsPanel+'</div>';
 }
 
 // Generate a code (admin RPC), then email the buyer a receipt (no code).
@@ -1196,9 +1294,59 @@ function voidGiftCard(id){
   var i=state.giftCards.findIndex(function(x){return x.id===id;});
   var prev=i>=0?Object.assign({},state.giftCards[i]):null;
   if(i>=0){ state.giftCards[i]=Object.assign({},state.giftCards[i],{status:'void'}); render(); }
-  sb.from('gift_cards').update({status:'void'}).eq('id',id).eq('status','active').then(function(r){
+  // Void either an active booth card or a pending online purchase that never paid.
+  sb.from('gift_cards').update({status:'void'}).eq('id',id).in('status',['active','pending']).then(function(r){
     if(r.error){ if(prev&&i>=0){state.giftCards[i]=prev;} render(); toast('Couldn’t void', r.error.message,'err'); return; }
     toast('Gift card voided','','ok');
+  });
+}
+
+// Release a pending online purchase once payment is confirmed: flip pending→active
+// (guarded → one-shot), reveal the redeemable code, email the recipient (email
+// delivery only) and always send the buyer a receipt. The code lives only on the
+// returned row — never exposed to the public site.
+function issueGiftCard(id){
+  var i=state.giftCards.findIndex(function(x){return x.id===id;});
+  if(i<0) return;
+  var card=state.giftCards[i];
+  var total=Number(card.amount||0)+Number(card.ship_fee||0);
+  var isCard=card.delivery_method==='card';
+  if(!confirm('Confirm you received '+money(total)+' for '+(card.purchase_ref||'this gift')+'?\n\nThis releases the code'+(isCard?' to write on the card':' and emails it to the recipient')+' and sends the buyer a receipt.')) return;
+  var ts=new Date().toISOString();
+  sb.from('gift_cards').update({status:'active', issued_at:ts}).eq('id',id).eq('status','pending').select().then(function(r){
+    if(r.error){ toast('Couldn’t issue', r.error.message,'err'); return; }
+    if(!r.data || !r.data.length){ toast('Already issued','That purchase was already issued or voided.','err'); refreshGiftCards(); return; }
+    var full=r.data[0];   // includes the redeemable code
+    state.giftCards[i]=full; render();
+    toast('Gift issued', (full.purchase_ref||'')+' · '+money(full.amount),'ok');
+
+    // Recipient email (email delivery only) — the one email that carries the code.
+    if(!isCard && full.recipient_email){
+      var rt=tplFor('gift_recipient');
+      if(rt && rt.enabled!==false){
+        var ro={ customer_name:full.recipient_name||'there', email:full.recipient_email,
+          gift_amount:full.amount, gift_code:full.code, gift_from:full.buyer_name||'A friend',
+          gift_recipient:full.recipient_name||'you', gift_message:full.gift_message||'' };
+        sb.functions.invoke('send-order-email',{ body:{ to:full.recipient_email, subject:rt.subject, html:renderEmailHtml(rt, ro) } })
+          .then(function(rr){ if(rr.error){ toast('Recipient email failed', rr.error.message||'','err'); } else { toast('Sent to recipient','→ '+full.recipient_email,'ok'); } })
+          .catch(function(e){ toast('Recipient email failed', String((e&&e.message)||e),'err'); });
+      }
+    }
+    // Physical card: surface the code + mailing address for Paige to write & post.
+    if(isCard){
+      alert('Write this code on the card:\n\n    '+full.code+'\n\nMail to:\n'+(full.recipient_name||'')+'\n'+(giftAddr(full)||'(no address on file)'));
+    }
+    // Buyer receipt — always, never contains the code.
+    if(full.buyer_email){
+      var bt=tplFor('gift_buyer_receipt');
+      if(bt && bt.enabled!==false){
+        var bo={ customer_name:full.buyer_name||'there', email:full.buyer_email,
+          gift_amount:full.amount, gift_recipient:full.recipient_name||'your recipient' };
+        sb.functions.invoke('send-order-email',{ body:{ to:full.buyer_email, subject:bt.subject, html:renderEmailHtml(bt, bo) } })
+          .then(function(rr){ if(rr.error){ toast('Buyer receipt failed', rr.error.message||'','err'); } else { toast('Receipt sent to buyer','→ '+full.buyer_email,'ok'); } })
+          .catch(function(e){ toast('Buyer receipt failed', String((e&&e.message)||e),'err'); });
+      }
+    }
   });
 }
 
@@ -1707,6 +1855,7 @@ function wire(){
   document.querySelectorAll('[data-reengage-toggle]').forEach(function(b){ b.onclick=function(){ var on=!b.classList.contains('on'); b.classList.toggle('on',on); b.setAttribute('aria-checked',on?'true':'false'); }; });
   document.querySelectorAll('[data-reengage-save]').forEach(function(b){ b.onclick=function(){ saveReengageSettings(b); }; });
   document.querySelectorAll('[data-gc-generate]').forEach(function(b){ b.onclick=function(){ generateGiftCard(b); }; });
+  document.querySelectorAll('[data-gc-issue]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); issueGiftCard(b.getAttribute('data-gc-issue')); }; });
   document.querySelectorAll('[data-gc-redeem]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); redeemGiftCard(b.getAttribute('data-gc-redeem')); }; });
   document.querySelectorAll('[data-gc-void]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); voidGiftCard(b.getAttribute('data-gc-void')); }; });
 

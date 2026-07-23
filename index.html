@@ -140,6 +140,24 @@
     transition: background .15s ease, transform .1s ease;
   }
   .rb-social:active { transform: scale(0.97); }
+  /* Secondary "Send a gift" entry under the primary welcome CTA */
+  .rb-welcome__gift {
+    display: block; width: 100%; margin-top: 12px; box-sizing: border-box;
+    background: none; border: 1px solid var(--rose-30); border-radius: 99px;
+    height: 48px; font-family: var(--sans); font-size: 15px; font-weight: 600;
+    color: var(--rose); cursor: pointer; transition: background .15s ease, transform .1s ease;
+  }
+  .rb-welcome__gift:active { transform: scale(0.99); background: rgba(180,104,105,0.06); }
+
+  /* ── Gift-purchase amount chips (Send a gift flow) ── */
+  .rb-amts { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 12px; }
+  .rb-amt {
+    flex: 1 1 calc(33.33% - 6px); min-width: 74px; border: 1px solid var(--line); background: #fff;
+    border-radius: 13px; padding: 12px 0; text-align: center; cursor: pointer; font-family: var(--sans);
+    font-size: 16px; font-weight: 700; color: var(--ink); transition: border-color .15s ease, background .15s ease;
+  }
+  .rb-amt.on { border: 1.5px solid var(--rose); background: #FBF1F0; color: var(--rose); }
+  .rb-giftlbl { font-size: 12.5px; font-weight: 600; color: var(--ink); margin: 16px 0 0; }
 
   /* ════════════ MAIN — header ════════════ */
   .rb-head {
@@ -355,6 +373,12 @@
   .rb-opt.on .rb-opt__t { color: var(--rose); }
   .rb-opt__s { font-size: 11.5px; color: rgba(95,70,63,0.6); margin-top: 2px; }
   .rb-gift { margin-top: 13px; }
+  .rb-gift__toggle {
+    background: none; border: 0; padding: 0;
+    font-family: var(--sans); font-size: 12.5px; font-weight: 600;
+    color: var(--rose); text-decoration: underline; cursor: pointer;
+  }
+  .rb-gift__body { margin-top: 9px; }
   .rb-gift__label { font-size: 12.5px; font-weight: 600; color: var(--ink); margin-bottom: 7px; }
   .rb-gift__label .opt { font-weight: 500; color: var(--ink-soft); }
   .rb-gift__row { display: flex; gap: 8px; }
@@ -545,6 +569,15 @@
       active: 1, sizeConfirmed: false, designDone: false, simpleColors: false,
     };
   }
+  // Gift-purchase flow state (kept separate from `data` so create_order is untouched).
+  function blankGift() {
+    return {
+      amount: 50, method: 'email',
+      buyerName: '', buyerEmail: '',
+      recipName: '', recipEmail: '', message: '',
+      ship1: '', ship2: '', city: '', state: 'MI', zip: '',
+    };
+  }
   function loadState() {
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
@@ -554,16 +587,21 @@
         step: parsed.step || 'welcome',
         data: Object.assign(blankData(), parsed.data || {}),
         lastOrder: parsed.lastOrder || null,
+        gift: Object.assign(blankGift(), parsed.gift || {}),
+        lastGift: parsed.lastGift || null,
       };
     } catch (e) { return { step: 'welcome', data: blankData() }; }
   }
 
   var init = loadState();
-  var step = init.step;      // 'welcome' | 'main' | 'submitted'
+  var step = init.step;      // 'welcome' | 'main' | 'submitted' | 'gift' | 'giftdone'
   var data = init.data;
   var photos = [];           // { id, url, blob } — not persisted
   var sending = false;
   var lastOrder = init.lastOrder || null;  // { id, order_no }
+  var giftData = init.gift || blankGift();
+  var lastGift = init.lastGift || null;    // { gift_ref, amount, ship_fee, method }
+  var sendingGift = false;
 
   function orderLabel(no) { return 'PM-' + no; }
   function syncTier() { data.tier = data.simpleColors ? 'classic' : 'custom'; }
@@ -581,9 +619,13 @@
   function hasPhoto() { return photos.length > 0; }
 
   function persist() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: step, data: data, lastOrder: lastOrder })); }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: step, data: data, lastOrder: lastOrder, gift: giftData, lastGift: lastGift })); }
     catch (e) {}
   }
+  // Gift money math ($7 physical shipping mirrors SHIP_FEE; email ships nothing).
+  function giftFace() { return Number(giftData.amount) || 0; }
+  function giftShip() { return giftData.method === 'card' ? SHIP_FEE : 0; }
+  function giftTotal() { return giftFace() + giftShip(); }
 
   // ── Icons ──
   var Icon = {
@@ -619,6 +661,8 @@
     root.innerHTML = '';
     if (step === 'welcome') root.appendChild(WelcomeScreen());
     else if (step === 'submitted') root.appendChild(SubmittedScreen());
+    else if (step === 'gift') root.appendChild(GiftScreen());
+    else if (step === 'giftdone') root.appendChild(GiftDoneScreen());
     else root.appendChild(MainScreen());
   }
 
@@ -638,11 +682,14 @@
         '</div>' +
         '<div class="rb-welcome__foot">' +
           '<button class="btn" data-start>Start my custom order →</button>' +
-          '<div class="rb-subhint">Takes about a minute · pay at the end</div>' +
+          '<button class="rb-welcome__gift" type="button" data-gift>🎁 Send a gift</button>' +
         '</div>' +
       '</div>';
     app.querySelector('[data-start]').onclick = function () {
       step = 'main'; if (!data.active) data.active = 1; render();
+    };
+    app.querySelector('[data-gift]').onclick = function () {
+      step = 'gift'; render();
     };
     return app;
   }
@@ -1009,12 +1056,14 @@
         '<button class="rb-opt" type="button" data-speed="rush"><div class="rb-opt__t">Rush</div><div class="rb-opt__s">~1 week · + ' + money(RUSH_FEE) + '</div></button>' +
       '</div>' +
       '<div class="rb-gift">' +
-        '<div class="rb-gift__label">Have a gift code?<span class="opt"> · optional</span></div>' +
-        '<div class="rb-gift__row">' +
-          '<input class="rb-inp" data-gift placeholder="Enter code" autocapitalize="characters" autocomplete="off" style="flex:1;text-transform:uppercase" />' +
-          '<button class="rb-gift__apply" type="button" data-gift-apply>Apply</button>' +
+        '<button type="button" class="rb-gift__toggle" data-gift-toggle>Have a gift code?</button>' +
+        '<div class="rb-gift__body" data-gift-body hidden>' +
+          '<div class="rb-gift__row">' +
+            '<input class="rb-inp" data-gift placeholder="Enter code" autocapitalize="characters" autocomplete="off" style="flex:1;text-transform:uppercase" />' +
+            '<button class="rb-gift__apply" type="button" data-gift-apply>Apply</button>' +
+          '</div>' +
+          '<div class="rb-gift__msg" data-gift-msg></div>' +
         '</div>' +
-        '<div class="rb-gift__msg" data-gift-msg></div>' +
       '</div>' +
       '<div class="rb-sum" data-sum></div>';
 
@@ -1025,6 +1074,8 @@
     var sumEl = card.querySelector('[data-sum]');
     var giftEl = card.querySelector('[data-gift]');
     var giftMsg = card.querySelector('[data-gift-msg]');
+    var giftBody = card.querySelector('[data-gift-body]');
+    var giftToggle = card.querySelector('[data-gift-toggle]');
 
     nameEl.value = data.name; phoneEl.value = data.phone; emailEl.value = data.email; giftEl.value = data.giftCode || '';
     nameEl.oninput = function () { data.name = nameEl.value; persist(); paintFooter(); };
@@ -1099,6 +1150,8 @@
         };
       } else giftMsg.innerHTML = '';
     }
+    function revealGift() { giftBody.hidden = false; giftToggle.style.display = 'none'; giftEl.focus(); }
+    giftToggle.onclick = revealGift;
     giftEl.oninput = function () { giftEl.value = giftEl.value.toUpperCase(); };
     card.querySelector('[data-gift-apply]').onclick = function () {
       var codeRaw = (giftEl.value || '').trim().toUpperCase();
@@ -1118,6 +1171,7 @@
     };
 
     paintSeg(); paintTurn(); renderAddr(); paintSum(sumEl); paintGiftMsg();
+    if (data.giftCredit > 0 || data.giftCode) { giftBody.hidden = false; giftToggle.style.display = 'none'; }
     return card;
   }
 
@@ -1197,22 +1251,7 @@
     var paidInFull = total === 0 && giftCredit() > 0;
     var amountParam = total ? String(total) : '';
 
-    var tiles = PAY_METHODS.map(function (m) {
-      var brand = PAY_BRAND[m.id];
-      var raw = m.handle.trim();
-      var clean = raw.replace(brand.strip, '');
-      var display = brand.prefix + clean;
-      var logo = PayLogo[m.id] || '';
-      if (brand.mode === 'link') {
-        var href = brand.url(clean, code || '', amountParam);
-        return '<a class="rb-paytile" href="' + esc(href) + '" target="_blank" rel="noopener">' + logo +
-          '<div class="rb-paytile__body"><div class="rb-paytile__name">' + esc(m.label) + '</div><div class="rb-paytile__handle">' + esc(display) + '</div></div>' +
-          '<span class="rb-paytile__act">Open ' + Icon.extern + '</span></a>';
-      }
-      return '<button class="rb-paytile" type="button" data-copyhandle="' + esc(raw) + '">' + logo +
-        '<div class="rb-paytile__body"><div class="rb-paytile__name">' + esc(m.label) + '</div><div class="rb-paytile__handle">' + esc(display) + '</div></div>' +
-        '<span class="rb-paytile__act"><span class="rb-paytile__act-txt">Copy</span>' + Icon.copy + '</span></button>';
-    }).join('');
+    var tiles = buildPayTiles(code, amountParam);
 
     app.innerHTML =
       '<div class="rb-done">' +
@@ -1240,6 +1279,32 @@
         '<button class="rb-restart" type="button" data-restart>Start another order</button>' +
       '</div>';
 
+    wirePayCopy(app);
+    app.querySelector('[data-restart]').onclick = resetOrder;
+    return app;
+  }
+
+  // Shared payment-tile builder + copy wiring — used by the order confirmation
+  // (SubmittedScreen) and the gift-purchase confirmation (GiftDoneScreen).
+  function buildPayTiles(code, amountParam) {
+    return PAY_METHODS.map(function (m) {
+      var brand = PAY_BRAND[m.id];
+      var raw = m.handle.trim();
+      var clean = raw.replace(brand.strip, '');
+      var display = brand.prefix + clean;
+      var logo = PayLogo[m.id] || '';
+      if (brand.mode === 'link') {
+        var href = brand.url(clean, code || '', amountParam);
+        return '<a class="rb-paytile" href="' + esc(href) + '" target="_blank" rel="noopener">' + logo +
+          '<div class="rb-paytile__body"><div class="rb-paytile__name">' + esc(m.label) + '</div><div class="rb-paytile__handle">' + esc(display) + '</div></div>' +
+          '<span class="rb-paytile__act">Open ' + Icon.extern + '</span></a>';
+      }
+      return '<button class="rb-paytile" type="button" data-copyhandle="' + esc(raw) + '">' + logo +
+        '<div class="rb-paytile__body"><div class="rb-paytile__name">' + esc(m.label) + '</div><div class="rb-paytile__handle">' + esc(display) + '</div></div>' +
+        '<span class="rb-paytile__act"><span class="rb-paytile__act-txt">Copy</span>' + Icon.copy + '</span></button>';
+    }).join('');
+  }
+  function wirePayCopy(app) {
     var copyBtn = app.querySelector('[data-copy]');
     if (copyBtn) copyBtn.onclick = function () {
       var t = copyBtn.querySelector('.rb-code__t'), ico = copyBtn.querySelector('.rb-code__ico'), orig = t.textContent;
@@ -1257,8 +1322,6 @@
         });
       };
     });
-    app.querySelector('[data-restart]').onclick = resetOrder;
-    return app;
   }
 
   function resetOrder() {
@@ -1266,6 +1329,259 @@
     photos = []; lastOrder = null; data = blankData(); step = 'welcome'; sending = false;
     try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
     render();
+  }
+
+  // ════════════════════════════════════════ SEND A GIFT ════════
+  // A standalone mini-flow off the welcome screen — bypasses the whole order
+  // wizard. Pick an amount + how to deliver, then pay OFFLINE referencing a
+  // PMG-### code (like an order). create_gift_purchase mints a 'pending' card;
+  // the redeemable code is never returned here — Paige releases it in admin
+  // once payment lands. Physical delivery adds $7 shipping (SHIP_FEE).
+  var GIFT_PRESETS = [40, 50, 75, 100];
+  function emailValid(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e || '').trim()); }
+
+  function GiftScreen() {
+    var app = el('div', 'rb-app');
+
+    var head = el('div', 'rb-head');
+    head.innerHTML =
+      '<div class="rb-brand"><img class="rb-brand__logo" src="logo.jpeg" alt="" /><span class="rb-brand__name">Paige Madden</span></div>' +
+      '<div class="rb-pill" data-pill>' + Icon.cart + '<span data-gpill></span></div>';
+    app.appendChild(head);
+
+    var scroll = el('div', 'rb-scroll');
+    var card = el('div', 'rb-card');
+    card.innerHTML =
+      '<div class="rb-card__head"><div class="rb-card__title">Send a gift 🎁</div></div>' +
+      '<p class="rb-total__note" style="margin:2px 0 0;text-align:left">A Paige Madden Nails gift toward a custom set — they pick the design.</p>' +
+      '<div class="rb-giftlbl">Amount</div>' +
+      '<div class="rb-amts" data-amts></div>' +
+      '<input class="rb-inp" data-amt-custom type="text" inputmode="numeric" placeholder="Custom amount" style="margin-top:9px" />' +
+      '<div class="rb-giftlbl">How should we deliver it?</div>' +
+      '<div class="rb-seg">' +
+        '<button type="button" data-method="email">Send by email</button>' +
+        '<button type="button" data-method="card">Send a gift card</button>' +
+      '</div>' +
+      '<div data-cond></div>' +
+      '<div class="rb-giftlbl">Your details (for the receipt)</div>' +
+      '<input class="rb-inp" data-buyer-name placeholder="Your name *" autocomplete="name" style="margin-top:9px" />' +
+      '<input class="rb-inp" data-buyer-email type="email" inputmode="email" placeholder="Your email *" autocomplete="email" style="margin-top:9px" />' +
+      '<div class="rb-sum" data-gsum></div>';
+    scroll.appendChild(card);
+    var back = el('button', 'rb-restart'); back.type = 'button'; back.textContent = '← Back';
+    back.onclick = function () { step = 'welcome'; render(); };
+    scroll.appendChild(back);
+    scroll.appendChild(el('div', 'rb-tail'));
+    app.appendChild(scroll);
+
+    var foot = el('div', 'rb-foot');
+    foot.innerHTML = '<button class="btn" data-gfoot></button><div class="rb-foot__hint" data-gfoothint></div>';
+    app.appendChild(foot);
+
+    var pillEl = head.querySelector('[data-gpill]');
+    var amtsEl = card.querySelector('[data-amts]');
+    var customEl = card.querySelector('[data-amt-custom]');
+    var condEl = card.querySelector('[data-cond]');
+    var sumEl = card.querySelector('[data-gsum]');
+    var footBtn = foot.querySelector('[data-gfoot]');
+    var footHint = foot.querySelector('[data-gfoothint]');
+    var buyerName = card.querySelector('[data-buyer-name]');
+    var buyerEmail = card.querySelector('[data-buyer-email]');
+
+    buyerName.value = giftData.buyerName; buyerEmail.value = giftData.buyerEmail;
+
+    function giftValid() {
+      if (!(giftFace() > 0)) return false;
+      if (!giftData.buyerName.trim() || !emailValid(giftData.buyerEmail)) return false;
+      if (!giftData.recipName.trim()) return false;
+      if (giftData.method === 'email') return emailValid(giftData.recipEmail);
+      return !!(giftData.ship1.trim() && giftData.city.trim() && giftData.state.trim() && giftData.zip.trim());
+    }
+    function paintGift() {
+      pillEl.textContent = money(giftTotal()) + ' gift';
+      var h = '<div class="rb-sum__row"><span>Gift amount</span><span>' + money(giftFace()) + '</span></div>';
+      if (giftShip()) h += '<div class="rb-sum__row"><span>Shipping</span><span>' + money(giftShip()) + '</span></div>';
+      h += '<div class="rb-sum__total"><span>Total</span><span class="amt">' + money(giftTotal()) + '</span></div>';
+      sumEl.innerHTML = h;
+      var ok = giftValid();
+      var label = ok ? 'Continue to payment · ' + money(giftTotal()) : 'Continue to payment';
+      footBtn.innerHTML = (sendingGift ? '<span class="btn__spin" aria-hidden="true"></span>' : '') + esc(label);
+      footBtn.disabled = !ok || sendingGift;
+      footHint.textContent = ok
+        ? (giftData.method === 'card' ? 'Mailed to the address above · pay after this step' : 'Emailed to your recipient · pay after this step')
+        : 'Fill in the amount, recipient, and your details';
+    }
+    function paintAmts() {
+      var custom = customEl.value.trim() !== '';
+      amtsEl.innerHTML = GIFT_PRESETS.map(function (a) {
+        return '<button type="button" class="rb-amt' + (!custom && giftFace() === a ? ' on' : '') + '" data-amt="' + a + '">' + money(a) + '</button>';
+      }).join('');
+      amtsEl.querySelectorAll('[data-amt]').forEach(function (b) {
+        b.onclick = function () {
+          giftData.amount = Number(b.getAttribute('data-amt')); customEl.value = '';
+          persist(); paintAmts(); paintGift();
+        };
+      });
+    }
+    function paintMethod() {
+      card.querySelectorAll('[data-method]').forEach(function (b) {
+        b.classList.toggle('on', b.getAttribute('data-method') === giftData.method);
+      });
+    }
+    function renderCond() {
+      if (giftData.method === 'email') {
+        condEl.innerHTML =
+          '<div class="rb-giftlbl">Who’s it for?</div>' +
+          '<input class="rb-inp" data-recip-name placeholder="Recipient’s name *" style="margin-top:9px" />' +
+          '<input class="rb-inp" data-recip-email type="email" inputmode="email" placeholder="Recipient’s email *" autocomplete="off" style="margin-top:9px" />' +
+          '<textarea class="rb-ta" data-message placeholder="Add a message (optional)"></textarea>';
+        var rn = condEl.querySelector('[data-recip-name]'), re = condEl.querySelector('[data-recip-email]'), msg = condEl.querySelector('[data-message]');
+        rn.value = giftData.recipName; re.value = giftData.recipEmail; msg.value = giftData.message;
+        rn.oninput = function () { giftData.recipName = rn.value; persist(); paintGift(); };
+        re.oninput = function () { giftData.recipEmail = re.value; persist(); paintGift(); };
+        msg.oninput = function () { giftData.message = msg.value; persist(); };
+      } else {
+        condEl.innerHTML =
+          '<div class="rb-giftlbl">Mail the gift to</div>' +
+          '<input class="rb-inp" data-recip-name placeholder="Recipient’s name *" style="margin-top:9px" />' +
+          '<input class="rb-inp" data-street placeholder="Street address *" autocomplete="address-line1" style="margin-top:9px" />' +
+          '<div class="rb-2 rb-2--tight">' +
+            '<input class="rb-inp rb-name" data-city placeholder="City *" autocomplete="address-level2" />' +
+            '<select class="rb-sel" data-state></select>' +
+            '<input class="rb-inp rb-zip" data-zip placeholder="Zip *" inputmode="numeric" maxlength="10" />' +
+          '</div>';
+        var rn2 = condEl.querySelector('[data-recip-name]'); rn2.value = giftData.recipName;
+        rn2.oninput = function () { giftData.recipName = rn2.value; persist(); paintGift(); };
+        var street = condEl.querySelector('[data-street]'); street.value = giftData.ship1;
+        street.oninput = function () { giftData.ship1 = street.value; persist(); paintGift(); };
+        var cityEl = condEl.querySelector('[data-city]'); cityEl.value = giftData.city;
+        cityEl.oninput = function () { giftData.city = cityEl.value; persist(); paintGift(); };
+        var zipEl = condEl.querySelector('[data-zip]'); zipEl.value = giftData.zip;
+        zipEl.oninput = function () { giftData.zip = zipEl.value; persist(); paintGift(); };
+        var stateSel = condEl.querySelector('[data-state]');
+        STATES.forEach(function (st) {
+          var o = document.createElement('option'); o.value = st; o.textContent = st;
+          if (st === giftData.state) o.selected = true; stateSel.appendChild(o);
+        });
+        stateSel.onchange = function () { giftData.state = stateSel.value; persist(); paintGift(); };
+      }
+    }
+
+    customEl.oninput = function () {
+      var digits = customEl.value.replace(/[^\d]/g, '').slice(0, 4);
+      customEl.value = digits;
+      if (digits) giftData.amount = Number(digits);
+      persist(); paintAmts(); paintGift();
+    };
+    buyerName.oninput = function () { giftData.buyerName = buyerName.value; persist(); paintGift(); };
+    buyerEmail.oninput = function () { giftData.buyerEmail = buyerEmail.value; persist(); paintGift(); };
+    card.querySelectorAll('[data-method]').forEach(function (b) {
+      b.onclick = function () { giftData.method = b.getAttribute('data-method'); persist(); paintMethod(); renderCond(); paintGift(); };
+    });
+    footBtn.onclick = function () { if (!sendingGift && giftValid()) submitGiftPurchase(paintGift); };
+
+    paintAmts(); paintMethod(); renderCond(); paintGift();
+    return app;
+  }
+
+  function GiftDoneScreen() {
+    var g = lastGift || {};
+    if (!g.gift_ref) { step = 'gift'; return GiftScreen(); }
+    var app = el('div', 'rb-app');
+    var total = (Number(g.amount) || 0) + (Number(g.ship_fee) || 0);
+    var code = g.gift_ref;
+    var amountParam = total ? String(total) : '';
+    var tiles = buildPayTiles(code, amountParam);
+    var breakdown = (Number(g.ship_fee) > 0)
+      ? money(Number(g.amount) || 0) + ' gift + ' + money(Number(g.ship_fee) || 0) + ' shipping' : '';
+
+    app.innerHTML =
+      '<div class="rb-done">' +
+        '<div class="rb-done__top">' +
+          '<div class="rb-seal rb-pop" style="animation:pop .35s ease both">' + Icon.checkBig + '</div>' +
+          '<h2 class="rb-done__title">Gift <span class="script">reserved!</span></h2>' +
+          '<p class="rb-done__sub">Send your payment and Paige will send the gift ' +
+            (g.method === 'card' ? 'in the mail' : 'by email') + '<br>as soon as it lands.</p>' +
+        '</div>' +
+        '<div class="rb-total">' +
+          '<div class="rb-total__label">Total to send</div>' +
+          '<div class="rb-total__amt">' + esc(money(total)) + '</div>' +
+          (breakdown ? '<div class="rb-total__note" style="margin-top:6px">' + esc(breakdown) + '</div>' : '') +
+          '<button class="rb-code" type="button" data-copy="' + esc(code) + '"><span class="rb-code__t">' + esc(code) + '</span><span class="rb-code__ico">' + Icon.copy + '</span></button>' +
+          '<div class="rb-total__note">Add <b>' + esc(code) + '</b> to your payment note so Paige can match it.</div>' +
+        '</div>' +
+        (PAY_METHODS.length
+          ? '<div class="rb-pays">' + tiles + '</div>'
+          : '<p class="rb-empty">Paige will send her payment details with your confirmation.</p>') +
+        '<div class="rb-done__foot">Once your payment lands, Paige sends the gift — you’ll get a receipt too 🤍</div>' +
+        '<button class="rb-restart" type="button" data-restart>Back to start</button>' +
+      '</div>';
+
+    wirePayCopy(app);
+    app.querySelector('[data-restart]').onclick = function () {
+      lastGift = null; giftData = blankGift(); step = 'welcome'; persist(); render();
+    };
+    return app;
+  }
+
+  // Fire the FormSubmit alert for a new gift purchase (business Gmail).
+  function alertGiftPurchase(g) {
+    try {
+      var fd = new FormData();
+      fd.append('_subject', 'New gift card purchase — ' + (giftData.buyerName.trim() || 'someone'));
+      fd.append('_template', 'table');
+      fd.append('_captcha', 'false');
+      fd.append('Gift ref', g.gift_ref);
+      fd.append('Amount', money(Number(g.amount) || 0));
+      fd.append('Shipping', Number(g.ship_fee) ? money(Number(g.ship_fee)) : 'none');
+      fd.append('Total to collect', money((Number(g.amount) || 0) + (Number(g.ship_fee) || 0)));
+      fd.append('Delivery', giftData.method === 'card' ? 'Physical card (mail)' : 'Email');
+      fd.append('Buyer', giftData.buyerName.trim() + ' · ' + giftData.buyerEmail.trim());
+      if (giftData.method === 'card') {
+        var addr = [giftData.recipName.trim(), giftData.ship1.trim(),
+          [giftData.city.trim(), giftData.state.trim(), giftData.zip.trim()].filter(Boolean).join(', '), 'USA'].filter(Boolean).join('\n');
+        fd.append('Recipient', giftData.recipName.trim());
+        fd.append('Mailing address', addr);
+      } else {
+        fd.append('Recipient', giftData.recipName.trim() + ' · ' + giftData.recipEmail.trim());
+        if (giftData.message.trim()) fd.append('Message', giftData.message.trim());
+      }
+      fd.append('Next step', 'Confirm payment, then Issue & send in admin.');
+      fetch(FORMSUBMIT_ENDPOINT, { method: 'POST', body: fd, mode: 'no-cors' }).catch(function () {});
+    } catch (e) {}
+  }
+
+  function submitGiftPurchase(repaint) {
+    if (!sb) return;
+    sendingGift = true; if (repaint) repaint();
+    var isCard = giftData.method === 'card';
+    sb.rpc('create_gift_purchase', {
+      p_amount: giftFace(),
+      p_delivery_method: giftData.method,
+      p_buyer_name: giftData.buyerName.trim(),
+      p_buyer_email: giftData.buyerEmail.trim(),
+      p_recipient_name: giftData.recipName.trim() || null,
+      p_recipient_email: isCard ? null : (giftData.recipEmail.trim() || null),
+      p_gift_message: (!isCard && giftData.message.trim()) ? giftData.message.trim() : null,
+      p_ship_line1: isCard ? (giftData.ship1.trim() || null) : null,
+      p_ship_line2: null,
+      p_ship_city: isCard ? (giftData.city.trim() || null) : null,
+      p_ship_region: isCard ? (giftData.state.trim() || null) : null,
+      p_ship_postal: isCard ? (giftData.zip.trim() || null) : null
+    }).then(function (res) {
+      if (res.error) throw res.error;
+      var rec = Array.isArray(res.data) ? res.data[0] : res.data;
+      if (!rec || !rec.gift_ref) throw new Error('Gift purchase returned no ref');
+      lastGift = { gift_ref: rec.gift_ref, amount: Number(rec.amount) || giftFace(), ship_fee: Number(rec.ship_fee) || 0, method: giftData.method };
+      alertGiftPurchase(lastGift);
+      sendingGift = false;
+      step = 'giftdone'; render();
+    }, function (e) {
+      if (window.console) console.error('Gift purchase failed:', e);
+      sendingGift = false; if (repaint) repaint();
+      var hint = document.querySelector('[data-gfoothint]');
+      if (hint) hint.innerHTML = '<span style="color:var(--rose);font-weight:600">That didn’t go through — check your connection and try again.</span>';
+    });
   }
 
   // ════════════════════════════════════════ backend ════════
@@ -1377,7 +1693,7 @@
       .then(function (res) {
         if (!res.error && res.data) {
           PAY_METHODS = res.data.filter(function (m) { return PAY_BRAND[m.id] && m.handle && m.handle.trim(); });
-          if (step === 'submitted') render();
+          if (step === 'submitted' || step === 'giftdone') render();
         }
       });
   }
