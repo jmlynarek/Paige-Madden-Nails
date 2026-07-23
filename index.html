@@ -272,7 +272,10 @@
   .rb-drop {
     border: 1.5px dashed rgba(180,104,105,0.4); background: #FDF8F6; border-radius: 16px;
     padding: 14px; margin-top: 13px; display: flex; align-items: center; gap: 11px; flex-wrap: wrap;
+    cursor: pointer; transition: border-color .15s ease, background .15s ease;
   }
+  .rb-drop.full { cursor: default; }
+  .rb-drop.drag { border-color: var(--rose); background: #FBF1F0; }
   .rb-thumb { width: 64px; height: 64px; border-radius: 12px; overflow: hidden; position: relative; flex-shrink: 0; box-shadow: var(--shadow-sm); }
   .rb-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .rb-thumb__x {
@@ -919,10 +922,12 @@
     }
     function renderDrop() {
       drop.innerHTML = '';
+      drop.classList.toggle('full', photos.length >= MAX_PHOTOS);
       photos.forEach(function (p) {
         var th = el('div', 'rb-thumb');
         th.innerHTML = '<img src="' + p.url + '" alt="inspiration" /><button type="button" class="rb-thumb__x" aria-label="Remove photo">✕</button>';
-        th.querySelector('.rb-thumb__x').onclick = function () {
+        th.querySelector('.rb-thumb__x').onclick = function (e) {
+          e.stopPropagation();   // don't also open the picker (zone click below)
           URL.revokeObjectURL(p.url);
           photos = photos.filter(function (x) { return x.id !== p.id; });
           renderDrop(); paintPrice(); paintFooter();
@@ -930,29 +935,48 @@
         drop.appendChild(th);
       });
       if (photos.length < MAX_PHOTOS) {
-        var add = el('button', 'rb-add');
-        add.type = 'button'; add.setAttribute('aria-label', 'Add a photo');
+        var add = el('div', 'rb-add');
+        add.setAttribute('aria-hidden', 'true');   // the whole zone is the button (see drop.onclick)
         add.innerHTML = optimising ? '<span class="rb-add__t">…</span>' : Icon.plus + '<span class="rb-add__t">Add</span>';
-        add.onclick = function () { if (!optimising) fileInput.click(); };
         drop.appendChild(add);
       }
-      if (!photos.length) drop.appendChild(el('div', 'rb-req', 'REQUIRED. Drop your inspo here.'));
+      if (!photos.length) drop.appendChild(el('div', 'rb-req', 'REQUIRED · tap to add or drop a photo here.'));
     }
-    fileInput.onchange = function (e) {
-      var files = Array.prototype.slice.call(e.target.files || []).slice(0, MAX_PHOTOS - photos.length);
-      if (!files.length) { fileInput.value = ''; return; }
+
+    // One path for both the file picker and drag-and-drop. Non-images and
+    // anything past the 2-photo cap are ignored.
+    function ingest(fileList) {
+      var files = Array.prototype.slice.call(fileList || [])
+        .filter(function (f) { return /^image\//.test(f.type); })
+        .slice(0, MAX_PHOTOS - photos.length);
+      if (!files.length) return;
       optimising = true; renderDrop();
-      var jobs = files.map(function (file) {
-        if (!/^image\//.test(file.type)) return Promise.resolve(null);
+      Promise.all(files.map(function (file) {
         return compressImage(file).then(function (blob) {
           return { id: Date.now() + Math.random(), url: URL.createObjectURL(blob), blob: blob };
         }).catch(function () { return null; });
-      });
-      Promise.all(jobs).then(function (res) {
+      })).then(function (res) {
         res.forEach(function (r) { if (r) photos.push(r); });
-        fileInput.value = ''; optimising = false;
-        renderDrop(); paintPrice(); paintFooter();
+        optimising = false; renderDrop(); paintPrice(); paintFooter();
       });
+    }
+    fileInput.onchange = function (e) { ingest(e.target.files); fileInput.value = ''; };
+
+    // Whole zone is the tap target (mobile) and a drop target (desktop).
+    drop.onclick = function (e) {
+      if (e.target.closest('.rb-thumb__x')) return;
+      if (!optimising && photos.length < MAX_PHOTOS) fileInput.click();
+    };
+    drop.setAttribute('role', 'button');
+    drop.setAttribute('tabindex', '0');
+    drop.onkeydown = function (e) {
+      if ((e.key === 'Enter' || e.key === ' ') && !optimising && photos.length < MAX_PHOTOS) { e.preventDefault(); fileInput.click(); }
+    };
+    drop.ondragover = function (e) { e.preventDefault(); if (photos.length < MAX_PHOTOS) drop.classList.add('drag'); };
+    drop.ondragleave = function (e) { if (!drop.contains(e.relatedTarget)) drop.classList.remove('drag'); };
+    drop.ondrop = function (e) {
+      e.preventDefault(); drop.classList.remove('drag');
+      if (e.dataTransfer && e.dataTransfer.files) ingest(e.dataTransfer.files);
     };
     toggle.onclick = function () {
       data.simpleColors = !data.simpleColors; syncTier(); persist();
@@ -1309,15 +1333,21 @@
       if (!credit) data.giftCode = '';
       var order = { id: rec.id, order_no: rec.order_no, gift_credit: credit };
       if (!photos.length) return order;
+      // Photos are BEST-EFFORT: the order + its PM-### code are already saved,
+      // and the same photos are attached to the FormSubmit email, so a storage
+      // hiccup must never reject the order (which would hide the payment code).
       var uploads = photos.map(function (p, i) {
         var path = order.id + '/' + (i + 1) + '.jpg';
         return sb.storage.from('inspiration')
           .upload(path, p.blob, { contentType: 'image/jpeg', upsert: false })
           .then(function (up) { if (up.error) throw up.error; return { order_id: order.id, storage_path: path, position: i }; });
       });
-      return Promise.all(uploads).then(function (rows) {
-        return sb.from('order_photos').insert(rows).then(function (pr) { if (pr.error) throw pr.error; return order; });
-      });
+      return Promise.all(uploads)
+        .then(function (rows) { return sb.from('order_photos').insert(rows).then(function (pr) { if (pr.error) throw pr.error; }); })
+        .then(function () { return order; }, function (e) {
+          if (window.console) console.error('Inspiration photo upload failed — order still saved:', e);
+          return order;   // resolve with the order anyway so the code shows
+        });
     });
   }
 
