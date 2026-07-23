@@ -557,7 +557,8 @@ function subscribeRealtime(){
       var o = p.new;
       if(!state.orders.some(function(x){return x.id===o.id;})){
         state.orders.unshift(o);
-        toast('New order from '+(o.customer_name||'someone'), money(orderValue(o))+' · '+(STATUS[o.status]?STATUS[o.status].label:o.status), 'ok');
+        if(o.gift_shipment_id) toast('Gift card to ship', (o.customer_name||'recipient')+' · mail the card', 'ok');
+        else toast('New order from '+(o.customer_name||'someone'), money(orderValue(o))+' · '+(STATUS[o.status]?STATUS[o.status].label:o.status), 'ok');
         render();
       }
     })
@@ -758,11 +759,16 @@ function viewOrders(){
     var fulfilChip = (ship && o.label_url)
       ? '<span class="chip" style="color:#0E9E8E" title="Label purchased">'+I.tag+'Labeled</span>'
       : '<span class="chip">'+(ship?I.truck:I.bag)+(ship?'Ship':'Pickup')+'</span>';
+    var designCell = o.gift_shipment_id
+      ? '<span class="chip" style="color:#B46869">🎁 Gift card · mail out</span>'
+      : '<span class="chip" style="color:var(--ink-2)">'+I.palette+esc(o.nail_shape||'—')+'<span class="muted">· '+esc((state.tiers.find(function(x){return x.id===o.design_tier;})||{}).name||o.design_tier)+'</span></span>';
     return '<tr data-open="'+o.id+'">'+
-      '<td data-label="Order"><span class="oid">'+(o.admin_seen?'':'<span class="unseen-dot"></span>')+shortId(o)+'</span>'+(o.gift_card_id?' <span class="chip" style="color:#B46869" title="Paid with a gift card">🎁 Prepaid</span>':'')+'</td>'+
+      '<td data-label="Order"><span class="oid">'+(o.admin_seen?'':'<span class="unseen-dot"></span>')+shortId(o)+'</span>'+
+        (o.gift_shipment_id?' <span class="chip" style="color:#B46869" title="Gift card to mail out">🎁 Gift card</span>':'')+
+        (o.gift_card_id?' <span class="chip" style="color:#B46869" title="Paid with a gift card">🎁 Prepaid</span>':'')+'</td>'+
       '<td data-label="Date" class="muted hide-sm">'+fmtDate(o.created_at)+'</td>'+
       '<td data-label="Customer"><div class="cust">'+avatar(o.customer_name)+'<div><div class="cust-name">'+esc(o.customer_name)+'</div><div class="muted" style="font-size:11.5px">'+esc(o.email||o.phone||'')+'</div></div></div></td>'+
-      '<td data-label="Design" class="hide-sm"><span class="chip" style="color:var(--ink-2)">'+I.palette+esc(o.nail_shape||'—')+'<span class="muted">· '+esc((state.tiers.find(function(x){return x.id===o.design_tier;})||{}).name||o.design_tier)+'</span></span></td>'+
+      '<td data-label="Design" class="hide-sm">'+designCell+'</td>'+
       '<td data-label="Total"><span class="money">'+money(orderValue(o))+'</span></td>'+
       '<td data-label="Status">'+statusPill(o.status)+'</td>'+
       '<td data-label="Fulfil" class="hide-sm">'+fulfilChip+'</td>'+
@@ -1332,9 +1338,26 @@ function issueGiftCard(id){
           .catch(function(e){ toast('Recipient email failed', String((e&&e.message)||e),'err'); });
       }
     }
-    // Physical card: surface the code + mailing address for Paige to write & post.
+    // Physical card: surface the code + mailing address for Paige to write &
+    // post, and drop a $0 shipping order into her queue so it flows through the
+    // normal buy-label → tracking → completed pipeline (email gifts skip this).
     if(isCard){
       alert('Write this code on the card:\n\n    '+full.code+'\n\nMail to:\n'+(full.recipient_name||'')+'\n'+(giftAddr(full)||'(no address on file)'));
+      sb.from('orders').insert({
+        customer_name: full.recipient_name || 'Gift recipient',
+        email: full.buyer_email || null,   // contact-present check; also who hears "shipped"
+        fulfillment: 'shipping', ship_speed: 'standard',
+        ship_to_name: full.recipient_name || null,
+        address_line1: full.ship_line1 || null, address_line2: full.ship_line2 || null,
+        city: full.ship_city || null, region: full.ship_region || null,
+        postal_code: full.ship_postal || null, country: 'US',
+        design_tier: 'classic', tier_price: 0, ship_fee: 0, rush_fee: 0,
+        notes: 'Gift card '+full.code+' ('+money(full.amount)+') — write the code on the physical card and mail it to the recipient. Already paid; nothing to collect.',
+        status: 'new', source: 'gift', gift_shipment_id: full.id
+      }).select().then(function(orr){
+        if(orr.error){ toast('Ship order not created', orr.error.message,'err'); return; }
+        toast('Added to Orders to ship','Mail the gift card to '+(full.recipient_name||'the recipient'),'ok');
+      });
     }
     // Buyer receipt — always, never contains the code.
     if(full.buyer_email){
@@ -1548,6 +1571,7 @@ function renderDrawer(){
   if(o.phone) contact += '<div class="kv"><span class="k">'+I.phone+'</span><span class="v"><a href="tel:'+esc(o.phone)+'">'+esc(o.phone)+'</a></span></div>';
 
   var isShip = o.fulfillment==='shipping';
+  var isGift = !!o.gift_shipment_id;   // a physical gift card Paige mails out
 
   // ---- shipping is split into two accordions: address + label ----
   var shipAddrHtml='', shipAddrSub='', shipLabelHtml='', shipLabelSub='';
@@ -1610,20 +1634,29 @@ function renderDrawer(){
   }
   var gift = Number(o.gift_credit||0);
   var due = Math.max(0, orderValue(o) - gift);
-  sections.push({ id:'sec-pay', icon:I.cart, label:'Payment', open:true,
-    sub: gift>0 ? (due>0 ? money(due)+' due · '+money(gift)+' prepaid' : '🎁 Prepaid — nothing due') : money(orderValue(o))+' to collect', html:
-    '<div class="dr-card">'+
-      (o.gift_card_id?'<div class="kv"><span class="k"><span class="chip" style="color:#B46869">🎁 Prepaid</span></span><span class="v muted">gift card</span></div>':'')+
-      '<div class="kv"><span class="k">Set price</span><span class="v">'+money(orderSetPrice(o))+'</span></div>'+
-      (Number(o.ship_fee)>0?'<div class="kv"><span class="k">Shipping</span><span class="v">'+money(o.ship_fee)+'</span></div>':'')+
-      (Number(o.rush_fee)>0?'<div class="kv"><span class="k">Rush</span><span class="v">'+money(o.rush_fee)+'</span></div>':'')+
-      (gift>0?'<div class="kv"><span class="k">Gift credit</span><span class="v" style="color:#0E7E5B">− '+money(gift)+'</span></div>':'')+
-      '<div class="kv"><span class="k"><b>'+(gift>0?'Still to collect':'Total to collect')+'</b></span><span class="v"><b>'+money(due)+'</b></span></div>'+
-    '</div>' });
-  sections.push({ id:'sec-design', icon:I.palette, label:'Design', open:!isShip, sub:esc((o.nail_shape||'—')+' · '+tierName), html:
-    '<div class="dr-card"><div class="kv"><span class="k">Shape</span><span class="v">'+esc(o.nail_shape||'—')+'</span></div><div class="kv"><span class="k">Tier</span><span class="v">'+esc(tierName)+'</span></div></div>'+
-    '<div style="margin-top:12px"><div class="dr-sec-t" style="margin-bottom:8px">Sizes</div><div class="sizes">'+sizeCells+'</div></div>' });
-  if(o.notes){ sections.push({ id:'sec-notes', icon:I.note, label:'Notes', open:false, sub:'', html:'<div class="notes-box">'+esc(o.notes)+'</div>' }); }
+  if(isGift){
+    // A shipment of an already-paid gift card — nothing to collect.
+    sections.push({ id:'sec-gift', icon:I.gift, label:'Gift card', open:true, sub:'Mail the card',
+      html:'<div class="dr-card"><div class="kv"><span class="k">Task</span><span class="v">Write the code on a card &amp; mail it</span></div>'+
+        '<div class="kv"><span class="k">Mail to</span><span class="v">'+esc(o.ship_to_name||o.customer_name||'recipient')+'</span></div>'+
+        '<div class="kv"><span class="k">Paid</span><span class="v" style="color:#0E7E5B">Already paid — nothing to collect</span></div></div>'+
+        (o.notes?'<div class="notes-box" style="margin-top:10px">'+esc(o.notes)+'</div>':'') });
+  } else {
+    sections.push({ id:'sec-pay', icon:I.cart, label:'Payment', open:true,
+      sub: gift>0 ? (due>0 ? money(due)+' due · '+money(gift)+' prepaid' : '🎁 Prepaid — nothing due') : money(orderValue(o))+' to collect', html:
+      '<div class="dr-card">'+
+        (o.gift_card_id?'<div class="kv"><span class="k"><span class="chip" style="color:#B46869">🎁 Prepaid</span></span><span class="v muted">gift card</span></div>':'')+
+        '<div class="kv"><span class="k">Set price</span><span class="v">'+money(orderSetPrice(o))+'</span></div>'+
+        (Number(o.ship_fee)>0?'<div class="kv"><span class="k">Shipping</span><span class="v">'+money(o.ship_fee)+'</span></div>':'')+
+        (Number(o.rush_fee)>0?'<div class="kv"><span class="k">Rush</span><span class="v">'+money(o.rush_fee)+'</span></div>':'')+
+        (gift>0?'<div class="kv"><span class="k">Gift credit</span><span class="v" style="color:#0E7E5B">− '+money(gift)+'</span></div>':'')+
+        '<div class="kv"><span class="k"><b>'+(gift>0?'Still to collect':'Total to collect')+'</b></span><span class="v"><b>'+money(due)+'</b></span></div>'+
+      '</div>' });
+    sections.push({ id:'sec-design', icon:I.palette, label:'Design', open:!isShip, sub:esc((o.nail_shape||'—')+' · '+tierName), html:
+      '<div class="dr-card"><div class="kv"><span class="k">Shape</span><span class="v">'+esc(o.nail_shape||'—')+'</span></div><div class="kv"><span class="k">Tier</span><span class="v">'+esc(tierName)+'</span></div></div>'+
+      '<div style="margin-top:12px"><div class="dr-sec-t" style="margin-bottom:8px">Sizes</div><div class="sizes">'+sizeCells+'</div></div>' });
+  }
+  if(o.notes && !isGift){ sections.push({ id:'sec-notes', icon:I.note, label:'Notes', open:false, sub:'', html:'<div class="notes-box">'+esc(o.notes)+'</div>' }); }
   sections.push({ id:'sec-photos', icon:I.image, label:'Photos', open:false, sub:(ph&&ph.length?'('+ph.length+')':''), html:photosHtml });
   if(contact){ sections.push({ id:'sec-contact', icon:I.user, label:'Contact', open:false, sub:esc(o.email||o.phone||''), html:'<div class="dr-card">'+contact+'</div>' }); }
 
