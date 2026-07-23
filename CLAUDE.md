@@ -165,18 +165,32 @@ default nail sizes are recorded in Claude memory.
   back to the Gmail — harmless, and not the normal path.)
 - Payment handles (Venmo/Zelle/Cash App/Apple Pay) set in admin → Settings.
 
-**Public order-flow overhaul (2026-07-23, LIVE):** reworked `index.html`'s customer wizard per
-the 07/22 meeting. Flow is now: Welcome (Instagram **+ TikTok**) → **Shape** (tap = auto-advance)
-→ **Size** (S/M/L preset chips prefill per-finger defaults, defaults to Medium, +/- steppers,
-gate on all 5 set) → **Design** (≤2 photos in a **fixed-height strip** so adding photos never
-scrolls, **photo-OR-link** gate, 2-up Classic/Custom tiers) → **Details** (name + **required
-phone**, email optional; pickup/ship; ship reveal auto-scrolls) → **Turnaround** step 3.5 (its
-own screen, shown for **every** order) → Confirmation → Payment. Steps use fractional keys
-(`1.5` size, `3.5` turnaround). Payment screen fits with no scroll (code + all methods + Done);
-`lastOrder` is now **persisted** so the PM-### code survives a reload on the payment screen.
-No-scroll on design/confirmation/payment. A11y pass (real `<button>`s, `for`/`id` labels,
-focus-visible, submit spinner). No DB changes except the rush-fee migration below; the inspo
-link folds into `notes`.
+**"Receipt Builder" redesign (2026-07-23, LIVE — supersedes the step wizard below):**
+`index.html` was rebuilt from the Claude Design handoff (`docs/design_handoff_order_flow_redesign/`)
+into a **single-scroll page**. Flow: Welcome → one scrolling page with four in-place sections
+(**Shape → Sizes → Inspo → Delivery & payment**) → confirmation/payment. Completed sections
+collapse to editable "receipt rows"; the active one is an editor card; not-yet-reached ones are
+dashed placeholders. A fixed header carries the logo + a live **total pill**; a fixed footer CTA
+runs a per-section state machine. **Pricing is deterministic — NO AI:** the "no nail art / 1–2
+solid colors" toggle → Classic **$40**, otherwise Custom **$50** (a photo is required either way).
+State lives in one `data` object with `active` (1–4) + completion flags; the screen re-renders on
+section transitions and updates in place (footer/pill/summary) on same-section edits so typing
+never loses focus. See [[receipt-builder-pricing]].
+
+*Deliberately dropped from the design vs. the prior wizard (flag to Jeremy — easy to restore):*
+(1) **email field** — delivery collects name + phone only, so the customer no longer gets the
+`send-order-confirmation` "order received" email (the fire-and-forget call is kept but has no
+address to send to); (2) the **inspo-link** field — a photo is now required, not "photo OR link";
+(3) the separate **Instagram gallery** screen (welcome keeps small IG/TikTok chips); (4) the
+desktop **brand-rail** two-pane (now a centered ~480px column). **Preserved & verified:** Supabase
+`create_order` RPC, photo upload, FormSubmit alert, **gift cards** (`check_gift_card`, compact
+field in the delivery card), DB-driven tiers/shapes/**payment methods**, phone auto-format,
+`lastOrder` persistence.
+
+**Prior step-wizard overhaul (2026-07-23, now REPLACED by the above):** Welcome → **Shape**
+(auto-advance) → **Size** (S/M/L presets + steppers) → **Design** (photo-OR-link, 2-up tiers) →
+**Details** → **Turnaround** (3.5) → Confirmation → Payment, using fractional step keys. The
+confirmed S/M/L per-finger defaults and the rush-fee migration carried straight over.
 
 **Bugs / gaps:**
 - **Inbound forwarding v1 doesn't re-attach files:** `forward-inbound-email` forwards the
