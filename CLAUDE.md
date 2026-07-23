@@ -93,8 +93,8 @@ Tables (all RLS-enabled): `orders`, `order_photos`, `design_tiers`,
 - **`public.create_order(...)`** is a `SECURITY DEFINER` RPC — the public site
   calls it to insert an order and get back the `id` + `order_no` (RLS is
   insert-only, so a plain insert can't return the generated number).
-- **`PM-###`** order numbers come from sequence `order_no_seq` (was 488; live orders now ~495+ after testing).
-- **Pricing / full payment:** checkout collects the **full amount** (not a deposit) = set price **+ `$7` flat shipping** (any ship-to-me order) **+ `$10` rush**, as separate line items. `orders.ship_fee` / `orders.rush_fee` columns store them; `create_order` computes them server-side from fulfillment/speed (migration `add_order_fee_line_items`). Admin `orderValue()` = set price + ship_fee + rush_fee. **Fee amounts ($7/$10) are duplicated in `index.html` and the `create_order` function — keep them in sync** (future: move to an admin Settings table).
+- **`PM-###`** order numbers come from sequence `order_no_seq` (was 488; live orders now ~497+ after testing).
+- **Pricing / full payment:** checkout collects the **full amount** (not a deposit) = set price **+ `$7` flat shipping** (ship-to-me only) **+ `$10` rush**, as separate line items. **Rush is a production-speed upgrade (Paige makes the set first), decoupled from fulfillment — it applies to pickup AND ship-to-me alike;** shipping's `$7` is the only fulfillment-gated fee. `orders.ship_fee` / `orders.rush_fee` columns store them; `create_order` computes them server-side (`ship_fee` from fulfillment, `rush_fee` from `ship_speed` only — migrations `add_order_fee_line_items` then `rush_fee_applies_to_pickup_too`). Admin `orderValue()` = set price + ship_fee + rush_fee. **Fee amounts ($7/$10) are duplicated in `index.html` and the `create_order` function — keep them in sync** (future: move to an admin Settings table).
 - **`is_admin()`** = `auth.jwt()->>'email' = 'jeremy@idealtraits.com'` (pinned `search_path`).
 - **Storage:** private bucket `inspiration` (customer photos at `{order_id}/{n}.jpg`),
   with an `anon` INSERT policy and an admin SELECT policy.
@@ -143,8 +143,9 @@ an LLM-council-ordered sequence (`council-report-*.html` / `council-transcript-*
 and a published to-do artifact. Priority tiers: **P0** make the live checkout
 safe → **P1** admin status model (`new→pending`, confirm `completed`) → **P2**
 public UX polish (split shape/size, S/M/L size steppers, validation, photo-or-preset)
-→ **P3** hardening → **P4** big features (multi-admin, gift cards, AI classic-vs-custom
-pricing, booth gallery). Confirmed S/M/L default nail sizes are recorded in Claude memory.
+— **largely shipped 2026-07-23, see below** → **P3** hardening → **P4** big features
+(multi-admin, gift cards, AI classic-vs-custom pricing, booth gallery). Confirmed S/M/L
+default nail sizes are recorded in Claude memory.
 
 ## Status & open items (as of 2026-07-22)
 
@@ -163,6 +164,19 @@ pricing, booth gallery). Confirmed S/M/L default nail sizes are recorded in Clau
   correctly addresses the customer (not `orders@`). (Aiming a reply at `orders@` itself just loops
   back to the Gmail — harmless, and not the normal path.)
 - Payment handles (Venmo/Zelle/Cash App/Apple Pay) set in admin → Settings.
+
+**Public order-flow overhaul (2026-07-23, LIVE):** reworked `index.html`'s customer wizard per
+the 07/22 meeting. Flow is now: Welcome (Instagram **+ TikTok**) → **Shape** (tap = auto-advance)
+→ **Size** (S/M/L preset chips prefill per-finger defaults, defaults to Medium, +/- steppers,
+gate on all 5 set) → **Design** (≤2 photos in a **fixed-height strip** so adding photos never
+scrolls, **photo-OR-link** gate, 2-up Classic/Custom tiers) → **Details** (name + **required
+phone**, email optional; pickup/ship; ship reveal auto-scrolls) → **Turnaround** step 3.5 (its
+own screen, shown for **every** order) → Confirmation → Payment. Steps use fractional keys
+(`1.5` size, `3.5` turnaround). Payment screen fits with no scroll (code + all methods + Done);
+`lastOrder` is now **persisted** so the PM-### code survives a reload on the payment screen.
+No-scroll on design/confirmation/payment. A11y pass (real `<button>`s, `for`/`id` labels,
+focus-visible, submit spinner). No DB changes except the rush-fee migration below; the inspo
+link folds into `notes`.
 
 **Bugs / gaps:**
 - **Inbound forwarding v1 doesn't re-attach files:** `forward-inbound-email` forwards the
