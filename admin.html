@@ -1114,14 +1114,20 @@ function viewGiftCards(){
   // ---- the card ledger ----
   var rows = cards.length ? cards.map(function(c){
     var ord = c.redeemed_order_id ? state.orders.find(function(o){return o.id===c.redeemed_order_id;}) : null;
-    var acts = c.status==='active' ? '<button class="ico" data-gc-void="'+c.id+'" title="Void this card">'+I.x+'</button>' : '<span class="muted">—</span>';
+    var acts = c.status==='active'
+      ? '<button class="ico" data-gc-redeem="'+c.id+'" title="Mark redeemed (used in person)">'+I.check+'</button>'+
+        '<button class="ico danger" data-gc-void="'+c.id+'" title="Void this card">'+I.x+'</button>'
+      : '<span class="muted">—</span>';
+    var redeemedCell = c.status!=='redeemed'
+      ? '<span class="muted">—</span>'
+      : (ord ? '<span class="oid" data-open="'+ord.id+'" style="cursor:pointer">'+shortId(ord)+'</span>' : '<span class="muted">In person</span>')+' <span class="muted">'+fmtDay(c.redeemed_at)+'</span>';
     return '<tr>'+
       '<td data-label="Code"><span class="oid" style="letter-spacing:1px">'+esc(c.code)+'</span></td>'+
       '<td data-label="Amount">'+money(c.amount)+'</td>'+
       '<td data-label="Buyer" class="hide-sm">'+esc(c.buyer_email||c.buyer_name||'—')+'</td>'+
       '<td data-label="Status">'+gcPill(c.status)+'</td>'+
       '<td data-label="Created" class="hide-sm muted">'+fmtDay(c.created_at)+'</td>'+
-      '<td data-label="Redeemed">'+(c.status==='redeemed' ? (ord?'<span class="oid" data-open="'+ord.id+'" style="cursor:pointer">'+shortId(ord)+'</span>':'—')+' <span class="muted">'+fmtDay(c.redeemed_at)+'</span>' : '<span class="muted">—</span>')+'</td>'+
+      '<td data-label="Redeemed">'+redeemedCell+'</td>'+
       '<td class="col-act"><div class="row-actions">'+acts+'</div></td>'+
     '</tr>';
   }).join('') : '<tr><td colspan="7"><div class="empty">'+I.gift+'<div>No gift cards yet. Generate one above when you sell it at the booth.</div></div></td></tr>';
@@ -1190,6 +1196,25 @@ function voidGiftCard(id){
   sb.from('gift_cards').update({status:'void'}).eq('id',id).eq('status','active').then(function(r){
     if(r.error){ if(prev&&i>=0){state.giftCards[i]=prev;} render(); toast('Couldn’t void', r.error.message,'err'); return; }
     toast('Gift card voided','','ok');
+  });
+}
+
+// Mark a card redeemed in person (used at the booth, no online order). The
+// status='active' guard means it can only be burned once — same single-use
+// guarantee as an online redemption, so it can never be used again.
+function redeemGiftCard(id){
+  var i=state.giftCards.findIndex(function(x){return x.id===id;});
+  if(i<0) return;
+  var card=state.giftCards[i];
+  if(!confirm('Mark gift card '+card.code+' ('+money(card.amount)+') as redeemed? It can only be used once — this cannot be undone.')) return;
+  var prev=Object.assign({},card);
+  var ts=new Date().toISOString();
+  state.giftCards[i]=Object.assign({},card,{status:'redeemed', redeemed_at:ts, redeemed_order_id:null});
+  render();
+  sb.from('gift_cards').update({status:'redeemed', redeemed_at:ts}).eq('id',id).eq('status','active').select().then(function(r){
+    if(r.error){ state.giftCards[i]=prev; render(); toast('Couldn’t redeem', r.error.message,'err'); return; }
+    if(!r.data || !r.data.length){ state.giftCards[i]=prev; render(); toast('Already used','That card was already redeemed or voided.','err'); return; }
+    toast('Gift card redeemed', card.code+' · '+money(card.amount),'ok');
   });
 }
 
@@ -1667,6 +1692,7 @@ function wire(){
   document.querySelectorAll('[data-reengage-toggle]').forEach(function(b){ b.onclick=function(){ var on=!b.classList.contains('on'); b.classList.toggle('on',on); b.setAttribute('aria-checked',on?'true':'false'); }; });
   document.querySelectorAll('[data-reengage-save]').forEach(function(b){ b.onclick=function(){ saveReengageSettings(b); }; });
   document.querySelectorAll('[data-gc-generate]').forEach(function(b){ b.onclick=function(){ generateGiftCard(b); }; });
+  document.querySelectorAll('[data-gc-redeem]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); redeemGiftCard(b.getAttribute('data-gc-redeem')); }; });
   document.querySelectorAll('[data-gc-void]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); voidGiftCard(b.getAttribute('data-gc-void')); }; });
 
   var bell=$('#bell'); if(bell) bell.onclick=function(e){ e.stopPropagation(); state.notifOpen=!state.notifOpen; renderNotif(); };
