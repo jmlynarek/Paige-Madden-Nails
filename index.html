@@ -512,6 +512,25 @@
   .drop--sm { padding: 13px 16px; display: flex; align-items: center; gap: 13px; text-align: left; }
   .drop--sm .drop__circle { width: 40px; height: 40px; margin: 0; flex-shrink: 0; }
   .drop--sm .drop__s { margin-top: 2px; }
+  /* Fixed-height photo strip (thumbnails + add tile) — height stays constant
+     as photos are added, so nothing below it shifts. */
+  .photostrip { display: flex; gap: 10px; margin-top: 8px; }
+  .pchip { position: relative; width: 68px; height: 68px; border-radius: 14px; overflow: hidden; flex-shrink: 0; box-shadow: var(--shadow-sm); }
+  .pchip img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pchip__x {
+    position: absolute; top: 4px; right: 4px; width: 22px; height: 22px;
+    border: none; border-radius: 50%; background: rgba(95,70,63,0.82); color: #fff;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0;
+  }
+  .padd {
+    width: 68px; height: 68px; flex-shrink: 0;
+    border: 1.6px dashed rgba(95,70,63,0.30); border-radius: 14px;
+    background: #F5EFE9; cursor: pointer; padding: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    -webkit-appearance: none; appearance: none;
+  }
+  .padd:active { background: #EFE7DF; }
+  .padd__t { font-size: 11px; font-weight: 600; color: var(--rose); }
   .thumbs {
     margin-top: 14px;
     display: grid;
@@ -1305,7 +1324,7 @@
   }
 
   var init = loadState();
-  var step = init.step;           // 0 welcome · 1 shape · 1.5 size · 2 design · 3 details · 4 confirm · 5 gallery · 6 payment
+  var step = init.step;           // 0 welcome · 1 shape · 1.5 size · 2 design · 3 details · 3.5 ship speed · 4 confirm · 5 gallery · 6 payment
   var data = init.data;
   var photos = [];                // { id, url, blob, name } — not persisted
   var showErr = false;
@@ -1379,6 +1398,7 @@
     else if (step === 1.5) root.appendChild(SizeScreen());
     else if (step === 2) root.appendChild(DesignScreen());
     else if (step === 3) root.appendChild(DetailsScreen());
+    else if (step === 3.5) root.appendChild(ShipSpeedScreen());
     else if (step === 5) root.appendChild(GalleryScreen());
     else if (step === 6) root.appendChild(PaymentScreen());
     else root.appendChild(ConfirmationScreen());
@@ -1576,11 +1596,8 @@
         '<h1 class="title">Your inspiration</h1>' +
       '</div>' +
       '<input type="file" accept="image/*" multiple data-file style="display:none" />' +
-      '<div class="field" style="margin-top:12px">' +
-        '<div class="drop drop--sm" data-drop><div class="drop__circle" style="color:var(--rose)">' + Icon.camera + '</div>' +
-          '<div><div class="drop__t" data-droptitle></div><div class="drop__s">Add up to 2 — or paste a link below</div></div></div>' +
-        '<div class="thumbs" data-thumbs></div>' +
-        '<div class="photohint" data-photohint></div>' +
+      '<div class="field" style="margin-top:12px"><label class="field__label">Inspiration photos<span class="opt"> · up to 2</span></label>' +
+        '<div class="photostrip" data-strip></div>' +
       '</div>' +
       '<div class="field" style="margin-top:12px"><label class="field__label" for="f-inspo">Or paste an inspo link<span class="opt"> · Pinterest, TikTok…</span></label>' +
         '<input id="f-inspo" class="input" type="url" inputmode="url" data-inspo placeholder="https://pin.it/..." /></div>' +
@@ -1613,43 +1630,40 @@
       tiersWrap.appendChild(b);
     });
 
-    // photos
+    // photos — a single fixed-height strip: small thumbnails + an "add" tile,
+    // so adding photos never grows the page (no push-down / scrolling on step 3).
     var fileInput = scroll.querySelector('[data-file]');
-    var drop = scroll.querySelector('[data-drop]');
-    var thumbs = scroll.querySelector('[data-thumbs]');
-    var dropTitle = scroll.querySelector('[data-droptitle]');
-    var photoHint = scroll.querySelector('[data-photohint]');
+    var strip = scroll.querySelector('[data-strip]');
+    var optimising = false;
 
-    function totalBytes() { return photos.reduce(function (s, p) { return s + p.blob.size; }, 0); }
     function renderPhotos() {
-      dropTitle.textContent = photos.length ? 'Add more photos' : 'Add inspiration photos';
-      thumbs.innerHTML = '';
+      strip.innerHTML = '';
       photos.forEach(function (p) {
-        var t = el('div', 'thumb');
-        t.innerHTML = '<img src="' + p.url + '" alt="inspiration" /><button type="button" class="thumb__x" aria-label="Remove photo">' + Icon.x + '</button>';
-        t.querySelector('.thumb__x').onclick = function () {
+        var chip = el('div', 'pchip');
+        chip.innerHTML = '<img src="' + p.url + '" alt="inspiration" /><button type="button" class="pchip__x" aria-label="Remove photo">' + Icon.x + '</button>';
+        chip.querySelector('.pchip__x').onclick = function () {
           URL.revokeObjectURL(p.url);
           photos = photos.filter(function (x) { return x.id !== p.id; });
           renderPhotos();
         };
-        thumbs.appendChild(t);
+        strip.appendChild(chip);
       });
-      updateGate();
-      if (!photos.length) { photoHint.textContent = ''; photoHint.className = 'photohint'; return; }
-      var mb = (totalBytes() / (1024 * 1024)).toFixed(1);
-      if (totalBytes() > TOTAL_LIMIT) {
-        photoHint.className = 'photohint warn';
-        photoHint.textContent = photos.length + ' photo(s) · ' + mb + ' MB — a touch big to email. Please remove one or two. 💕';
-      } else {
-        photoHint.className = 'photohint';
-        photoHint.textContent = photos.length + ' photo(s) ready · ' + mb + ' MB';
+      if (photos.length < MAX_PHOTOS) {
+        var add = el('button', 'padd');
+        add.type = 'button';
+        add.setAttribute('aria-label', 'Add a photo');
+        add.innerHTML = optimising
+          ? '<span class="padd__t">…</span>'
+          : '<span style="color:var(--rose)">' + Icon.camera + '</span><span class="padd__t">Add</span>';
+        add.onclick = function () { if (!optimising) fileInput.click(); };
+        strip.appendChild(add);
       }
+      updateGate();
     }
-    drop.onclick = function () { fileInput.click(); };
     fileInput.onchange = function (e) {
       var files = Array.prototype.slice.call(e.target.files || []).slice(0, MAX_PHOTOS - photos.length);
       if (!files.length) { fileInput.value = ''; return; }
-      dropTitle.textContent = 'Optimising…';
+      optimising = true; renderPhotos();
       var jobs = files.map(function (file) {
         if (!/^image\//.test(file.type)) return Promise.resolve(null);
         return compressImage(file).then(function (blob) {
@@ -1659,7 +1673,7 @@
       Promise.all(jobs).then(function (res) {
         res.forEach(function (r) { if (r) photos.push(r); });
         fileInput.value = '';
-        renderPhotos();
+        optimising = false; renderPhotos();
       });
     };
     app.appendChild(scroll);
@@ -1700,7 +1714,7 @@
       '</div>' +
       '<div class="field"><label class="field__label" for="f-name">Your name</label>' +
         '<input id="f-name" class="input" data-name placeholder="First &amp; last name" /><div data-name-err></div></div>' +
-      '<div class="field"><label class="field__label" for="f-email">Email</label>' +
+      '<div class="field"><label class="field__label" for="f-email">Email<span class="opt"> · optional</span></label>' +
         '<input id="f-email" class="input" type="email" inputmode="email" data-email placeholder="you@email.com" /></div>' +
       '<div class="field"><label class="field__label" for="f-phone">Phone</label>' +
         '<input id="f-phone" class="input" type="tel" inputmode="tel" data-phone placeholder="(000) 000-0000" /><div data-contact-err></div></div>' +
@@ -1726,6 +1740,13 @@
         b.classList.toggle('on', on);
         b.setAttribute('aria-pressed', on ? 'true' : 'false');
       });
+      updateSubmitLabel();
+    }
+    // Shipping needs a speed choice on the next screen, so the button continues
+    // there; pickup submits straight from here. (submitBtn is defined below —
+    // hoisted var, so the guard covers the initial paint.)
+    function updateSubmitLabel() {
+      if (submitBtn) submitBtn.innerHTML = (data.fulfillment === 'shipping' ? 'Continue' : 'Submit my order') + Icon.arrow;
     }
     function renderShip() {
       if (data.fulfillment !== 'shipping') { shipWrap.innerHTML = ''; return; }
@@ -1744,12 +1765,7 @@
             '<div class="field"><label class="field__label" for="f-zip">ZIP code</label>' +
               '<input id="f-zip" class="input" type="text" inputmode="numeric" data-zip placeholder="00000" maxlength="10" /><div data-zip-err></div></div>' +
           '</div>' +
-          '<div class="field"><label class="field__label">Shipping speed</label>' +
-            '<div class="seg seg--stack">' +
-              '<button data-spd="standard"><span class="seg__t">Standard</span><span class="seg__s">2–3 weeks</span></button>' +
-              '<button data-spd="rush"><span class="seg__t">Rush</span><span class="seg__s">~1 week · +' + money(RUSH_FEE) + '</span></button>' +
-            '</div>' +
-            '<p class="microhint" style="margin:8px 2px 0">Flat ' + money(SHIP_FEE) + ' shipping on every order.</p></div>' +
+          '<p class="microhint" style="margin:6px 2px 0">Flat ' + money(SHIP_FEE) + ' shipping — you\'ll pick your speed next.</p>' +
         '</div>';
       [['[data-addr1]','address1'],['[data-addr2]','address2'],['[data-city]','city'],['[data-state]','state'],['[data-zip]','zip']]
         .forEach(function (pair) {
@@ -1757,17 +1773,6 @@
           inp.value = data[pair[1]] || '';
           inp.oninput = function () { data[pair[1]] = inp.value; persist(); if (attempted) validate(); };
         });
-      function paintSpd() {
-        shipWrap.querySelectorAll('[data-spd]').forEach(function (b) {
-          var on = b.getAttribute('data-spd') === data.shipSpeed;
-          b.classList.toggle('on', on);
-          b.setAttribute('aria-pressed', on ? 'true' : 'false');
-        });
-      }
-      shipWrap.querySelectorAll('[data-spd]').forEach(function (b) {
-        b.onclick = function () { data.shipSpeed = b.getAttribute('data-spd'); persist(); paintSpd(); };
-      });
-      paintSpd();
     }
     scroll.querySelectorAll('[data-ful]').forEach(function (b) {
       b.onclick = function () {
@@ -1794,16 +1799,17 @@
       '<button class="btn" data-submit>Submit my order' + Icon.arrow + '</button>' +
       '<p class="btn__hint" data-hint>Your details stay private, used only for your order.</p>';
     var submitBtn = footer.querySelector('[data-submit]');
+    updateSubmitLabel();
 
     function validate() {
-      var hasContact = emailEl.value.trim() || phoneEl.value.trim();
+      var hasPhone = phoneEl.value.trim();
       var needsAddress = data.fulfillment === 'shipping';
-      // paint errors
+      // paint errors — name and phone are required; email is optional.
       nameEl.classList.toggle('err', !nameEl.value.trim());
       scroll.querySelector('[data-name-err]').innerHTML = !nameEl.value.trim() ? '<div class="field__err">Please add your name.</div>' : '';
-      emailEl.classList.toggle('err', !hasContact);
-      phoneEl.classList.toggle('err', !hasContact);
-      scroll.querySelector('[data-contact-err]').innerHTML = !hasContact ? '<div class="field__err">Add an email or a phone number so I can reach you.</div>' : '';
+      emailEl.classList.remove('err');
+      phoneEl.classList.toggle('err', !hasPhone);
+      scroll.querySelector('[data-contact-err]').innerHTML = !hasPhone ? '<div class="field__err">A phone number is required so I can reach you.</div>' : '';
 
       var addrOk = true;
       if (needsAddress) {
@@ -1827,7 +1833,7 @@
           addrOk = false;
         }
       }
-      return nameEl.value.trim() && hasContact && addrOk;
+      return nameEl.value.trim() && hasPhone && addrOk;
     }
 
     submitBtn.onclick = function () {
@@ -1838,6 +1844,8 @@
         if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
+      // Shipping picks a speed on the next screen; pickup submits from here.
+      if (data.fulfillment === 'shipping') { go(3.5); return; }
       if (photos.length && photos.reduce(function (s, p) { return s + p.blob.size; }, 0) > TOTAL_LIMIT) {
         footer.querySelector('[data-hint]').innerHTML = '<span style="color:var(--rose);font-weight:600">Your photos are a little too large to email — please remove one or two on the previous step.</span>';
         return;
@@ -1847,6 +1855,61 @@
     app.appendChild(footer);
 
     app.querySelector('[data-back]').onclick = function () { go(2); };
+    return app;
+  }
+
+  // ── 3.5 · SHIPPING SPEED (its own screen, only for ship-to-me) ──
+  function ShipSpeedScreen() {
+    var app = el('div', 'app step');
+    var bar = el('div', 'topbar');
+    bar.innerHTML =
+      '<button type="button" class="iconbtn" data-back aria-label="Go back" style="color:var(--ink)">' + Icon.back + '</button>' +
+      '<div class="progress"><div class="progress__meta">Last step · Shipping speed</div></div>';
+    app.appendChild(bar);
+
+    var scroll = el('div', 'app__scroll pad');
+    scroll.innerHTML =
+      '<div class="sectionlead" style="padding:6px 0 2px">' +
+        '<div class="eyebrow">How soon?</div>' +
+        '<h1 class="title">Shipping speed</h1>' +
+        '<p class="lede">Every order ships for a flat ' + money(SHIP_FEE) + '. Want it faster?</p>' +
+      '</div>' +
+      '<div class="tiers" data-speeds style="margin-top:6px"></div>';
+
+    var wrap = scroll.querySelector('[data-speeds]');
+    var SPEEDS = [
+      { id: 'standard', name: 'Standard', price: 'Included', desc: 'Ready in 2–3 weeks.' },
+      { id: 'rush',     name: 'Rush',     price: '+ ' + money(RUSH_FEE), desc: 'Ready in about a week — jumps the queue.' },
+    ];
+    SPEEDS.forEach(function (s) {
+      var b = el('button', 'tier' + (data.shipSpeed === s.id ? ' on' : ''));
+      b.innerHTML = '<span class="tier__radio"></span><span class="tier__body"><span class="tier__top"><span class="tier__name">' + s.name + '</span><span class="tier__price">' + s.price + '</span></span><span class="tier__desc">' + s.desc + '</span></span>';
+      b.onclick = function () {
+        data.shipSpeed = s.id; persist();
+        wrap.querySelectorAll('.tier').forEach(function (x) { x.classList.remove('on'); });
+        b.classList.add('on');
+      };
+      wrap.appendChild(b);
+    });
+
+    app.appendChild(scroll);
+
+    var footer = el('div', 'footer');
+    footer.innerHTML =
+      '<button class="btn" data-submit>Submit my order' + Icon.arrow + '</button>' +
+      '<p class="btn__hint" data-hint>Your set starts once payment is received.</p>';
+    var submitBtn = footer.querySelector('[data-submit]');
+    submitBtn.onclick = function () {
+      if (sending) return;
+      if (photos.length && photos.reduce(function (s, p) { return s + p.blob.size; }, 0) > TOTAL_LIMIT) {
+        footer.querySelector('[data-hint]').innerHTML = '<span style="color:var(--rose);font-weight:600">Your photos are a little too large — please remove one on the design step.</span>';
+        return;
+      }
+      submitOrder(submitBtn, footer.querySelector('[data-hint]'));
+    };
+    app.appendChild(footer);
+
+    app.querySelector('[data-back]').onclick = function () { go(3); };
     return app;
   }
 
