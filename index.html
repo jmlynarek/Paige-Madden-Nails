@@ -576,6 +576,8 @@
       buyerName: '', buyerEmail: '',
       recipName: '', recipEmail: '', message: '',
       ship1: '', ship2: '', city: '', state: 'MI', zip: '',
+      // wizard state (mirrors the order flow's data.active + completion flags)
+      active: 1, amountChosen: false, deliveryDone: false,
     };
   }
   function loadState() {
@@ -1340,77 +1342,123 @@
   var GIFT_PRESETS = [40, 50, 75, 100];
   function emailValid(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e || '').trim()); }
 
-  function GiftScreen() {
+  // Per-section completion — mirrors nextIncomplete() in the order flow.
+  function giftAmountOk() { return giftFace() > 0; }
+  function giftRecipOk() {
+    if (!giftData.recipName.trim()) return false;
+    if (giftData.method === 'email') return emailValid(giftData.recipEmail);
+    return !!(giftData.ship1.trim() && giftData.city.trim() && giftData.state.trim() && giftData.zip.trim());
+  }
+  function giftBuyerOk() { return !!giftData.buyerName.trim() && emailValid(giftData.buyerEmail); }
+  function nextGiftIncomplete() {
+    if (!giftData.amountChosen) return 1;
+    if (!giftData.deliveryDone) return 2;
+    return 3;
+  }
+
+  // renderGift/goGiftSection mirror renderMain/goSection so the gift wizard
+  // animates + scrolls the same way the order wizard does. Reuses the shared
+  // cur* refs + queueScroll (only one screen is mounted at a time).
+  function renderGift(opts) {
+    opts = opts || {};
+    var prevTop = curScroll ? curScroll.scrollTop : 0;
+    root.innerHTML = '';
+    root.appendChild(GiftScreen(opts.advance));
+    persist();
+    if (opts.advance) queueScroll();
+    else if (curScroll) curScroll.scrollTop = prevTop;
+  }
+  function goGiftSection(n) { giftData.active = n; renderGift({ advance: true }); }
+
+  function GiftScreen(animateActive) {
     var app = el('div', 'rb-app');
 
+    // Header — same brand + a live total pill.
     var head = el('div', 'rb-head');
     head.innerHTML =
       '<div class="rb-brand"><img class="rb-brand__logo" src="logo.jpeg" alt="" /><span class="rb-brand__name">Paige Madden</span></div>' +
       '<div class="rb-pill" data-pill>' + Icon.cart + '<span data-gpill></span></div>';
     app.appendChild(head);
+    curPill = head.querySelector('[data-gpill]');
 
+    // Scroll body — the three collapsing sections.
     var scroll = el('div', 'rb-scroll');
-    var card = el('div', 'rb-card');
-    card.innerHTML =
-      '<div class="rb-card__head"><div class="rb-card__title">Send a gift 🎁</div></div>' +
-      '<p class="rb-total__note" style="margin:2px 0 0;text-align:left">A Paige Madden Nails gift toward a custom set — they pick the design.</p>' +
-      '<div class="rb-giftlbl">Amount</div>' +
-      '<div class="rb-amts" data-amts></div>' +
-      '<input class="rb-inp" data-amt-custom type="text" inputmode="numeric" placeholder="Custom amount" style="margin-top:9px" />' +
-      '<div class="rb-giftlbl">How should we deliver it?</div>' +
-      '<div class="rb-seg">' +
-        '<button type="button" data-method="email">Send by email</button>' +
-        '<button type="button" data-method="card">Send a gift card</button>' +
-      '</div>' +
-      '<div data-cond></div>' +
-      '<div class="rb-giftlbl">Your details (for the receipt)</div>' +
-      '<input class="rb-inp" data-buyer-name placeholder="Your name *" autocomplete="name" style="margin-top:9px" />' +
-      '<input class="rb-inp" data-buyer-email type="email" inputmode="email" placeholder="Your email *" autocomplete="email" style="margin-top:9px" />' +
-      '<div class="rb-sum" data-gsum></div>';
-    scroll.appendChild(card);
-    var back = el('button', 'rb-restart'); back.type = 'button'; back.textContent = '← Back';
+    curScroll = scroll; curActiveCard = null;
+    buildGiftSections(scroll, animateActive);
+    var back = el('button', 'rb-restart'); back.type = 'button'; back.textContent = '← Back to start';
     back.onclick = function () { step = 'welcome'; render(); };
     scroll.appendChild(back);
     scroll.appendChild(el('div', 'rb-tail'));
     app.appendChild(scroll);
 
+    // Footer CTA — driven by the gift state machine.
     var foot = el('div', 'rb-foot');
-    foot.innerHTML = '<button class="btn" data-gfoot></button><div class="rb-foot__hint" data-gfoothint></div>';
+    foot.innerHTML = '<button class="btn" data-foot></button><div class="rb-foot__hint" data-foothint></div>';
     app.appendChild(foot);
+    curFootBtn = foot.querySelector('[data-foot]');
+    curFootHint = foot.querySelector('[data-foothint]');
 
-    var pillEl = head.querySelector('[data-gpill]');
+    paintGiftPill();
+    paintGiftFooter();
+    return app;
+  }
+
+  function buildGiftSections(scroll, animate) {
+    // 1 — Amount
+    if (giftData.active === 1) scroll.appendChild(amountEditor(animate));
+    else if (giftData.amountChosen) scroll.appendChild(giftReceiptRow('amount'));
+    else scroll.appendChild(upcoming(1, 'Gift amount'));
+    // 2 — Delivery
+    if (giftData.active === 2) scroll.appendChild(giftDeliveryEditor(animate));
+    else if (giftData.deliveryDone) scroll.appendChild(giftReceiptRow('delivery'));
+    else scroll.appendChild(upcoming(2, 'Delivery'));
+    // 3 — Your details
+    if (giftData.active === 3) scroll.appendChild(giftDetailsEditor(animate));
+    else scroll.appendChild(upcoming(3, 'Your details'));
+  }
+
+  function giftReceiptRow(kind) {
+    var row = el('div', 'rb-row');
+    var ico, label, val, valCls = '';
+    if (kind === 'amount') {
+      ico = Icon.cart; label = 'Amount'; valCls = ' rose'; val = money(giftFace()) + ' gift';
+    } else {
+      ico = Icon.palette; label = 'Delivery';
+      val = giftData.method === 'card'
+        ? 'Gift card · mail to ' + (giftData.recipName || 'recipient')
+        : 'Email · ' + (giftData.recipName || 'recipient');
+    }
+    row.innerHTML =
+      '<div class="rb-row__in">' +
+        '<span class="rb-row__ico">' + ico + '</span>' +
+        '<div class="rb-row__body"><div class="rb-row__label">' + label + '</div><div class="rb-row__val' + valCls + '">' + esc(val) + '</div></div>' +
+        '<button class="rb-edit" type="button" data-edit>Edit</button>' +
+      '</div>';
+    row.querySelector('[data-edit]').onclick = function () { goGiftSection(kind === 'amount' ? 1 : 2); };
+    return row;
+  }
+
+  function giftCardHead(title, n, canCollapse) {
+    return '<div class="rb-card__head"><div class="rb-card__title">' + title + '</div>' +
+      '<div class="rb-card__right"><span class="rb-card__meta">' + n + ' of 3</span>' +
+      (canCollapse ? '<button class="rb-collapse" type="button" data-gcollapse aria-label="Collapse">' + Icon.chevUp + '</button>' : '') +
+      '</div></div>';
+  }
+  function wireGiftCollapse(card) {
+    var c = card.querySelector('[data-gcollapse]');
+    if (c) c.onclick = function () { giftData.active = nextGiftIncomplete(); renderGift({ advance: true }); };
+  }
+
+  // ── Gift section 1 · AMOUNT ── (chip tap auto-advances, like Shape)
+  function amountEditor(animate) {
+    var card = el('div', 'rb-card' + (animate ? ' rb-reveal' : ''));
+    curActiveCard = card;
+    card.innerHTML = giftCardHead('Gift amount', 1, giftData.amountChosen) +
+      '<div class="rb-caption" style="margin:0 0 12px">A gift toward a custom set — they pick the design.</div>' +
+      '<div class="rb-amts" data-amts></div>' +
+      '<input class="rb-inp" data-amt-custom type="text" inputmode="numeric" placeholder="Custom amount" style="margin-top:11px" />';
     var amtsEl = card.querySelector('[data-amts]');
     var customEl = card.querySelector('[data-amt-custom]');
-    var condEl = card.querySelector('[data-cond]');
-    var sumEl = card.querySelector('[data-gsum]');
-    var footBtn = foot.querySelector('[data-gfoot]');
-    var footHint = foot.querySelector('[data-gfoothint]');
-    var buyerName = card.querySelector('[data-buyer-name]');
-    var buyerEmail = card.querySelector('[data-buyer-email]');
-
-    buyerName.value = giftData.buyerName; buyerEmail.value = giftData.buyerEmail;
-
-    function giftValid() {
-      if (!(giftFace() > 0)) return false;
-      if (!giftData.buyerName.trim() || !emailValid(giftData.buyerEmail)) return false;
-      if (!giftData.recipName.trim()) return false;
-      if (giftData.method === 'email') return emailValid(giftData.recipEmail);
-      return !!(giftData.ship1.trim() && giftData.city.trim() && giftData.state.trim() && giftData.zip.trim());
-    }
-    function paintGift() {
-      pillEl.textContent = money(giftTotal()) + ' gift';
-      var h = '<div class="rb-sum__row"><span>Gift amount</span><span>' + money(giftFace()) + '</span></div>';
-      if (giftShip()) h += '<div class="rb-sum__row"><span>Shipping</span><span>' + money(giftShip()) + '</span></div>';
-      h += '<div class="rb-sum__total"><span>Total</span><span class="amt">' + money(giftTotal()) + '</span></div>';
-      sumEl.innerHTML = h;
-      var ok = giftValid();
-      var label = ok ? 'Continue to payment · ' + money(giftTotal()) : 'Continue to payment';
-      footBtn.innerHTML = (sendingGift ? '<span class="btn__spin" aria-hidden="true"></span>' : '') + esc(label);
-      footBtn.disabled = !ok || sendingGift;
-      footHint.textContent = ok
-        ? (giftData.method === 'card' ? 'Mailed to the address above · pay after this step' : 'Emailed to your recipient · pay after this step')
-        : 'Fill in the amount, recipient, and your details';
-    }
     function paintAmts() {
       var custom = customEl.value.trim() !== '';
       amtsEl.innerHTML = GIFT_PRESETS.map(function (a) {
@@ -1419,10 +1467,33 @@
       amtsEl.querySelectorAll('[data-amt]').forEach(function (b) {
         b.onclick = function () {
           giftData.amount = Number(b.getAttribute('data-amt')); customEl.value = '';
-          persist(); paintAmts(); paintGift();
+          giftData.amountChosen = true; giftData.active = nextGiftIncomplete();
+          renderGift({ advance: true });
         };
       });
     }
+    customEl.oninput = function () {
+      var digits = customEl.value.replace(/[^\d]/g, '').slice(0, 4);
+      customEl.value = digits;
+      if (digits) giftData.amount = Number(digits);
+      persist(); paintAmts(); paintGiftPill(); paintGiftFooter();
+    };
+    paintAmts();
+    wireGiftCollapse(card);
+    return card;
+  }
+
+  // ── Gift section 2 · DELIVERY ──
+  function giftDeliveryEditor(animate) {
+    var card = el('div', 'rb-card' + (animate ? ' rb-reveal' : ''));
+    curActiveCard = card;
+    card.innerHTML = giftCardHead('Delivery', 2, giftData.deliveryDone) +
+      '<div class="rb-seg">' +
+        '<button type="button" data-method="email">Send by email</button>' +
+        '<button type="button" data-method="card">Send a gift card</button>' +
+      '</div>' +
+      '<div data-cond></div>';
+    var condEl = card.querySelector('[data-cond]');
     function paintMethod() {
       card.querySelectorAll('[data-method]').forEach(function (b) {
         b.classList.toggle('on', b.getAttribute('data-method') === giftData.method);
@@ -1431,18 +1502,18 @@
     function renderCond() {
       if (giftData.method === 'email') {
         condEl.innerHTML =
-          '<div class="rb-giftlbl">Who’s it for?</div>' +
+          '<div class="rb-caption" style="margin:14px 0 0;text-align:left">Who’s it for?</div>' +
           '<input class="rb-inp" data-recip-name placeholder="Recipient’s name *" style="margin-top:9px" />' +
           '<input class="rb-inp" data-recip-email type="email" inputmode="email" placeholder="Recipient’s email *" autocomplete="off" style="margin-top:9px" />' +
           '<textarea class="rb-ta" data-message placeholder="Add a message (optional)"></textarea>';
         var rn = condEl.querySelector('[data-recip-name]'), re = condEl.querySelector('[data-recip-email]'), msg = condEl.querySelector('[data-message]');
         rn.value = giftData.recipName; re.value = giftData.recipEmail; msg.value = giftData.message;
-        rn.oninput = function () { giftData.recipName = rn.value; persist(); paintGift(); };
-        re.oninput = function () { giftData.recipEmail = re.value; persist(); paintGift(); };
+        rn.oninput = function () { giftData.recipName = rn.value; persist(); paintGiftFooter(); };
+        re.oninput = function () { giftData.recipEmail = re.value; persist(); paintGiftFooter(); };
         msg.oninput = function () { giftData.message = msg.value; persist(); };
       } else {
         condEl.innerHTML =
-          '<div class="rb-giftlbl">Mail the gift to</div>' +
+          '<div class="rb-caption" style="margin:14px 0 0;text-align:left">Mail the gift to</div>' +
           '<input class="rb-inp" data-recip-name placeholder="Recipient’s name *" style="margin-top:9px" />' +
           '<input class="rb-inp" data-street placeholder="Street address *" autocomplete="address-line1" style="margin-top:9px" />' +
           '<div class="rb-2 rb-2--tight">' +
@@ -1451,37 +1522,92 @@
             '<input class="rb-inp rb-zip" data-zip placeholder="Zip *" inputmode="numeric" maxlength="10" />' +
           '</div>';
         var rn2 = condEl.querySelector('[data-recip-name]'); rn2.value = giftData.recipName;
-        rn2.oninput = function () { giftData.recipName = rn2.value; persist(); paintGift(); };
+        rn2.oninput = function () { giftData.recipName = rn2.value; persist(); paintGiftFooter(); };
         var street = condEl.querySelector('[data-street]'); street.value = giftData.ship1;
-        street.oninput = function () { giftData.ship1 = street.value; persist(); paintGift(); };
+        street.oninput = function () { giftData.ship1 = street.value; persist(); paintGiftFooter(); };
         var cityEl = condEl.querySelector('[data-city]'); cityEl.value = giftData.city;
-        cityEl.oninput = function () { giftData.city = cityEl.value; persist(); paintGift(); };
+        cityEl.oninput = function () { giftData.city = cityEl.value; persist(); paintGiftFooter(); };
         var zipEl = condEl.querySelector('[data-zip]'); zipEl.value = giftData.zip;
-        zipEl.oninput = function () { giftData.zip = zipEl.value; persist(); paintGift(); };
+        zipEl.oninput = function () { giftData.zip = zipEl.value; persist(); paintGiftFooter(); };
         var stateSel = condEl.querySelector('[data-state]');
         STATES.forEach(function (st) {
           var o = document.createElement('option'); o.value = st; o.textContent = st;
           if (st === giftData.state) o.selected = true; stateSel.appendChild(o);
         });
-        stateSel.onchange = function () { giftData.state = stateSel.value; persist(); paintGift(); };
+        stateSel.onchange = function () { giftData.state = stateSel.value; persist(); paintGiftFooter(); };
       }
     }
-
-    customEl.oninput = function () {
-      var digits = customEl.value.replace(/[^\d]/g, '').slice(0, 4);
-      customEl.value = digits;
-      if (digits) giftData.amount = Number(digits);
-      persist(); paintAmts(); paintGift();
-    };
-    buyerName.oninput = function () { giftData.buyerName = buyerName.value; persist(); paintGift(); };
-    buyerEmail.oninput = function () { giftData.buyerEmail = buyerEmail.value; persist(); paintGift(); };
     card.querySelectorAll('[data-method]').forEach(function (b) {
-      b.onclick = function () { giftData.method = b.getAttribute('data-method'); persist(); paintMethod(); renderCond(); paintGift(); };
+      b.onclick = function () {
+        giftData.method = b.getAttribute('data-method'); persist();
+        paintMethod(); renderCond(); paintGiftPill(); paintGiftFooter();
+      };
     });
-    footBtn.onclick = function () { if (!sendingGift && giftValid()) submitGiftPurchase(paintGift); };
+    paintMethod(); renderCond();
+    wireGiftCollapse(card);
+    return card;
+  }
 
-    paintAmts(); paintMethod(); renderCond(); paintGift();
-    return app;
+  // ── Gift section 3 · YOUR DETAILS (buyer receipt) ──
+  function giftDetailsEditor(animate) {
+    var card = el('div', 'rb-card' + (animate ? ' rb-reveal' : ''));
+    curActiveCard = card;
+    card.innerHTML = giftCardHead('Your details', 3, false) +
+      '<div class="rb-caption" style="margin:0 0 12px">For your receipt — so Paige can confirm your gift.</div>' +
+      '<input class="rb-inp" data-buyer-name placeholder="Your name *" autocomplete="name" />' +
+      '<input class="rb-inp" data-buyer-email type="email" inputmode="email" placeholder="Your email *" autocomplete="email" style="margin-top:9px" />' +
+      '<div class="rb-sum" data-gsum></div>';
+    var bn = card.querySelector('[data-buyer-name]'), be = card.querySelector('[data-buyer-email]');
+    bn.value = giftData.buyerName; be.value = giftData.buyerEmail;
+    bn.oninput = function () { giftData.buyerName = bn.value; persist(); paintGiftFooter(); };
+    be.oninput = function () { giftData.buyerEmail = be.value; persist(); paintGiftFooter(); };
+    paintGiftSum(card.querySelector('[data-gsum]'));
+    return card;
+  }
+
+  function paintGiftSum(sumEl) {
+    if (!sumEl) return;
+    var h = '<div class="rb-sum__row"><span>Gift amount</span><span>' + money(giftFace()) + '</span></div>';
+    if (giftShip()) h += '<div class="rb-sum__row"><span>Shipping</span><span>' + money(giftShip()) + '</span></div>';
+    h += '<div class="rb-sum__total"><span>Total</span><span class="amt">' + money(giftTotal()) + '</span></div>';
+    sumEl.innerHTML = h;
+  }
+
+  function paintGiftPill() {
+    if (!curPill) return;
+    curPill.textContent = money(giftTotal()) + ' gift';
+  }
+
+  // Footer state machine — same shape as computeFooter() in the order flow.
+  function computeGiftFooter() {
+    var a = giftData.active;
+    if (a === 1) {
+      if (giftAmountOk()) return { label: 'Continue', enabled: true, hint: 'A gift toward any custom set',
+        go: function () { giftData.amountChosen = true; giftData.active = nextGiftIncomplete(); renderGift({ advance: true }); } };
+      return { label: 'Choose an amount', enabled: false, hint: 'Pick an amount or type your own' };
+    }
+    if (a === 2) {
+      if (giftRecipOk()) return { label: 'Continue', enabled: true,
+        hint: giftData.method === 'card' ? 'Mailed to the address above' : 'Emailed straight to your recipient',
+        go: function () { giftData.deliveryDone = true; giftData.active = 3; renderGift({ advance: true }); } };
+      return { label: 'Continue', enabled: false,
+        hint: giftData.method === 'card' ? 'Add the recipient + mailing address' : 'Add the recipient’s name + email' };
+    }
+    var ok = giftAmountOk() && giftRecipOk() && giftBuyerOk();
+    return {
+      label: sendingGift ? 'Sending…' : (ok ? 'Continue to payment · ' + money(giftTotal()) : 'Continue to payment'),
+      enabled: ok && !sendingGift, spin: sendingGift,
+      hint: ok ? 'You’ll send your payment on the next step' : 'Add your name + email for the receipt',
+      go: function () { if (!sendingGift) submitGiftPurchase(paintGiftFooter); },
+    };
+  }
+  function paintGiftFooter() {
+    if (!curFootBtn) return;
+    var f = computeGiftFooter();
+    curFootBtn.innerHTML = (f.spin ? '<span class="btn__spin" aria-hidden="true"></span>' : '') + esc(f.label);
+    curFootBtn.disabled = !f.enabled;
+    curFootBtn.onclick = f.go || null;
+    if (curFootHint) curFootHint.textContent = f.hint || '';
   }
 
   function GiftDoneScreen() {
@@ -1579,7 +1705,7 @@
     }, function (e) {
       if (window.console) console.error('Gift purchase failed:', e);
       sendingGift = false; if (repaint) repaint();
-      var hint = document.querySelector('[data-gfoothint]');
+      var hint = document.querySelector('[data-foothint]');
       if (hint) hint.innerHTML = '<span style="color:var(--rose);font-weight:600">That didn’t go through — check your connection and try again.</span>';
     });
   }
