@@ -865,7 +865,8 @@
   .paynote b { color: var(--rose); font-weight: 700; }
 
   /* Tap-to-pay method tiles */
-  .paymethods { margin-top: 11px; display: flex; flex-direction: column; gap: 7px; }
+  .paysub { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); letter-spacing: 0.02em; margin: 15px 2px 0; }
+  .paymethods { margin-top: 8px; display: flex; flex-direction: column; gap: 7px; }
   .paytile {
     display: flex;
     align-items: center;
@@ -1730,6 +1731,7 @@
       if (data.fulfillment !== 'shipping') { shipWrap.innerHTML = ''; return; }
       shipWrap.innerHTML =
         '<div class="reveal">' +
+          '<div class="subhead" style="margin:18px 0 2px">Where should I ship it?</div>' +
           '<div class="field"><label class="field__label" for="f-addr1">Street address</label>' +
             '<input id="f-addr1" class="input" data-addr1 placeholder="123 Main St" /><div data-addr1-err></div></div>' +
           '<div class="field"><label class="field__label" for="f-addr2">Apt / suite<span class="opt"> · optional</span></label>' +
@@ -1768,7 +1770,20 @@
       paintSpd();
     }
     scroll.querySelectorAll('[data-ful]').forEach(function (b) {
-      b.onclick = function () { data.fulfillment = b.getAttribute('data-ful'); persist(); paintSeg(); renderShip(); };
+      b.onclick = function () {
+        data.fulfillment = b.getAttribute('data-ful'); persist(); paintSeg(); renderShip();
+        // Picking "Ship to me" reveals a stack of address fields below the fold.
+        // Scroll the address block up so it's obvious the form expanded (compute
+        // against the scroll container, not the animating .reveal child).
+        if (data.fulfillment === 'shipping') {
+          setTimeout(function () {
+            var top = shipWrap.getBoundingClientRect().top - scroll.getBoundingClientRect().top + scroll.scrollTop - 14;
+            // Instant scroll: smooth is a no-op under reduced-motion; a reliable
+            // jump matters more than the animation here.
+            scroll.scrollTop = top;
+          }, 60);
+        }
+      };
     });
     paintSeg(); renderShip();
 
@@ -1920,26 +1935,22 @@
     }).join('');
 
     body.innerHTML =
-      '<div class="pay__lead">' +
-        '<h1 class="title">Send your payment</h1>' +
-      '</div>' +
       '<div class="paycode">' +
         '<div class="paycode__label">Total due now</div>' +
         '<div class="paycode__amount">' + esc(money(total)) + '</div>' +
         '<div class="paycode__sub">' + esc(subline) + '</div>' +
         (code ?
           '<div class="paycode__div"></div>' +
-          '<div class="paycode__codelabel">Add your order number to the note</div>' +
+          '<div class="paycode__codelabel">Add this to your payment note</div>' +
           '<button class="paycode__chip" type="button" data-copy="' + esc(code) + '">' +
             '<span class="paycode__code">' + esc(code) + '</span>' +
             '<span class="paycode__ico">' + Icon.copy + '</span>' +
           '</button>' +
-          '<p class="paycode__note">Your payment <b>must</b> include <b>' + esc(code) + '</b> so I can match it to your set.</p>'
-          : '') +
+          '<p class="paycode__note">Include <b>' + esc(code) + '</b> so I can match it. Your set starts once the <b>full amount</b> lands.</p>'
+          : '<p class="paycode__note" style="margin-top:12px">Your set starts once the <b>full amount</b> is received.</p>') +
       '</div>' +
-      '<div class="paynote">Your set is only started once payment is received <b>in full</b>. Please send the full amount above with your order number in the note.</div>' +
       (PAY_METHODS.length ?
-        '<div class="paymethods">' + tiles + '</div>' :
+        '<div class="paysub">Pay with one of these</div><div class="paymethods">' + tiles + '</div>' :
         '<p class="pay__empty">I\'ll send you my payment details along with your quote. Nothing to pay just yet.</p>');
     app.appendChild(body);
 
