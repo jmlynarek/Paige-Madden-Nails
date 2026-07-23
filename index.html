@@ -1174,7 +1174,7 @@
       p_sizes: data.sizes,
       p_notes: notesForSave(),
       p_fulfillment: data.fulfillment,
-      p_ship_speed: shipping ? data.shipSpeed : null,
+      p_ship_speed: data.shipSpeed || 'standard',
       p_ship_to_name: shipping ? data.name.trim() : null,
       p_address_line1: shipping ? (data.address1.trim() || null) : null,
       p_address_line2: shipping ? (data.address2.trim() || null) : null,
@@ -1345,7 +1345,9 @@
     return data.fulfillment === 'shipping';
   }
   function isRush() {
-    return data.fulfillment === 'shipping' && data.shipSpeed === 'rush';
+    // Rush is a production-speed upgrade (Paige makes the set faster), NOT a
+    // shipping option — so it applies to pickup and ship-to-me alike.
+    return data.shipSpeed === 'rush';
   }
   function shipFee() { return isShipping() ? SHIP_FEE : 0; }
   function rushFee() { return isRush() ? RUSH_FEE : 0; }
@@ -1740,13 +1742,6 @@
         b.classList.toggle('on', on);
         b.setAttribute('aria-pressed', on ? 'true' : 'false');
       });
-      updateSubmitLabel();
-    }
-    // Shipping needs a speed choice on the next screen, so the button continues
-    // there; pickup submits straight from here. (submitBtn is defined below —
-    // hoisted var, so the guard covers the initial paint.)
-    function updateSubmitLabel() {
-      if (submitBtn) submitBtn.innerHTML = (data.fulfillment === 'shipping' ? 'Continue' : 'Submit my order') + Icon.arrow;
     }
     function renderShip() {
       if (data.fulfillment !== 'shipping') { shipWrap.innerHTML = ''; return; }
@@ -1765,7 +1760,7 @@
             '<div class="field"><label class="field__label" for="f-zip">ZIP code</label>' +
               '<input id="f-zip" class="input" type="text" inputmode="numeric" data-zip placeholder="00000" maxlength="10" /><div data-zip-err></div></div>' +
           '</div>' +
-          '<p class="microhint" style="margin:6px 2px 0">Flat ' + money(SHIP_FEE) + ' shipping — you\'ll pick your speed next.</p>' +
+          '<p class="microhint" style="margin:6px 2px 0">Flat ' + money(SHIP_FEE) + ' shipping on every ship-to-me order.</p>' +
         '</div>';
       [['[data-addr1]','address1'],['[data-addr2]','address2'],['[data-city]','city'],['[data-state]','state'],['[data-zip]','zip']]
         .forEach(function (pair) {
@@ -1796,10 +1791,9 @@
 
     var footer = el('div', 'footer');
     footer.innerHTML =
-      '<button class="btn" data-submit>Submit my order' + Icon.arrow + '</button>' +
+      '<button class="btn" data-submit>Continue' + Icon.arrow + '</button>' +
       '<p class="btn__hint" data-hint>Your details stay private, used only for your order.</p>';
     var submitBtn = footer.querySelector('[data-submit]');
-    updateSubmitLabel();
 
     function validate() {
       var hasPhone = phoneEl.value.trim();
@@ -1844,13 +1838,8 @@
         if (firstErr) firstErr.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
-      // Shipping picks a speed on the next screen; pickup submits from here.
-      if (data.fulfillment === 'shipping') { go(3.5); return; }
-      if (photos.length && photos.reduce(function (s, p) { return s + p.blob.size; }, 0) > TOTAL_LIMIT) {
-        footer.querySelector('[data-hint]').innerHTML = '<span style="color:var(--rose);font-weight:600">Your photos are a little too large to email — please remove one or two on the previous step.</span>';
-        return;
-      }
-      submitOrder(submitBtn, footer.querySelector('[data-hint]'));
+      // Everyone picks a turnaround (Standard/Rush) on the next screen.
+      go(3.5);
     };
     app.appendChild(footer);
 
@@ -1864,22 +1853,22 @@
     var bar = el('div', 'topbar');
     bar.innerHTML =
       '<button type="button" class="iconbtn" data-back aria-label="Go back" style="color:var(--ink)">' + Icon.back + '</button>' +
-      '<div class="progress"><div class="progress__meta">Last step · Shipping speed</div></div>';
+      '<div class="progress"><div class="progress__meta">Last step · Turnaround</div></div>';
     app.appendChild(bar);
 
     var scroll = el('div', 'app__scroll pad');
     scroll.innerHTML =
       '<div class="sectionlead" style="padding:6px 0 2px">' +
         '<div class="eyebrow">How soon?</div>' +
-        '<h1 class="title">Shipping speed</h1>' +
-        '<p class="lede">Every order ships for a flat ' + money(SHIP_FEE) + '. Want it faster?</p>' +
+        '<h1 class="title">Turnaround</h1>' +
+        '<p class="lede">Standard sets are ready in 2–3 weeks. Want yours sooner?</p>' +
       '</div>' +
       '<div class="tiers" data-speeds style="margin-top:6px"></div>';
 
     var wrap = scroll.querySelector('[data-speeds]');
     var SPEEDS = [
       { id: 'standard', name: 'Standard', price: 'Included', desc: 'Ready in 2–3 weeks.' },
-      { id: 'rush',     name: 'Rush',     price: '+ ' + money(RUSH_FEE), desc: 'Ready in about a week — jumps the queue.' },
+      { id: 'rush',     name: 'Rush',     price: '+ ' + money(RUSH_FEE), desc: 'Ready in about a week — Paige makes yours first.' },
     ];
     SPEEDS.forEach(function (s) {
       var b = el('button', 'tier' + (data.shipSpeed === s.id ? ' on' : ''));
@@ -1941,7 +1930,7 @@
           recapRow('Shape', data.shape || 'Noted in person') +
           recapRow('Sizes', sized + ' of 5 fingers set') +
           recapRow('Inspiration', inspoSummary()) +
-          recapRow('Delivery', data.fulfillment === 'shipping' ? ('Ship · ' + (data.shipSpeed === 'rush' ? 'Rush' : 'Standard')) : 'Booth pickup') +
+          recapRow('Delivery', (isShipping() ? 'Ship' : 'Booth pickup') + ' · ' + (data.shipSpeed === 'rush' ? 'Rush' : 'Standard')) +
           recapRow('Set price', money(Number(selectedTier().price) || 0)) +
           (isShipping() ? recapRow('Shipping', '+ ' + money(SHIP_FEE)) : '') +
           (isRush() ? recapRow('Rush', '+ ' + money(RUSH_FEE)) : '') +
@@ -2170,6 +2159,7 @@
       if (data.phone.trim()) fd.append('Phone', data.phone.trim());
 
       fd.append('Delivery', data.fulfillment === 'shipping' ? 'Ship to me' : 'Booth pickup');
+      fd.append('Turnaround', data.shipSpeed === 'rush' ? 'Rush (about a week, +$10)' : 'Standard (2–3 weeks)');
       if (data.fulfillment === 'shipping') {
         var addrBlock = [
           data.address1.trim(),
@@ -2178,7 +2168,6 @@
           'USA'
         ].filter(Boolean).join('\n');
         fd.append('Shipping address', addrBlock);
-        fd.append('Shipping speed', data.shipSpeed === 'rush' ? 'Rush (about a week, +$10)' : 'Standard (2–3 weeks)');
       }
 
       fd.append('Nail shape', data.shape || 'Not selected');
