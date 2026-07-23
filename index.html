@@ -1181,12 +1181,17 @@
       p_city: shipping ? (data.city.trim() || null) : null,
       p_region: shipping ? (data.state.trim() || null) : null,
       p_postal_code: shipping ? (data.zip.trim() || null) : null,
-      p_country: shipping ? 'US' : null
+      p_country: shipping ? 'US' : null,
+      p_gift_code: data.giftCode || null
     }).then(function (res) {
       if (res.error) throw res.error;
       var rec = Array.isArray(res.data) ? res.data[0] : res.data;
       if (!rec || !rec.id) throw new Error('Order insert returned no id');
-      var order = { id: rec.id, order_no: rec.order_no };
+      // Trust the server's authoritative burn result over the client preview.
+      var credit = rec.gift_applied ? (Number(rec.gift_credit) || 0) : 0;
+      data.giftCredit = credit;
+      if (!credit) data.giftCode = '';
+      var order = { id: rec.id, order_no: rec.order_no, gift_credit: credit };
       if (!photos.length) return order;
       var uploads = photos.map(function (p, i) {
         var path = order.id + '/' + (i + 1) + '.jpg';
@@ -1308,6 +1313,7 @@
       fulfillment: 'pickup', shipSpeed: 'standard',
       address1: '', address2: '', city: '', state: '', zip: '',
       tier: 'classic',
+      giftCode: '', giftCredit: 0,   // applied gift card (code + dollar credit), validated via check_gift_card
     };
   }
   function loadState() {
@@ -1355,6 +1361,9 @@
     var price = Number(selectedTier().price) || 0;
     return price + shipFee() + rushFee();
   }
+  // Gift credit comes off the whole total; a fully-covered order owes $0.
+  function giftCredit() { return Number(data.giftCredit) || 0; }
+  function amountDue() { return Math.max(0, totalAmount() - giftCredit()); }
   // The order has no dedicated inspo-link column, so fold any link into the
   // notes the business/DB receives (keeps the RPC + email unchanged).
   function notesForSave() {
@@ -1863,7 +1872,15 @@
         '<h1 class="title">Turnaround</h1>' +
         '<p class="lede">Standard sets are ready in 2–3 weeks. Want yours sooner?</p>' +
       '</div>' +
-      '<div class="tiers" data-speeds style="margin-top:6px"></div>';
+      '<div class="tiers" data-speeds style="margin-top:6px"></div>' +
+        '<div class="field" style="margin-top:22px">' +
+          '<label class="field__label" for="f-gift">Have a gift code?<span class="opt"> · optional</span></label>' +
+          '<div style="display:flex;gap:8px">' +
+            '<input id="f-gift" class="input" data-gift placeholder="Enter code" autocapitalize="characters" autocomplete="off" style="flex:1;text-transform:uppercase" />' +
+            '<button type="button" class="btn btn--soft" data-gift-apply style="width:auto;padding:0 18px;white-space:nowrap">Apply</button>' +
+          '</div>' +
+          '<div data-gift-msg style="margin-top:8px"></div>' +
+        '</div>';
 
     var wrap = scroll.querySelector('[data-speeds]');
     var SPEEDS = [
@@ -1880,6 +1897,45 @@
       };
       wrap.appendChild(b);
     });
+
+    // ── Gift code: validate (read-only preview) via check_gift_card. The
+    // authoritative single-use burn happens server-side in create_order.
+    var giftEl = scroll.querySelector('[data-gift]');
+    var giftMsg = scroll.querySelector('[data-gift-msg]');
+    var giftApply = scroll.querySelector('[data-gift-apply]');
+    giftEl.value = data.giftCode || '';
+    function paintGift() {
+      if (data.giftCredit > 0) {
+        giftMsg.innerHTML = '<span style="color:var(--rose);font-weight:600">🎁 ' + money(data.giftCredit) +
+          ' credit applied</span> · total due <b>' + money(amountDue()) + '</b> ' +
+          '<button type="button" data-gift-remove style="background:none;border:0;color:var(--muted);text-decoration:underline;cursor:pointer;font:inherit;padding:0;margin-left:6px">Remove</button>';
+        var rm = giftMsg.querySelector('[data-gift-remove]');
+        if (rm) rm.onclick = function () {
+          data.giftCode = ''; data.giftCredit = 0; giftEl.value = ''; persist(); paintGift();
+        };
+      } else {
+        giftMsg.innerHTML = '';
+      }
+    }
+    giftEl.oninput = function () { giftEl.value = giftEl.value.toUpperCase(); };
+    giftApply.onclick = function () {
+      var codeRaw = (giftEl.value || '').trim().toUpperCase();
+      if (!codeRaw) { data.giftCode = ''; data.giftCredit = 0; persist(); paintGift(); return; }
+      if (!sb) { giftMsg.innerHTML = '<span style="color:var(--muted)">Can’t check right now — you can still submit.</span>'; return; }
+      giftMsg.innerHTML = '<span style="color:var(--muted)">Checking…</span>';
+      sb.rpc('check_gift_card', { p_code: codeRaw }).then(function (res) {
+        var row = res && res.data ? (Array.isArray(res.data) ? res.data[0] : res.data) : null;
+        if (res && !res.error && row && row.valid) {
+          data.giftCode = codeRaw; data.giftCredit = Number(row.amount) || 0; persist(); paintGift();
+        } else {
+          data.giftCode = ''; data.giftCredit = 0; persist();
+          giftMsg.innerHTML = '<span style="color:var(--rose);font-weight:600">That code isn’t valid.</span>';
+        }
+      }, function () {
+        giftMsg.innerHTML = '<span style="color:var(--muted)">Couldn’t check that code — you can still submit.</span>';
+      });
+    };
+    paintGift();
 
     app.appendChild(scroll);
 
@@ -1934,7 +1990,8 @@
           recapRow('Set price', money(Number(selectedTier().price) || 0)) +
           (isShipping() ? recapRow('Shipping', '+ ' + money(SHIP_FEE)) : '') +
           (isRush() ? recapRow('Rush', '+ ' + money(RUSH_FEE)) : '') +
-          recapRow('Total due', money(totalAmount())) +
+          (giftCredit() > 0 ? recapRow('Gift credit', '− ' + money(giftCredit())) : '') +
+          recapRow('Total due', money(amountDue())) +
         '</div>' +
       '</div>' +
       '<div class="footer">' +
@@ -1947,12 +2004,14 @@
   // ── 6 · PAYMENT (page 2 of 2) ──
   function PaymentScreen() {
     var code = (lastOrder && lastOrder.order_no != null) ? orderLabel(lastOrder.order_no) : null;
-    var total = totalAmount();
+    var total = amountDue();
+    var paidInFull = total === 0 && giftCredit() > 0;
     var amountParam = total ? String(total) : '';
     var tier = selectedTier();
     var subline = 'Full payment for your ' + money(Number(tier.price) || 0) + ' ' + tier.name + ' set' +
       (isShipping() ? ' · ' + money(SHIP_FEE) + ' shipping' : '') +
-      (isRush() ? ' · ' + money(RUSH_FEE) + ' rush' : '');
+      (isRush() ? ' · ' + money(RUSH_FEE) + ' rush' : '') +
+      (giftCredit() > 0 ? ' · ' + money(giftCredit()) + ' gift credit' : '');
 
     var app = el('div', 'app step');
 
@@ -1998,12 +2057,16 @@
             '<span class="paycode__code">' + esc(code) + '</span>' +
             '<span class="paycode__ico">' + Icon.copy + '</span>' +
           '</button>' +
-          '<p class="paycode__note">Include <b>' + esc(code) + '</b> so I can match it. Your set starts once the <b>full amount</b> lands.</p>'
+          (paidInFull
+            ? '<p class="paycode__note">Include <b>' + esc(code) + '</b> on your order. 🎁 <b>Paid in full</b> with your gift card — your set starts right away.</p>'
+            : '<p class="paycode__note">Include <b>' + esc(code) + '</b> so I can match it. Your set starts once the <b>full amount</b> lands.</p>')
           : '<p class="paycode__note" style="margin-top:12px">Your set starts once the <b>full amount</b> is received.</p>') +
       '</div>' +
+      (paidInFull ?
+        '<p class="pay__empty">🎁 Nothing to pay — your gift card covers it. I\'ll be in touch about your custom set!</p>' :
       (PAY_METHODS.length ?
         '<div class="paysub">Pay with one of these</div><div class="paymethods">' + tiles + '</div>' :
-        '<p class="pay__empty">I\'ll send you my payment details along with your quote. Nothing to pay just yet.</p>');
+        '<p class="pay__empty">I\'ll send you my payment details along with your quote. Nothing to pay just yet.</p>'));
     app.appendChild(body);
 
     var footer = el('div', 'footer');
@@ -2173,12 +2236,15 @@
       fd.append('Nail shape', data.shape || 'Not selected');
       fd.append('Sizes (both hands)', sizesStr);
       fd.append('Design tier', tier.name + ' (' + money(tier.price) + ')');
-      fd.append('Total due', money(totalAmount()) +
-        ((shipFee() || rushFee())
+      fd.append('Total due', money(amountDue()) +
+        ((shipFee() || rushFee() || giftCredit())
           ? ' (' + money(Number(tier.price) || 0) + ' set' +
             (shipFee() ? ' + ' + money(SHIP_FEE) + ' ship' : '') +
-            (rushFee() ? ' + ' + money(RUSH_FEE) + ' rush' : '') + ')'
+            (rushFee() ? ' + ' + money(RUSH_FEE) + ' rush' : '') +
+            (giftCredit() ? ' − ' + money(giftCredit()) + ' gift' : '') + ')'
           : ''));
+      if (giftCredit()) fd.append('Gift card', 'PREPAID · ' + money(giftCredit()) + ' credit' +
+        (data.giftCode ? ' (code ' + data.giftCode + ')' : ''));
       if (data.inspoLink.trim()) fd.append('Inspo link', data.inspoLink.trim());
       fd.append('Notes', data.notes.trim() || '—');
 

@@ -401,6 +401,7 @@ var I = {
   spark:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 3.5 3L20 7"/><path d="M20 11V7h-4"/></svg>',
   box:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8M12 13v8"/></svg>',
   clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  gift:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-8"/><rect x="2.5" y="7.5" width="19" height="4.5" rx="1"/><path d="M12 7.5V21"/><path d="M12 7.5S10.5 3.5 8 3.5a2.2 2.2 0 0 0 0 4.4c2.5 0 4-.4 4-.4ZM12 7.5S13.5 3.5 16 3.5a2.2 2.2 0 0 1 0 4.4c-2.5 0-4-.4-4-.4Z"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
   truck:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11v9H3zM14 9h4l3 3v3h-7z"/><circle cx="7" cy="18" r="1.6"/><circle cx="17" cy="18" r="1.6"/></svg>',
   bag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8h12l-1 12H7L6 8Z"/><path d="M9 8a3 3 0 0 1 6 0"/></svg>',
@@ -443,7 +444,7 @@ var ALL_STATUSES = ['new','in_progress','ready_to_ship','ready_for_label','compl
 var state = {
   user: null, ready: false, loading: true,
   orders: [], tiers: [], shapes: [], payments: [], templates: [],
-  scheduled: [], optouts: [], settings: {},
+  scheduled: [], optouts: [], settings: {}, giftCards: [],
   view: 'dashboard', filter: 'all', q: '',
   range: 30, sidebarOpen: false, notifOpen: false,
   drawerId: null, photos: {}
@@ -529,7 +530,8 @@ function loadAll(){
     sb.from('notification_templates').select('*').order('sort'),
     sb.from('scheduled_sends').select('*').order('created_at',{ascending:false}),
     sb.from('email_optouts').select('*').order('opted_out_at',{ascending:false}),
-    sb.from('app_settings').select('*')
+    sb.from('app_settings').select('*'),
+    sb.from('gift_cards').select('*').order('created_at',{ascending:false})
   ]).then(function(res){
     if(res[0].error) throw res[0].error;
     state.orders    = res[0].data || [];
@@ -541,6 +543,7 @@ function loadAll(){
     state.optouts   = (res[6] && res[6].data) || [];
     state.settings  = {};
     ((res[7] && res[7].data) || []).forEach(function(r){ state.settings[r.key] = r.value; });
+    state.giftCards = (res[8] && res[8].data) || [];
     state.loading = false;
     render();
   }).catch(function(e){
@@ -566,7 +569,17 @@ function subscribeRealtime(){
     .on('postgres_changes', { event:'*', schema:'public', table:'scheduled_sends' }, function(){
       refreshScheduled();
     })
+    .on('postgres_changes', { event:'*', schema:'public', table:'gift_cards' }, function(){
+      refreshGiftCards();
+    })
     .subscribe();
+}
+
+// Re-pull gift cards after any change (generate / redeem / void). Low volume.
+function refreshGiftCards(){
+  sb.from('gift_cards').select('*').order('created_at',{ascending:false}).then(function(r){
+    if(!r.error){ state.giftCards = r.data || []; render(); }
+  });
 }
 
 // Re-pull the send queue (cheap; low volume) after any change.
@@ -719,7 +732,7 @@ function viewOrders(){
       ? '<span class="chip" style="color:#0E9E8E" title="Label purchased">'+I.tag+'Labeled</span>'
       : '<span class="chip">'+(ship?I.truck:I.bag)+(ship?'Ship':'Pickup')+'</span>';
     return '<tr data-open="'+o.id+'">'+
-      '<td data-label="Order"><span class="oid">'+(o.admin_seen?'':'<span class="unseen-dot"></span>')+shortId(o)+'</span></td>'+
+      '<td data-label="Order"><span class="oid">'+(o.admin_seen?'':'<span class="unseen-dot"></span>')+shortId(o)+'</span>'+(o.gift_card_id?' <span class="chip" style="color:#B46869" title="Paid with a gift card">🎁 Prepaid</span>':'')+'</td>'+
       '<td data-label="Date" class="muted hide-sm">'+fmtDate(o.created_at)+'</td>'+
       '<td data-label="Customer"><div class="cust">'+avatar(o.customer_name)+'<div><div class="cust-name">'+esc(o.customer_name)+'</div><div class="muted" style="font-size:11.5px">'+esc(o.email||o.phone||'')+'</div></div></div></td>'+
       '<td data-label="Design" class="hide-sm"><span class="chip" style="color:var(--ink-2)">'+I.palette+esc(o.nail_shape||'—')+'<span class="muted">· '+esc((state.tiers.find(function(x){return x.id===o.design_tier;})||{}).name||o.design_tier)+'</span></span></td>'+
@@ -877,7 +890,9 @@ function sampleOrderFor(status){
 function renderEmailHtml(tpl, order){
   order = order || {};
   var heading = esc(tpl.heading || '');
-  var bodyHtml = esc((tpl.body || '').replace(/\{\{\s*reorder_link\s*\}\}/g,'').trim()).replace(/\n/g, '<br>');
+  var amtStr = order.gift_amount!=null ? money(order.gift_amount) : '$50';
+  var bodyRaw = (tpl.body || '').replace(/\{\{\s*reorder_link\s*\}\}/g,'').replace(/\{\{\s*amount\s*\}\}/g, amtStr).trim();
+  var bodyHtml = esc(bodyRaw).replace(/\n/g, '<br>');
   var orderNo = order.order_no!=null ? 'Order PM-'+order.order_no : '';
   var name = esc(order.customer_name || 'there');
   var tracking = '';
@@ -1008,6 +1023,152 @@ var SEND_STATUS = {
 function sendPill(s){ var m=SEND_STATUS[s]||{label:s,color:'#888',bg:'#eee'}; return '<span class="pill" style="background:'+m.bg+';color:'+m.color+'"><span class="pdot" style="background:'+m.color+'"></span>'+m.label+'</span>'; }
 function fmtDay(d){ if(!d) return '—'; return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
 function isOptedOut(email){ email=String(email||'').toLowerCase(); return state.optouts.some(function(o){return String(o.email||'').toLowerCase()===email;}); }
+
+/* ───────────────────────── gift cards ───────────────────────── */
+var GC_STATUS = {
+  active:   { label:'Active',   color:'#0E7E5B', bg:'#E4F5EC' },
+  redeemed: { label:'Redeemed', color:'#8C6A60', bg:'#F3EAE4' },
+  void:     { label:'Void',     color:'#B03A3A', bg:'#F9E7E7' }
+};
+function gcPill(s){ var m=GC_STATUS[s]||{label:s,color:'#888',bg:'#eee'}; return '<span class="pill" style="background:'+m.bg+';color:'+m.color+'"><span class="pdot" style="background:'+m.color+'"></span>'+m.label+'</span>'; }
+
+function viewGiftCards(){
+  var cards = state.giftCards || [];
+  var active = cards.filter(function(c){return c.status==='active';});
+  var activeVal = active.reduce(function(s,c){return s+Number(c.amount||0);},0);
+  var t = tplFor('gift_card');
+  var tOn = t.enabled !== false;
+
+  // ---- generate a code (the booth flow) ----
+  var genPanel =
+    '<div class="panel" style="max-width:880px">'+
+      '<div class="panel-h"><div class="panel-t">Generate a gift card'+
+        '<small>Sold one at the booth? Enter the buyer’s email and the amount they paid, then Generate. Write the code on the physical card — the buyer gets a receipt by email (the code is never emailed).</small></div></div>'+
+      '<div class="panel-b">'+
+        '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">'+
+          '<div class="field" style="margin:0;flex:1;min-width:200px"><label class="nt-lbl">Buyer email</label>'+
+            '<input class="input" data-gc-email type="email" placeholder="buyer@email.com"></div>'+
+          '<div class="field" style="margin:0;width:130px"><label class="nt-lbl">Amount ($)</label>'+
+            '<input class="input" data-gc-amount inputmode="decimal" placeholder="50"></div>'+
+          '<div class="field" style="margin:0;flex:1;min-width:160px"><label class="nt-lbl">Buyer name <span class="muted">· optional</span></label>'+
+            '<input class="input" data-gc-name placeholder="First & last"></div>'+
+          '<button class="btn" data-gc-generate style="width:auto;padding:0 22px">Generate code</button>'+
+        '</div>'+
+        '<div data-gc-result style="margin-top:14px"></div>'+
+      '</div>'+
+    '</div>';
+
+  // ---- editable buyer-receipt email (reuses the notifications editor) ----
+  var tplPanel =
+    '<div class="panel" style="max-width:880px;margin-top:16px">'+
+      '<div class="panel-h"><div class="panel-t">Buyer receipt email'+
+        '<small>The thank-you the buyer receives when you generate a card. Use <b>{{amount}}</b> for the dollar value. The code is deliberately never included.</small></div></div>'+
+      '<div class="panel-b"><div class="nt-list">'+
+        '<div class="nt-card'+(tOn?'':' off')+'" data-nt="gift_card">'+
+          '<div class="nt-head">'+
+            '<span class="pill" style="background:#FBF1F0;color:#B46869"><span class="pdot" style="background:#B46869"></span>Gift receipt</span>'+
+            '<button class="switch'+(tOn?' on':'')+'" data-nt-toggle="gift_card" role="switch" aria-checked="'+(tOn?'true':'false')+'"><span class="switch-dot"></span></button>'+
+          '</div>'+
+          '<p class="nt-hint">Sent to the buyer the moment you generate their card.</p>'+
+          '<div class="nt-grid">'+
+            '<div class="nt-edit">'+
+              '<label class="nt-lbl">Email subject</label>'+
+              '<input class="input" data-nt-subject value="'+esc(t.subject||'')+'" placeholder="Subject line">'+
+              '<label class="nt-lbl">Heading</label>'+
+              '<input class="input" data-nt-heading value="'+esc(t.heading||'')+'" placeholder="Big headline in the email">'+
+              '<label class="nt-lbl">Message</label>'+
+              '<textarea class="input nt-area" data-nt-body rows="5" placeholder="What the buyer reads">'+esc(t.body||'')+'</textarea>'+
+              '<button class="btn" data-nt-save="gift_card" style="margin-top:10px">Save</button>'+
+            '</div>'+
+            '<div class="nt-preview-wrap"><div class="nt-lbl">Live preview</div>'+
+              '<iframe class="nt-preview" data-nt-preview title="Email preview" sandbox="allow-same-origin"></iframe>'+
+            '</div>'+
+          '</div>'+
+        '</div>'+
+      '</div></div>'+
+    '</div>';
+
+  // ---- the card ledger ----
+  var rows = cards.length ? cards.map(function(c){
+    var ord = c.redeemed_order_id ? state.orders.find(function(o){return o.id===c.redeemed_order_id;}) : null;
+    var acts = c.status==='active' ? '<button class="ico" data-gc-void="'+c.id+'" title="Void this card">'+I.x+'</button>' : '<span class="muted">—</span>';
+    return '<tr>'+
+      '<td data-label="Code"><span class="oid" style="letter-spacing:1px">'+esc(c.code)+'</span></td>'+
+      '<td data-label="Amount">'+money(c.amount)+'</td>'+
+      '<td data-label="Buyer" class="hide-sm">'+esc(c.buyer_email||c.buyer_name||'—')+'</td>'+
+      '<td data-label="Status">'+gcPill(c.status)+'</td>'+
+      '<td data-label="Created" class="hide-sm muted">'+fmtDay(c.created_at)+'</td>'+
+      '<td data-label="Redeemed">'+(c.status==='redeemed' ? (ord?'<span class="oid" data-open="'+ord.id+'" style="cursor:pointer">'+shortId(ord)+'</span>':'—')+' <span class="muted">'+fmtDay(c.redeemed_at)+'</span>' : '<span class="muted">—</span>')+'</td>'+
+      '<td class="col-act"><div class="row-actions">'+acts+'</div></td>'+
+    '</tr>';
+  }).join('') : '<tr><td colspan="7"><div class="empty">'+I.gift+'<div>No gift cards yet. Generate one above when you sell it at the booth.</div></div></td></tr>';
+
+  var ledgerPanel =
+    '<div class="panel" style="margin-top:16px">'+
+      '<div class="panel-h"><div class="panel-t">All gift cards'+
+        '<small>'+active.length+' active · '+money(activeVal)+' outstanding. A card is single-use and burned the moment it’s redeemed.</small></div></div>'+
+      '<div class="panel-b"><div class="table-wrap"><table class="tbl"><thead><tr>'+
+        '<th>Code</th><th>Amount</th><th class="hide-sm">Buyer</th><th>Status</th><th class="hide-sm">Created</th><th>Redeemed</th><th></th>'+
+      '</tr></thead><tbody>'+rows+'</tbody></table></div></div>'+
+    '</div>';
+
+  return '<div class="view">'+genPanel+tplPanel+ledgerPanel+'</div>';
+}
+
+// Generate a code (admin RPC), then email the buyer a receipt (no code).
+function generateGiftCard(btn){
+  var emEl=document.querySelector('[data-gc-email]'), amEl=document.querySelector('[data-gc-amount]'), nmEl=document.querySelector('[data-gc-name]');
+  var out=document.querySelector('[data-gc-result]');
+  var email=(emEl&&emEl.value||'').trim();
+  var amount=parseFloat((amEl&&amEl.value||'').replace(/[^0-9.]/g,''));
+  var name=(nmEl&&nmEl.value||'').trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toast('Enter the buyer’s email','','err'); if(emEl)emEl.focus(); return; }
+  if(!amount || amount<=0){ toast('Enter an amount','','err'); if(amEl)amEl.focus(); return; }
+  btn.disabled=true; var orig=btn.textContent; btn.innerHTML='<span class="spin"></span>';
+  sb.rpc('admin_generate_gift_card',{ p_amount:amount, p_buyer_email:email, p_buyer_name:name||null, p_note:null }).then(function(r){
+    btn.disabled=false; btn.textContent=orig;
+    if(r.error){ toast('Couldn’t generate', r.error.message,'err'); return; }
+    var rec = Array.isArray(r.data)?r.data[0]:r.data;
+    if(!rec||!rec.code){ toast('Couldn’t generate','No code returned','err'); return; }
+    if(emEl)emEl.value=''; if(amEl)amEl.value=''; if(nmEl)nmEl.value='';
+    if(out){
+      out.innerHTML =
+        '<div style="background:#FBF1F0;border:1px solid #F0D9D8;border-radius:14px;padding:16px 18px;text-align:center">'+
+          '<div class="muted" style="font-size:12.5px;text-transform:uppercase;letter-spacing:1px">Write this on the card</div>'+
+          '<div style="font-size:34px;font-weight:700;letter-spacing:4px;color:#B46869;margin:6px 0 4px">'+esc(rec.code)+'</div>'+
+          '<div class="muted" style="font-size:13px">'+money(rec.amount)+' · receipt sent to '+esc(email)+'</div>'+
+          '<button class="btn btn-ghost" data-gc-copy="'+esc(rec.code)+'" style="width:auto;margin-top:10px;padding:0 18px">Copy code</button>'+
+        '</div>';
+      var cp=out.querySelector('[data-gc-copy]');
+      if(cp) cp.onclick=function(){ var v=cp.getAttribute('data-gc-copy'); if(navigator.clipboard){ navigator.clipboard.writeText(v).then(function(){ toast('Copied',v,'ok'); }); } };
+    }
+    toast('Gift card '+rec.code+' created', money(rec.amount),'ok');
+    // Email the buyer a receipt (thank-you + amount, NO code) via send-order-email.
+    var tpl=tplFor('gift_card');
+    if(tpl && tpl.enabled!==false){
+      var order={ customer_name:name||'there', email:email, gift_amount:rec.amount };
+      var html=renderEmailHtml(tpl, order);
+      sb.functions.invoke('send-order-email',{ body:{ to:email, subject:tpl.subject, html:html } }).then(function(rr){
+        if(rr.error){ toast('Receipt not sent', rr.error.message||'','err'); return; }
+        var d=rr.data||{}; if(d.error){ toast('Receipt not sent', d.error,'err'); return; }
+        toast('Receipt sent','→ '+email,'ok');
+      }).catch(function(e){ toast('Receipt not sent', String((e&&e.message)||e),'err'); });
+    }
+    // Optimistic: show the new card immediately (realtime will reconcile).
+    state.giftCards.unshift(Object.assign({ status:'active', buyer_email:email, buyer_name:name||null, created_at:new Date().toISOString() }, rec, { amount:rec.amount }));
+    render();
+  });
+}
+
+function voidGiftCard(id){
+  var i=state.giftCards.findIndex(function(x){return x.id===id;});
+  var prev=i>=0?Object.assign({},state.giftCards[i]):null;
+  if(i>=0){ state.giftCards[i]=Object.assign({},state.giftCards[i],{status:'void'}); render(); }
+  sb.from('gift_cards').update({status:'void'}).eq('id',id).eq('status','active').then(function(r){
+    if(r.error){ if(prev&&i>=0){state.giftCards[i]=prev;} render(); toast('Couldn’t void', r.error.message,'err'); return; }
+    toast('Gift card voided','','ok');
+  });
+}
 
 function viewMarketing(){
   var enabled = String(state.settings.reengage_enabled) !== 'false';
@@ -1248,12 +1409,17 @@ function renderDrawer(){
   } else {
     sections.push({ id:'sec-ship', icon:I.bag, label:'Pickup', open:false, sub:'Local pickup', html:'<div class="dr-card"><div class="kv"><span class="k">Method</span><span class="v">Local pickup</span></div></div>' });
   }
-  sections.push({ id:'sec-pay', icon:I.cart, label:'Payment', open:true, sub:money(orderValue(o))+' to collect', html:
+  var gift = Number(o.gift_credit||0);
+  var due = Math.max(0, orderValue(o) - gift);
+  sections.push({ id:'sec-pay', icon:I.cart, label:'Payment', open:true,
+    sub: gift>0 ? (due>0 ? money(due)+' due · '+money(gift)+' prepaid' : '🎁 Prepaid — nothing due') : money(orderValue(o))+' to collect', html:
     '<div class="dr-card">'+
+      (o.gift_card_id?'<div class="kv"><span class="k"><span class="chip" style="color:#B46869">🎁 Prepaid</span></span><span class="v muted">gift card</span></div>':'')+
       '<div class="kv"><span class="k">Set price</span><span class="v">'+money(orderSetPrice(o))+'</span></div>'+
       (Number(o.ship_fee)>0?'<div class="kv"><span class="k">Shipping</span><span class="v">'+money(o.ship_fee)+'</span></div>':'')+
       (Number(o.rush_fee)>0?'<div class="kv"><span class="k">Rush</span><span class="v">'+money(o.rush_fee)+'</span></div>':'')+
-      '<div class="kv"><span class="k"><b>Total to collect</b></span><span class="v"><b>'+money(orderValue(o))+'</b></span></div>'+
+      (gift>0?'<div class="kv"><span class="k">Gift credit</span><span class="v" style="color:#0E7E5B">− '+money(gift)+'</span></div>':'')+
+      '<div class="kv"><span class="k"><b>'+(gift>0?'Still to collect':'Total to collect')+'</b></span><span class="v"><b>'+money(due)+'</b></span></div>'+
     '</div>' });
   sections.push({ id:'sec-design', icon:I.palette, label:'Design', open:!isShip, sub:esc((o.nail_shape||'—')+' · '+tierName), html:
     '<div class="dr-card"><div class="kv"><span class="k">Shape</span><span class="v">'+esc(o.nail_shape||'—')+'</span></div><div class="kv"><span class="k">Tier</span><span class="v">'+esc(tierName)+'</span></div></div>'+
@@ -1405,6 +1571,7 @@ function render(){
     {k:'dashboard', label:'Dashboard', icon:I.grid},
     {k:'orders', label:'Orders', icon:I.cart, count:c.all},
     {k:'customers', label:'Customers', icon:I.users},
+    {k:'giftcards', label:'Gift Cards', icon:I.gift},
     {k:'marketing', label:'Marketing', icon:I.spark},
     {k:'settings', label:'Settings', icon:I.cog}
   ];
@@ -1413,12 +1580,13 @@ function render(){
       (n.count?'<span class="nav-count">'+n.count+'</span>':'')+'</button>';
   }).join('');
 
-  var titles = { dashboard:['Dashboard','Your studio at a glance'], orders:['Orders','Manage every custom request'], customers:['Customers',''], marketing:['Marketing','Reminder emails & repeat customers'], settings:['Settings',''] };
+  var titles = { dashboard:['Dashboard','Your studio at a glance'], orders:['Orders','Manage every custom request'], customers:['Customers',''], giftcards:['Gift Cards','Generate & track gift codes'], marketing:['Marketing','Reminder emails & repeat customers'], settings:['Settings',''] };
   var t = titles[state.view]||['',''];
 
   var content = state.view==='dashboard'?viewDashboard()
     : state.view==='orders'?viewOrders()
     : state.view==='customers'?viewSimple('Customers','Every order is grouped by customer here in a future update. For now, open any order to see full contact details and reach out by email or phone.')
+    : state.view==='giftcards'?viewGiftCards()
     : state.view==='marketing'?viewMarketing()
     : viewSettings();
 
@@ -1475,6 +1643,8 @@ function wire(){
   document.querySelectorAll('[data-resub]').forEach(function(b){ b.onclick=function(){ resubscribe(b.getAttribute('data-resub')); }; });
   document.querySelectorAll('[data-reengage-toggle]').forEach(function(b){ b.onclick=function(){ var on=!b.classList.contains('on'); b.classList.toggle('on',on); b.setAttribute('aria-checked',on?'true':'false'); }; });
   document.querySelectorAll('[data-reengage-save]').forEach(function(b){ b.onclick=function(){ saveReengageSettings(b); }; });
+  document.querySelectorAll('[data-gc-generate]').forEach(function(b){ b.onclick=function(){ generateGiftCard(b); }; });
+  document.querySelectorAll('[data-gc-void]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); voidGiftCard(b.getAttribute('data-gc-void')); }; });
 
   var bell=$('#bell'); if(bell) bell.onclick=function(e){ e.stopPropagation(); state.notifOpen=!state.notifOpen; renderNotif(); };
   var burger=$('#burger'); if(burger) burger.onclick=function(e){ e.stopPropagation(); state.sidebarOpen=!state.sidebarOpen; var s=$('#sidebar'); if(s)s.classList.toggle('open',state.sidebarOpen); };
