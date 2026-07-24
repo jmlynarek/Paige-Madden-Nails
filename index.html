@@ -123,7 +123,16 @@
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
     padding: calc(var(--safe-top) + 8px) 34px 8px; text-align: center;
   }
-  .rb-welcome__logo { width: 230px; max-width: 74%; border-radius: 24px; mix-blend-mode: multiply; }
+  .rb-welcome__logo {
+    width: 188px; height: 188px; max-width: 58%; aspect-ratio: 1 / 1;
+    border-radius: 50%; object-fit: cover; background: #fff;
+    border: 6px solid #fff;
+    box-shadow:
+      0 0 0 8px #fff,
+      0 0 0 9.5px rgba(196,166,104,0.9),
+      0 20px 38px rgba(140,74,75,0.24),
+      0 5px 12px rgba(140,74,75,0.14);
+  }
   .rb-welcome__tag {
     font-family: var(--serif); font-size: 24px; font-weight: 600; line-height: 1.3;
     color: var(--ink); margin-top: 18px;
@@ -159,6 +168,40 @@
     background: var(--blush); border: 1px solid var(--rose-line); border-radius: 99px; padding: 6px 15px;
   }
   .rb-wl { width: 100%; max-width: 340px; margin-top: 22px; display: flex; flex-direction: column; gap: 9px; }
+
+  /* Welcome headline: serif "Handmade" over script "just for you" (postcard motif) */
+  .rb-hand {
+    display: block; font-family: var(--serif); font-weight: 600; font-size: 27px;
+    letter-spacing: 0.01em; color: var(--ink); line-height: 1;
+  }
+  .rb-script {
+    display: block; font-family: var(--script); font-weight: 400; font-size: 41px;
+    color: #C77E80; line-height: 1.1; letter-spacing: 0.01em; margin-top: 10px;
+  }
+  .rb-welcome--blush { background: linear-gradient(180deg, #FDF4F4 0%, #FBEBEC 52%, #F7DFE1 100%); }
+  .rb-welcome__price {
+    margin-top: 16px; font-family: var(--serif); font-style: italic;
+    font-size: 15.5px; letter-spacing: 0.01em; color: var(--ink-2);
+  }
+  .rb-welcome__price strong { font-style: normal; font-weight: 700; font-size: 18px; color: var(--rose); }
+
+  /* Breathing room for the blush welcome (scoped so paused/waitlist is untouched) */
+  .rb-welcome--blush .rb-welcome__body { gap: 4px; padding-top: calc(var(--safe-top) + 18px); }
+  .rb-welcome--blush .rb-welcome__tag { margin-top: 34px; }
+  .rb-welcome--blush .rb-welcome__strip {
+    margin-top: 34px; font-size: 11px; letter-spacing: 0.17em; color: rgba(95,70,63,0.62);
+    display: flex; align-items: center; justify-content: center; gap: 11px; white-space: nowrap;
+  }
+  .rb-welcome--blush .rb-welcome__strip::before,
+  .rb-welcome--blush .rb-welcome__strip::after { content: ""; height: 1.5px; flex: 0 0 30px; }
+  .rb-welcome--blush .rb-welcome__strip::before {
+    background: linear-gradient(90deg, #C4A668 0 18%, transparent 18% 38%, #C4A668 38% 100%);
+  }
+  .rb-welcome--blush .rb-welcome__strip::after {
+    background: linear-gradient(90deg, #C4A668 0 62%, transparent 62% 82%, #C4A668 82% 100%);
+  }
+  .rb-welcome--blush .rb-socials { margin-top: 34px; }
+  .rb-welcome--blush .rb-welcome__foot { padding-top: 18px; }
 
   /* ── Gift-purchase amount chips (Send a gift flow) ── */
   .rb-amts { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 12px; }
@@ -805,11 +848,15 @@
     if (orderStatus.paused) return PausedWelcomeScreen();
     var app = el('div', 'rb-app');
     app.innerHTML =
-      '<div class="rb-welcome">' +
+      '<div class="rb-welcome rb-welcome--blush">' +
         '<div class="rb-welcome__body">' +
           '<img class="rb-welcome__logo rb-pop" style="animation:pop .6s ease both" src="logo.jpeg" alt="Paige Madden Nails" />' +
-          '<div class="rb-welcome__tag">Custom press-ons,<br>made just for you.</div>' +
-          '<div class="rb-welcome__strip">Custom sizing · Handmade · Pickup or ship</div>' +
+          '<h1 class="rb-welcome__tag">' +
+            '<span class="rb-hand">Handmade</span>' +
+            '<span class="rb-script">just for you</span>' +
+          '</h1>' +
+          '<div class="rb-welcome__strip">Custom press-on nails</div>' +
+          '<div class="rb-welcome__price">sets as low as <strong>$40</strong></div>' +
           socialsHtml +
         '</div>' +
         '<div class="rb-welcome__foot">' +
