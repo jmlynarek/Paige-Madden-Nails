@@ -316,6 +316,24 @@
   .nt-preview { width: 100%; height: 460px; border: 1px solid var(--line); border-radius: 12px; background: #F2ECE6; }
   @media (max-width: 720px) { .nt-grid { grid-template-columns: 1fr; } .nt-preview { height: 380px; } }
 
+  /* notifications list (master) → click a row to edit (detail) */
+  .nt-rows { display: flex; flex-direction: column; gap: 8px; }
+  .nt-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 13px; padding: 13px 15px; cursor: pointer; transition: border-color .15s, background .15s, transform .05s; }
+  .nt-row:hover { border-color: var(--dusty); background: var(--surface-2); }
+  .nt-row:active { transform: translateY(1px); }
+  .nt-row.off { opacity: .6; }
+  .nt-row-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .nt-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .nt-row-t { font-weight: 650; font-size: 14.5px; color: var(--ink); }
+  .nt-row-sub { font-size: 12.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nt-row-state { font-size: 10.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; flex: none; padding: 3px 9px; border-radius: 20px; }
+  .nt-row-state.on { color: #2BA05A; background: #E5F4EA; }
+  .nt-row-state.off { color: var(--ink-soft); background: var(--surface-2); }
+  .nt-row-chev { color: var(--ink-soft); flex: none; display: flex; transform: rotate(-90deg); }
+  .nt-row-chev svg { width: 18px; height: 18px; }
+  .nt-back { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 0; color: var(--rose); font-weight: 600; font-size: 13.5px; cursor: pointer; padding: 4px 0; margin-bottom: 12px; }
+  .nt-back svg { width: 18px; height: 18px; transform: rotate(90deg); }
+
   /* ===================== NOTIFICATIONS ===================== */
   .pop { position: absolute; top: 52px; right: 0; width: 360px; max-width: 90vw; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-pop); z-index: 60; overflow: hidden; transform-origin: top right; }
   .pop-h { display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--hair); }
@@ -450,7 +468,7 @@ var state = {
   scheduled: [], optouts: [], settings: {}, giftCards: [], waitlist: [],
   view: 'dashboard', filter: 'all', q: '',
   range: 30, sidebarOpen: false, notifOpen: false,
-  drawerId: null, photos: {}
+  drawerId: null, photos: {}, ntSel: null
 };
 
 /* ───────────────────────── helpers ───────────────────────── */
@@ -1401,79 +1419,117 @@ function redeemGiftCard(id){
 /* ───────────────────────── notifications (all editable emails) ───────────────────────── */
 // One home for the wording, on/off and cadence of every automatic customer email —
 // pulled together from Settings (order updates), Gift Cards (gift emails) and Marketing
-// (reminders). The cards are the same generic [data-nt] editor used elsewhere, so the
-// save / toggle / live-preview wiring in wire() picks them up with no extra handlers.
+// (reminders). Presented master-detail: an organised list of every email, click one to
+// open its editor. The editor cards are the same generic [data-nt] editor used
+// elsewhere, so save / toggle / live-preview wiring in wire() picks them up unchanged.
+
+// Friendly, plain-English names + one-line descriptions for each template. The three
+// groups drive both the list and the detail header.
+var NT_GROUPS = [
+  { title:'Order updates', hint:'One email per order status.', items:[
+    {s:'new',         name:'Order received'},
+    {s:'unpaid',      name:'Payment reminder'},
+    {s:'in_progress', name:'Set started'},
+    {s:'ready',       name:'Ready for pickup'},
+    {s:'completed',   name:'Completed / shipped'},
+    {s:'cancelled',   name:'Order cancelled'}
+  ]},
+  { title:'Gift emails', hint:'Sent around gift-card purchases.', items:[
+    {s:'gift_recipient',     name:'Recipient gift',     pill:'Recipient gift', hint:'Sent to the recipient with their code when you issue an emailed gift.'},
+    {s:'gift_buyer_receipt', name:'Buyer receipt',      pill:'Buyer receipt',  hint:'Sent to the buyer confirming their gift went out (never contains the code).'},
+    {s:'gift_card',          name:'Booth gift receipt', pill:'Gift receipt',   hint:'Sent to the buyer the moment you generate their card at the booth.'}
+  ]},
+  { title:'Reminder emails', hint:'Win-back nudges to past customers.', items:[
+    {s:'re_engagement', name:'Reminder email', pill:'Reminder email'}
+  ]}
+];
+function ntMeta(status){
+  for(var g=0; g<NT_GROUPS.length; g++){
+    var it = NT_GROUPS[g].items.find(function(x){return x.s===status;});
+    if(it) return it;
+  }
+  return { s:status, name:status };
+}
+
+// The coloured-pill editor card for an order status (keeps each status's colour);
+// gift/reminder templates reuse the generic rose-pill ntEditorCard.
+function orderStatusCard(s){
+  var t = tplFor(s); var on = t.enabled !== false; var m = STATUS[s];
+  return '<div class="nt-card'+(on?'':' off')+'" data-nt="'+s+'">'+
+    '<div class="nt-head">'+
+      '<span class="pill" style="background:'+m.bg+';color:'+m.color+'"><span class="pdot" style="background:'+m.color+'"></span>'+m.label+'</span>'+
+      '<button class="switch'+(on?' on':'')+'" data-nt-toggle="'+s+'" role="switch" aria-checked="'+(on?'true':'false')+'"><span class="switch-dot"></span></button>'+
+    '</div>'+
+    '<p class="nt-hint">'+esc(NT_HINT[s]||'')+'</p>'+
+    '<div class="nt-grid">'+
+      '<div class="nt-edit">'+
+        '<label class="nt-lbl">Email subject</label>'+
+        '<input class="input" data-nt-subject value="'+esc(t.subject||'')+'" placeholder="Subject line">'+
+        '<label class="nt-lbl">Heading</label>'+
+        '<input class="input" data-nt-heading value="'+esc(t.heading||'')+'" placeholder="Big headline in the email">'+
+        '<label class="nt-lbl">Message</label>'+
+        '<textarea class="input nt-area" data-nt-body rows="5" placeholder="What the customer reads">'+esc(t.body||'')+'</textarea>'+
+        '<button class="btn" data-nt-save="'+s+'" style="margin-top:10px">Save</button>'+
+      '</div>'+
+      '<div class="nt-preview-wrap"><div class="nt-lbl">Live preview</div>'+
+        '<iframe class="nt-preview" data-nt-preview title="Email preview" sandbox="allow-same-origin"></iframe>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
 function viewNotifications(){
-  // ---- Order updates: one card per status, keeping each status's coloured pill ----
-  var orderCards = ALL_STATUSES.map(function(s){
-    var t = tplFor(s);
-    var on = t.enabled !== false;
-    var m = STATUS[s];
-    return '<div class="nt-card'+(on?'':' off')+'" data-nt="'+s+'">'+
-      '<div class="nt-head">'+
-        '<span class="pill" style="background:'+m.bg+';color:'+m.color+'"><span class="pdot" style="background:'+m.color+'"></span>'+m.label+'</span>'+
-        '<button class="switch'+(on?' on':'')+'" data-nt-toggle="'+s+'" role="switch" aria-checked="'+(on?'true':'false')+'"><span class="switch-dot"></span></button>'+
-      '</div>'+
-      '<p class="nt-hint">'+esc(NT_HINT[s]||'')+'</p>'+
-      '<div class="nt-grid">'+
-        '<div class="nt-edit">'+
-          '<label class="nt-lbl">Email subject</label>'+
-          '<input class="input" data-nt-subject value="'+esc(t.subject||'')+'" placeholder="Subject line">'+
-          '<label class="nt-lbl">Heading</label>'+
-          '<input class="input" data-nt-heading value="'+esc(t.heading||'')+'" placeholder="Big headline in the email">'+
-          '<label class="nt-lbl">Message</label>'+
-          '<textarea class="input nt-area" data-nt-body rows="5" placeholder="What the customer reads">'+esc(t.body||'')+'</textarea>'+
-          '<button class="btn" data-nt-save="'+s+'" style="margin-top:10px">Save</button>'+
-        '</div>'+
-        '<div class="nt-preview-wrap"><div class="nt-lbl">Live preview</div>'+
-          '<iframe class="nt-preview" data-nt-preview title="Email preview" sandbox="allow-same-origin"></iframe>'+
-        '</div>'+
-      '</div>'+
+  // ── DETAIL: one email's editor ──────────────────────────────────────────
+  if(state.ntSel){
+    var s = state.ntSel, isOrder = ALL_STATUSES.indexOf(s) >= 0, meta = ntMeta(s);
+    var reDelay = state.settings.reengage_delay_days || '30';
+    var card = isOrder ? orderStatusCard(s)
+      : ntEditorCard(s, meta.pill || meta.name,
+          s==='re_engagement' ? 'Sent about '+esc(reDelay)+' days after an order is finished.' : (meta.hint||''));
+    // Reminder email carries its cadence (on/off + timing) right above the wording.
+    var cadence = '';
+    if(s==='re_engagement'){
+      var reEnabled = String(state.settings.reengage_enabled) !== 'false';
+      cadence =
+        '<div class="panel" style="max-width:880px;margin-bottom:16px">'+
+          '<div class="panel-h"><div class="panel-t">Timing'+
+            '<small>Turn reminders off entirely, or change how many days after an order is finished the nudge goes out.</small></div></div>'+
+          '<div class="panel-b"><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'+
+            '<button class="switch'+(reEnabled?' on':'')+'" data-reengage-toggle role="switch" aria-checked="'+(reEnabled?'true':'false')+'"><span class="switch-dot"></span></button>'+
+            '<span class="muted" style="font-size:14px">'+(reEnabled?'Reminders are on':'Reminders are off')+'</span>'+
+            '<span style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:14px">Send after <input class="input" data-reengage-delay value="'+esc(reDelay)+'" style="width:64px;text-align:center" inputmode="numeric"> days'+
+            '<button class="btn" data-reengage-save>Save</button></span>'+
+          '</div></div>'+
+        '</div>';
+    }
+    return '<div class="view">'+
+      '<button class="nt-back" data-nt-back>'+I.chev+'All notifications</button>'+
+      '<div class="crumb" style="margin:0 0 14px;font-size:20px">'+esc(meta.name)+'</div>'+
+      cadence+
+      '<div style="max-width:880px">'+card+'</div>'+
+    '</div>';
+  }
+
+  // ── MASTER: the organised list ──────────────────────────────────────────
+  var groups = NT_GROUPS.map(function(g){
+    var rows = g.items.map(function(it){
+      var t = tplFor(it.s); var on = t.enabled !== false;
+      var col = ALL_STATUSES.indexOf(it.s) >= 0 ? STATUS[it.s].color : 'var(--rose)';
+      var sub = !on ? 'Turned off — won’t send' : (t.subject ? esc(t.subject) : 'No subject set yet');
+      return '<button class="nt-row'+(on?'':' off')+'" data-nt-open="'+it.s+'">'+
+        '<span class="nt-row-dot" style="background:'+col+'"></span>'+
+        '<span class="nt-row-main"><span class="nt-row-t">'+esc(it.name)+'</span><span class="nt-row-sub">'+sub+'</span></span>'+
+        '<span class="nt-row-state '+(on?'on':'off')+'">'+(on?'On':'Off')+'</span>'+
+        '<span class="nt-row-chev">'+I.chev+'</span>'+
+      '</button>';
+    }).join('');
+    return '<div class="panel" style="max-width:720px;margin-top:16px">'+
+      '<div class="panel-h"><div class="panel-t">'+esc(g.title)+'<small>'+esc(g.hint)+'</small></div></div>'+
+      '<div class="panel-b"><div class="nt-rows">'+rows+'</div></div>'+
     '</div>';
   }).join('');
-  var orderPanel =
-    '<div class="panel" style="max-width:880px">'+
-      '<div class="panel-h"><div class="panel-t">Order updates'+
-        '<small>One on-brand email per order status. Edit the wording, watch the live preview, and Save. Turn one off to skip that email.</small></div></div>'+
-      '<div class="panel-b"><div class="nt-list">'+orderCards+'</div></div>'+
-    '</div>';
 
-  // ---- Gift emails (sent around gift-card purchases) ----
-  var giftPanel =
-    '<div class="panel" style="max-width:880px;margin-top:16px">'+
-      '<div class="panel-h"><div class="panel-t">Gift emails'+
-        '<small>Sent around gift-card purchases. Only the <b>recipient</b> email ever carries the code — placeholders: <b>{{amount}}</b>, <b>{{code}}</b>, <b>{{from}}</b>, <b>{{recipient}}</b>, <b>{{message}}</b>.</small></div></div>'+
-      '<div class="panel-b"><div class="nt-list">'+
-        ntEditorCard('gift_recipient', 'Recipient gift', 'Sent to the recipient with their code when you issue an emailed gift.')+
-        ntEditorCard('gift_buyer_receipt', 'Buyer receipt', 'Sent to the buyer confirming their gift went out (never contains the code).')+
-        ntEditorCard('gift_card', 'Gift receipt', 'Sent to the buyer the moment you generate their card at the booth.')+
-      '</div></div>'+
-    '</div>';
-
-  // ---- Reminders: cadence (on/off + timing) then wording ----
-  var reEnabled = String(state.settings.reengage_enabled) !== 'false';
-  var reDelay = state.settings.reengage_delay_days || '30';
-  var reminderCadence =
-    '<div class="panel" style="max-width:880px;margin-top:16px">'+
-      '<div class="panel-h"><div class="panel-t">Reminder emails'+
-        '<small>A gentle nudge to past customers to order again — their sizes are saved, so they just pick a new design. Turn the whole thing off here, or change how many days after an order is finished the reminder goes out.</small></div></div>'+
-      '<div class="panel-b"><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'+
-        '<button class="switch'+(reEnabled?' on':'')+'" data-reengage-toggle role="switch" aria-checked="'+(reEnabled?'true':'false')+'"><span class="switch-dot"></span></button>'+
-        '<span class="muted" style="font-size:14px">'+(reEnabled?'Reminders are on':'Reminders are off')+'</span>'+
-        '<span style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:14px">Send after <input class="input" data-reengage-delay value="'+esc(reDelay)+'" style="width:64px;text-align:center" inputmode="numeric"> days'+
-        '<button class="btn" data-reengage-save>Save</button></span>'+
-      '</div></div>'+
-    '</div>';
-  var reminderTpl =
-    '<div class="panel" style="max-width:880px;margin-top:16px">'+
-      '<div class="panel-h"><div class="panel-t">Reminder message'+
-        '<small>Edit the wording, watch the live preview, and Save. A “Start a new order” button is added automatically.</small></div></div>'+
-      '<div class="panel-b"><div class="nt-list">'+
-        ntEditorCard('re_engagement', 'Reminder email', 'Sent about '+esc(reDelay)+' days after an order is finished.')+
-      '</div></div>'+
-    '</div>';
-
-  return '<div class="view">'+orderPanel+giftPanel+reminderCadence+reminderTpl+'</div>';
+  return '<div class="view"><div style="max-width:720px;color:var(--ink-soft);font-size:13.5px;margin-bottom:2px">Every automatic email in one place. Tap one to edit the wording, preview it, or turn it off.</div>'+groups+'</div>';
 }
 
 function viewMarketing(){
@@ -2027,7 +2083,9 @@ function render(){
 
 /* ───────────────────────── event wiring ───────────────────────── */
 function wire(){
-  document.querySelectorAll('[data-goto]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); state.view=b.getAttribute('data-goto'); state.sidebarOpen=false; state.notifOpen=false; render(); window.scrollTo(0,0); }; });
+  document.querySelectorAll('[data-goto]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); state.view=b.getAttribute('data-goto'); state.sidebarOpen=false; state.notifOpen=false; state.ntSel=null; render(); window.scrollTo(0,0); }; });
+  document.querySelectorAll('[data-nt-open]').forEach(function(b){ b.onclick=function(){ state.ntSel=b.getAttribute('data-nt-open'); render(); window.scrollTo(0,0); }; });
+  document.querySelectorAll('[data-nt-back]').forEach(function(b){ b.onclick=function(){ state.ntSel=null; render(); window.scrollTo(0,0); }; });
   document.querySelectorAll('[data-filter]').forEach(function(b){ b.onclick=function(){ state.filter=b.getAttribute('data-filter'); render(); }; });
   document.querySelectorAll('[data-range]').forEach(function(b){ b.onclick=function(){ state.range=Number(b.getAttribute('data-range')); render(); }; });
   document.querySelectorAll('[data-open]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); state.notifOpen=false; openOrder(b.getAttribute('data-open')); }; });
