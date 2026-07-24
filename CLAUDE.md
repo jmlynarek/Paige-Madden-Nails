@@ -128,6 +128,9 @@ Note: there is **no Supabase MCP tool for secrets**, and the `supabase` CLI is *
 - Push app changes to **`fork main`** → auto-deploys to `paigemadden.app`
   (there is no preview-then-promote; a bad push is live in ~1 min — Vercel
   instant-rollback is the safety net).
+- **Don't prompt about the git commit identity.** Commits are authored as the
+  auto-derived `Jeremy Mlynarek <…@Jeremys-MacBook-Pro-10.local>` and that's
+  fine — Jeremy doesn't care. Never offer to set `git config user.email/name`.
 - Goal is to **build this out and then teach Paige**. Favor small, legible,
   well-described changes / PRs that double as a teaching surface.
 - **Contributing back to Paige's upstream:** her `paige-mlynarek` repo points at
