@@ -517,6 +517,27 @@
   .rb-code__ico { display: flex; color: var(--rose); }
   .rb-total__note { font-size: 12.5px; color: rgba(95,70,63,0.6); margin-top: 8px; }
   .rb-total__note b { color: var(--rose); font-weight: 700; }
+  .rb-codebox {
+    margin-top: 14px; background: #FBEDEC; border: 1.5px solid var(--rose-30);
+    border-radius: 20px; padding: 18px; text-align: center;
+  }
+  .rb-codebox__req {
+    display: inline-block; background: var(--rose); color: #fff; font-family: var(--serif);
+    text-transform: uppercase; letter-spacing: 0.14em; font-size: 10.5px; font-weight: 700;
+    padding: 3px 13px; border-radius: 99px;
+  }
+  .rb-codebox__label { font-size: 14px; font-weight: 700; color: var(--ink); margin-top: 11px; }
+  .rb-codebox__code {
+    display: inline-flex; align-items: center; gap: 12px; background: #fff;
+    border: 2px dashed var(--rose); border-radius: 14px; padding: 12px 22px; margin-top: 12px;
+    cursor: pointer; font-family: var(--sans); transition: background .15s ease, transform .1s ease;
+  }
+  .rb-codebox__code:active { transform: scale(0.97); }
+  .rb-codebox__code.copied { background: #F7E7E6; }
+  .rb-codebox__code .rb-code__t { font-size: 24px; font-weight: 800; letter-spacing: 0.1em; color: var(--rose-deep); }
+  .rb-codebox__code .rb-code__ico { display: flex; color: var(--rose); }
+  .rb-codebox__why { font-size: 12.5px; line-height: 1.5; color: var(--ink-soft); margin-top: 12px; }
+  .rb-codebox__why b { color: var(--rose); font-weight: 700; }
   .rb-pays { display: flex; flex-direction: column; gap: 9px; margin-top: 14px; }
   .rb-paytile {
     display: flex; align-items: center; gap: 11px; background: #fff; border: none; text-align: left;
@@ -1377,19 +1398,25 @@
       '<div class="rb-done">' +
         '<div class="rb-done__top">' +
           '<div class="rb-seal rb-pop" style="animation:pop .35s ease both">' + Icon.checkBig + '</div>' +
-          '<h2 class="rb-done__title">Order <span class="script">in!</span></h2>' +
-          '<p class="rb-done__sub">' + (paidInFull
-            ? 'You’re all set — Paige will reach out to confirm your design.'
-            : 'One last thing — send your payment so<br>Paige can get started.') + '</p>' +
+          '<h2 class="rb-done__title">Order <span class="script">submitted!</span></h2>' +
+          (paidInFull
+            ? '<p class="rb-done__sub">You’re all set — Paige will reach out to confirm your design.</p>'
+            : '') +
         '</div>' +
         '<div class="rb-total">' +
           '<div class="rb-total__label">Total due now</div>' +
           '<div class="rb-total__amt">' + esc(money(total)) + '</div>' +
-          (code ?
-            '<button class="rb-code" type="button" data-copy="' + esc(code) + '"><span class="rb-code__t">' + esc(code) + '</span><span class="rb-code__ico">' + Icon.copy + '</span></button>' +
-            '<div class="rb-total__note">Add <b>' + esc(code) + '</b> to your payment note so Paige can match it.</div>'
-            : '<div class="rb-total__note" style="margin-top:12px">Your set starts once the <b>full amount</b> is received.</div>') +
+          (code ? ''
+            : '<div class="rb-total__note" style="margin-top:12px">Your set starts once the <b>full amount</b> is received and verified.</div>') +
         '</div>' +
+        (!paidInFull && code ?
+          '<div class="rb-codebox">' +
+            '<div class="rb-codebox__req">Don’t skip this</div>' +
+            '<div class="rb-codebox__label">Add this code to your payment note</div>' +
+            '<button class="rb-codebox__code" type="button" data-copy="' + esc(code) + '"><span class="rb-code__t">' + esc(code) + '</span><span class="rb-code__ico">' + Icon.copy + '</span></button>' +
+            '<div class="rb-codebox__why">It’s the <b>only way</b> Paige can match your payment to your order.</div>' +
+          '</div>'
+          : '') +
         (paidInFull
           ? '<p class="rb-empty">🎁 Nothing to pay — your gift card covers it.</p>'
           : (PAY_METHODS.length
