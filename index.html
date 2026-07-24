@@ -63,6 +63,9 @@
   .rb-app {
     height: 100vh;
     height: 100dvh;
+    /* JS syncs --app-h to the visual viewport so the keyboard doesn't hide
+       the focused field on iOS; falls back to 100dvh when unsupported. */
+    height: var(--app-h, 100dvh);
     max-width: 460px;
     margin: 0 auto;
     display: flex;
@@ -2229,6 +2232,25 @@
       if (orderStatus.paused && step === 'welcome') render();
     }, function () {});
   }
+
+  // Keyboard-aware shell: keep .rb-app sized to the *visible* viewport so the
+  // on-screen keyboard (iOS Safari) doesn't cover the focused field, and nudge
+  // the focused field into view once the keyboard has animated up.
+  (function () {
+    var vv = window.visualViewport;
+    if (!vv) return; // CSS falls back to 100dvh
+    var docEl = document.documentElement;
+    function sync() { docEl.style.setProperty('--app-h', Math.round(vv.height) + 'px'); }
+    vv.addEventListener('resize', sync);
+    sync();
+    document.addEventListener('focusin', function (e) {
+      var t = e.target;
+      if (!t || !/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
+      setTimeout(function () {
+        try { t.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (err) {}
+      }, 320);
+    });
+  })();
 
   // boot
   syncTier();
