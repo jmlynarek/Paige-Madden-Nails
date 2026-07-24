@@ -259,27 +259,16 @@
     font-size: 12.5px; line-height: 1.4; color: rgba(95,70,63,0.65);
     background: var(--bg); border-radius: 11px; padding: 9px 12px;
   }
-  .rb-finger { padding: 9px 0 10px; border-bottom: 1px solid var(--hair); }
-  .rb-finger__top { display: flex; align-items: baseline; justify-content: space-between; }
-  .rb-finger__name { font-size: 13.5px; font-weight: 600; }
-  .rb-finger__val { font-size: 11.5px; font-weight: 600; color: rgba(95,70,63,0.5); }
-  .rb-chips { display: flex; gap: 3px; margin-top: 7px; }
+  .rb-finger { display: flex; align-items: center; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--hair); }
+  .rb-finger__name { flex: 0 0 52px; font-size: 13.5px; font-weight: 600; }
+  .rb-chips { display: flex; gap: 3px; flex: 1; min-width: 0; }
   .rb-chip {
-    width: 23px; height: 23px; padding: 0; border-radius: 50%;
+    flex: 0 1 22px; min-width: 0; aspect-ratio: 1; padding: 0; border-radius: 50%;
     border: 1px solid var(--line); background: #fff; color: rgba(95,70,63,0.7);
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--sans); font-size: 11px; font-weight: 700; cursor: pointer;
+    font-family: var(--sans); font-size: 10.5px; font-weight: 700; cursor: pointer;
   }
   .rb-chip.on { background: var(--rose); color: #fff; border-color: var(--rose); }
-  .rb-confirm {
-    width: 100%; margin-top: 12px; min-height: 46px; border: none; border-radius: 14px;
-    background: var(--rose); color: #fff; font-family: var(--sans); font-weight: 600; font-size: 15px;
-    cursor: pointer; box-shadow: 0 6px 16px rgba(180,104,105,0.28);
-  }
-  .rb-set {
-    display: flex; align-items: center; justify-content: center; gap: 7px; margin-top: 12px;
-    min-height: 42px; border-radius: 14px; background: #FBF1F0; font-size: 14px; font-weight: 700; color: var(--rose);
-  }
   .rb-help {
     margin-top: 13px; background: var(--bg); border-radius: 12px; padding: 10px 13px;
     font-size: 13px; line-height: 1.45; color: rgba(95,70,63,0.7);
@@ -293,6 +282,7 @@
     cursor: pointer; transition: border-color .15s ease, background .15s ease;
   }
   .rb-drop.full { cursor: default; }
+  .rb-drop.empty { border-color: var(--rose); background: #FBF1F0; }
   .rb-drop.drag { border-color: var(--rose); background: #FBF1F0; }
   .rb-thumb { width: 64px; height: 64px; border-radius: 12px; overflow: hidden; position: relative; flex-shrink: 0; box-shadow: var(--shadow-sm); }
   .rb-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -307,7 +297,12 @@
     color: rgba(95,70,63,0.55); cursor: pointer; font-family: var(--sans); flex-shrink: 0; padding: 0;
   }
   .rb-add__t { font-size: 10.5px; font-weight: 600; }
-  .rb-req { flex: 1; min-width: 120px; font-size: 12.5px; line-height: 1.4; color: rgba(95,70,63,0.65); }
+  .rb-req { flex: 1; min-width: 120px; font-size: 12.5px; line-height: 1.5; color: rgba(95,70,63,0.8); }
+  .rb-req__badge {
+    display: inline-block; background: var(--rose); color: #fff;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    border-radius: 99px; padding: 2px 8px; margin-right: 6px; vertical-align: 1px;
+  }
   .rb-price {
     display: inline-flex; align-items: center; gap: 8px; margin-top: 11px;
     background: linear-gradient(140deg,#FBF1F0,#F6DEDF); border: 1px solid rgba(180,104,105,0.28);
@@ -374,11 +369,19 @@
   .rb-opt__s { font-size: 11.5px; color: rgba(95,70,63,0.6); margin-top: 2px; }
   .rb-gift { margin-top: 13px; }
   .rb-gift__toggle {
+    display: inline-flex; align-items: center; gap: 7px;
     background: none; border: 0; padding: 0;
-    font-family: var(--sans); font-size: 12.5px; font-weight: 600;
-    color: var(--rose); text-decoration: underline; cursor: pointer;
+    font-family: var(--sans); font-size: 15px; font-weight: 600;
+    color: var(--rose); cursor: pointer;
   }
+  .rb-gift__toggle-txt { text-decoration: underline; }
+  .rb-gift__ic { font-size: 17px; line-height: 1; }
   .rb-gift__body { margin-top: 9px; }
+  .rb-gift__cancel {
+    background: none; border: 0; padding: 0; margin-top: 9px;
+    font-family: var(--sans); font-size: 13px; color: var(--ink-soft);
+    text-decoration: underline; cursor: pointer;
+  }
   .rb-gift__label { font-size: 12.5px; font-weight: 600; color: var(--ink); margin-bottom: 7px; }
   .rb-gift__label .opt { font-weight: 500; color: var(--ink-soft); }
   .rb-gift__row { display: flex; gap: 8px; }
@@ -876,17 +879,16 @@
       var html = '<div class="rb-fine rb-reveal"><div class="rb-note" data-note></div>';
       FINGERS.forEach(function (f) {
         html += '<div class="rb-finger" data-finger="' + f + '">' +
-          '<div class="rb-finger__top"><span class="rb-finger__name">' + f + '</span><span class="rb-finger__val" data-fval>size ' + (data.sizes[f] != null ? data.sizes[f] : '–') + '</span></div>' +
+          '<span class="rb-finger__name">' + f + '</span>' +
           '<div class="rb-chips" data-chips></div></div>';
       });
-      html += '<div data-confirm></div></div>';
+      html += '</div>';
       fineWrap.innerHTML = html;
       fineWrap.querySelector('[data-note]').textContent = 'These are our ' + data.sizePreset + ' defaults — tap any number to adjust.';
 
       FINGERS.forEach(function (f) {
         var block = fineWrap.querySelector('[data-finger="' + f + '"]');
         var chips = block.querySelector('[data-chips]');
-        var readout = block.querySelector('[data-fval]');
         for (var n = 0; n <= SIZE_MAX; n++) (function (n) {
           var c = el('button', 'rb-chip' + (String(n) === data.sizes[f] ? ' on' : ''));
           c.type = 'button'; c.textContent = n;
@@ -895,27 +897,11 @@
             data.sizePreset = matchPreset();
             persist();
             chips.querySelectorAll('.rb-chip').forEach(function (x, i) { x.classList.toggle('on', i === n); });
-            readout.textContent = 'size ' + n;
             paintPresets();
           };
           chips.appendChild(c);
         })(n);
       });
-
-      renderConfirm();
-    }
-    function renderConfirm() {
-      var box = fineWrap.querySelector('[data-confirm]');
-      if (!box) return;
-      if (data.sizeConfirmed) {
-        box.innerHTML = '<div class="rb-set">' + Icon.checkSm + 'Sizes set</div>';
-        var setEl = box.querySelector('.rb-set'); if (setEl) setEl.style.color = 'var(--rose)';
-      } else {
-        box.innerHTML = '<button class="rb-confirm" type="button">Yes, continue</button>';
-        box.querySelector('.rb-confirm').onclick = function () {
-          data.sizeConfirmed = true; data.active = nextIncomplete(); renderMain({ advance: true });
-        };
-      }
     }
 
     renderFine();
@@ -972,6 +958,7 @@
     function renderDrop() {
       drop.innerHTML = '';
       drop.classList.toggle('full', photos.length >= MAX_PHOTOS);
+      drop.classList.toggle('empty', photos.length === 0);
       photos.forEach(function (p) {
         var th = el('div', 'rb-thumb');
         th.innerHTML = '<img src="' + p.url + '" alt="inspiration" /><button type="button" class="rb-thumb__x" aria-label="Remove photo">✕</button>';
@@ -989,7 +976,11 @@
         add.innerHTML = optimising ? '<span class="rb-add__t">…</span>' : Icon.plus + '<span class="rb-add__t">Add</span>';
         drop.appendChild(add);
       }
-      if (!photos.length) drop.appendChild(el('div', 'rb-req', 'REQUIRED · tap to add or drop a photo here.'));
+      if (!photos.length) {
+        var req = el('div', 'rb-req');
+        req.innerHTML = '<span class="rb-req__badge">Required</span> Add a photo — Paige matches your set to it. Tap or drop one here.';
+        drop.appendChild(req);
+      }
     }
 
     // One path for both the file picker and drag-and-drop. Non-images and
@@ -1058,13 +1049,14 @@
         '<button class="rb-opt" type="button" data-speed="rush"><div class="rb-opt__t">Rush</div><div class="rb-opt__s">~1 week · + ' + money(RUSH_FEE) + '</div></button>' +
       '</div>' +
       '<div class="rb-gift">' +
-        '<button type="button" class="rb-gift__toggle" data-gift-toggle>Have a gift code?</button>' +
+        '<button type="button" class="rb-gift__toggle" data-gift-toggle><span class="rb-gift__ic">🎁</span><span class="rb-gift__toggle-txt">Have a gift code?</span></button>' +
         '<div class="rb-gift__body" data-gift-body hidden>' +
           '<div class="rb-gift__row">' +
             '<input class="rb-inp" data-gift placeholder="Enter code" autocapitalize="characters" autocomplete="off" style="flex:1;text-transform:uppercase" />' +
             '<button class="rb-gift__apply" type="button" data-gift-apply>Apply</button>' +
           '</div>' +
           '<div class="rb-gift__msg" data-gift-msg></div>' +
+          '<button type="button" class="rb-gift__cancel" data-gift-cancel>Cancel</button>' +
         '</div>' +
       '</div>' +
       '<div class="rb-sum" data-sum></div>';
@@ -1078,6 +1070,7 @@
     var giftMsg = card.querySelector('[data-gift-msg]');
     var giftBody = card.querySelector('[data-gift-body]');
     var giftToggle = card.querySelector('[data-gift-toggle]');
+    var giftCancel = card.querySelector('[data-gift-cancel]');
 
     nameEl.value = data.name; phoneEl.value = data.phone; emailEl.value = data.email; giftEl.value = data.giftCode || '';
     nameEl.oninput = function () { data.name = nameEl.value; persist(); paintFooter(); };
@@ -1153,7 +1146,14 @@
       } else giftMsg.innerHTML = '';
     }
     function revealGift() { giftBody.hidden = false; giftToggle.style.display = 'none'; giftEl.focus(); }
+    function collapseGift() {
+      // Back out entirely: clear any typed/applied code and return to the toggle.
+      data.giftCode = ''; data.giftCredit = 0; giftEl.value = ''; giftMsg.innerHTML = ''; persist();
+      giftBody.hidden = true; giftToggle.style.display = '';
+      paintSum(sumEl); paintPill(); paintFooter();
+    }
     giftToggle.onclick = revealGift;
+    giftCancel.onclick = collapseGift;
     giftEl.oninput = function () { giftEl.value = giftEl.value.toUpperCase(); };
     card.querySelector('[data-gift-apply]').onclick = function () {
       var codeRaw = (giftEl.value || '').trim().toUpperCase();
@@ -1199,10 +1199,10 @@
     var a = data.active;
     if (a === 1) return { label: 'Pick your shape', enabled: false, hint: 'Your total updates as you pick' };
     if (a === 2) {
-      if (!data.sizePreset) return { label: 'Pick your sizes', enabled: false, hint: 'Small, Medium, or Large — then adjust any finger' };
-      if (!data.sizeConfirmed) return { label: 'Continue', enabled: false, hint: 'Confirm your sizes above to continue' };
+      var sized = FINGERS.every(function (f) { return data.sizes[f] != null; });
+      if (!sized) return { label: 'Pick your sizes', enabled: false, hint: 'Small, Medium, or Large — then adjust any finger' };
       return { label: 'Continue', enabled: true, hint: 'Free sizing card included with every kit',
-        go: function () { data.active = nextIncomplete(); renderMain({ advance: true }); } };
+        go: function () { data.sizeConfirmed = true; data.active = nextIncomplete(); renderMain({ advance: true }); } };
     }
     if (a === 3) {
       var advance = function () { data.designDone = true; data.active = 4; renderMain({ advance: true }); };
