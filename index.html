@@ -311,6 +311,39 @@
     font-family: var(--sans); font-size: 10.5px; font-weight: 700; cursor: pointer;
   }
   .rb-chip.on { background: var(--rose); color: #fff; border-color: var(--rose); }
+  .rb-vid {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 12px;
+    background: #fff; border: 1px solid var(--line); border-radius: 99px;
+    padding: 7px 13px; font-family: var(--sans); font-size: 12.5px; font-weight: 600;
+    color: var(--rose); cursor: pointer; text-decoration: none;
+  }
+  .rb-vid svg { flex-shrink: 0; }
+  .rb-confirm {
+    width: 100%; margin-top: 16px; min-height: 50px; border: none; border-radius: 14px;
+    background: var(--rose); color: #fff; font-family: var(--sans); font-weight: 700; font-size: 15.5px;
+    cursor: pointer; box-shadow: 0 6px 16px rgba(180,104,105,0.28);
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .rb-confirm:active { transform: scale(0.99); }
+  .rb-locked {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    margin-top: 16px; min-height: 46px; padding: 6px 6px 6px 16px;
+    border-radius: 14px; background: #FBF1F0;
+  }
+  .rb-locked__t { display: inline-flex; align-items: center; gap: 7px; font-size: 14.5px; font-weight: 700; color: var(--rose); }
+  .rb-adjust {
+    flex-shrink: 0; border: 1px solid var(--rose); background: #fff; color: var(--rose);
+    border-radius: 10px; padding: 9px 18px; font-family: var(--sans); font-weight: 700; font-size: 13.5px; cursor: pointer;
+  }
+  .rb-adjust:active { transform: scale(0.98); }
+  .rb-reset {
+    display: block; margin: 11px auto 0; background: none; border: 0; padding: 4px 8px;
+    font-family: var(--sans); font-size: 12.5px; color: rgba(95,70,63,0.6);
+    text-decoration: underline; cursor: pointer;
+  }
+  .rb-fine.locked .rb-chip { pointer-events: none; }
+  .rb-fine.locked .rb-chip:not(.on) { opacity: 0.4; }
+  .rb-fine.locked .rb-finger__name { opacity: 0.65; }
   .rb-help {
     margin-top: 13px; background: var(--bg); border-radius: 12px; padding: 10px 13px;
     font-size: 13px; line-height: 1.45; color: rgba(95,70,63,0.7);
@@ -901,9 +934,11 @@
     var card = el('div', 'rb-card' + (animate ? ' rb-reveal' : ''));
     curActiveCard = card;
     card.innerHTML = cardHead('Your Sizes', 2, data.sizeConfirmed) +
+      '<a class="rb-vid" href="' + SIZE_VIDEO_URL + '" target="_blank" rel="noopener">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>' +
+        'Not sure of your size? Watch the fit video</a>' +
       '<div class="rb-presets" data-presets></div>' +
-      '<div data-fine></div>' +
-      '<div class="rb-help">Not sure what size? <a href="' + SIZE_VIDEO_URL + '" target="_blank" rel="noopener">Watch this video</a> to confirm your fit.</div>';
+      '<div data-fine></div>';
 
     var presetsWrap = card.querySelector('[data-presets]');
     var fineWrap = card.querySelector('[data-fine]');
@@ -928,16 +963,18 @@
     });
 
     function renderFine() {
-      if (!data.sizePreset) { fineWrap.innerHTML = ''; return; }
-      var html = '<div class="rb-fine rb-reveal"><div class="rb-note" data-note></div>';
+      // Show the per-finger rows once any preset has populated sizes — even if the
+      // customer later adjusts off a preset (sizePreset goes '' but sizes remain).
+      var hasSizes = FINGERS.every(function (f) { return data.sizes[f] != null; });
+      if (!hasSizes) { fineWrap.innerHTML = ''; return; }
+      var html = '<div class="rb-fine rb-reveal' + (data.sizeConfirmed ? ' locked' : '') + '">';
       FINGERS.forEach(function (f) {
         html += '<div class="rb-finger" data-finger="' + f + '">' +
           '<span class="rb-finger__name">' + f + '</span>' +
           '<div class="rb-chips" data-chips></div></div>';
       });
-      html += '</div>';
+      html += '<div data-confirm></div></div>';
       fineWrap.innerHTML = html;
-      fineWrap.querySelector('[data-note]').textContent = 'These are our ' + data.sizePreset + ' defaults — tap any number to adjust.';
 
       FINGERS.forEach(function (f) {
         var block = fineWrap.querySelector('[data-finger="' + f + '"]');
@@ -946,6 +983,8 @@
           var c = el('button', 'rb-chip' + (String(n) === data.sizes[f] ? ' on' : ''));
           c.type = 'button'; c.textContent = n;
           c.onclick = function () {
+            // Pills are only interactive while unlocked (locked state sets
+            // pointer-events:none), so no need to touch sizeConfirmed here.
             data.sizes[f] = String(n);
             data.sizePreset = matchPreset();
             persist();
@@ -955,6 +994,31 @@
           chips.appendChild(c);
         })(n);
       });
+
+      renderConfirm();
+    }
+    function renderConfirm() {
+      var box = fineWrap.querySelector('[data-confirm]');
+      if (!box) return;
+      if (data.sizeConfirmed) {
+        // Locked: pills are read-only; an explicit Adjust re-opens them for editing.
+        box.innerHTML = '<div class="rb-locked"><span class="rb-locked__t">' + Icon.checkSm + 'Sizes locked in</span>' +
+          '<button class="rb-adjust" type="button" data-adjust>Adjust</button></div>';
+        box.querySelector('[data-adjust]').onclick = function () {
+          data.sizeConfirmed = false; persist(); renderFine(); paintFooter();
+        };
+      } else {
+        box.innerHTML = '<button class="rb-confirm" type="button">Lock in my sizes</button>' +
+          '<button class="rb-reset" type="button" data-reset>Start sizes over</button>';
+        box.querySelector('.rb-confirm').onclick = function () {
+          data.sizeConfirmed = true; data.active = nextIncomplete(); renderMain({ advance: true });
+        };
+        box.querySelector('[data-reset]').onclick = function () {
+          // Clear this section back to a fresh preset choice — not the whole order.
+          data.sizes = {}; data.sizePreset = ''; data.sizeConfirmed = false;
+          persist(); paintPresets(); renderFine(); paintFooter();
+        };
+      }
     }
 
     renderFine();
@@ -1254,8 +1318,9 @@
     if (a === 2) {
       var sized = FINGERS.every(function (f) { return data.sizes[f] != null; });
       if (!sized) return { label: 'Pick your sizes', enabled: false, hint: 'Small, Medium, or Large — then adjust any finger' };
+      if (!data.sizeConfirmed) return { label: 'Continue', enabled: false, hint: 'Lock in your sizes below to continue' };
       return { label: 'Continue', enabled: true, hint: 'Free sizing card included with every kit',
-        go: function () { data.sizeConfirmed = true; data.active = nextIncomplete(); renderMain({ advance: true }); } };
+        go: function () { data.active = nextIncomplete(); renderMain({ advance: true }); } };
     }
     if (a === 3) {
       var advance = function () { data.designDone = true; data.active = 4; renderMain({ advance: true }); };
