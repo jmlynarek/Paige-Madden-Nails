@@ -447,7 +447,7 @@ var ALL_STATUSES = ['new','unpaid','in_progress','ready','completed','cancelled'
 var state = {
   user: null, ready: false, loading: true,
   orders: [], tiers: [], shapes: [], payments: [], templates: [],
-  scheduled: [], optouts: [], settings: {}, giftCards: [],
+  scheduled: [], optouts: [], settings: {}, giftCards: [], waitlist: [],
   view: 'dashboard', filter: 'all', q: '',
   range: 30, sidebarOpen: false, notifOpen: false,
   drawerId: null, photos: {}
@@ -534,7 +534,8 @@ function loadAll(){
     sb.from('scheduled_sends').select('*').order('created_at',{ascending:false}),
     sb.from('email_optouts').select('*').order('opted_out_at',{ascending:false}),
     sb.from('app_settings').select('*'),
-    sb.from('gift_cards').select('*').order('created_at',{ascending:false})
+    sb.from('gift_cards').select('*').order('created_at',{ascending:false}),
+    sb.from('waitlist_leads').select('*').order('created_at',{ascending:true})
   ]).then(function(res){
     if(res[0].error) throw res[0].error;
     state.orders    = res[0].data || [];
@@ -547,6 +548,7 @@ function loadAll(){
     state.settings  = {};
     ((res[7] && res[7].data) || []).forEach(function(r){ state.settings[r.key] = r.value; });
     state.giftCards = (res[8] && res[8].data) || [];
+    state.waitlist  = (res[9] && res[9].data) || [];
     state.loading = false;
     render();
   }).catch(function(e){
@@ -581,6 +583,10 @@ function subscribeRealtime(){
       }
       refreshGiftCards();
     })
+    .on('postgres_changes', { event:'*', schema:'public', table:'waitlist_leads' }, function(p){
+      if(p.eventType==='INSERT' && p.new){ toast('New waitlist signup', p.new.email||'', 'ok'); }
+      refreshWaitlist();
+    })
     .subscribe();
 }
 
@@ -595,6 +601,13 @@ function refreshGiftCards(){
 function refreshScheduled(){
   sb.from('scheduled_sends').select('*').order('created_at',{ascending:false}).then(function(r){
     if(!r.error){ state.scheduled = r.data || []; if(state.view==='marketing') render(); }
+  });
+}
+
+// Re-pull the waitlist (cheap; low volume) after any change.
+function refreshWaitlist(){
+  sb.from('waitlist_leads').select('*').order('created_at',{ascending:true}).then(function(r){
+    if(!r.error){ state.waitlist = r.data || []; if(state.view==='settings') render(); }
   });
 }
 
@@ -849,8 +862,65 @@ function viewSettings(){
     '</div>';
   }).join('');
 
-  return '<div class="view">'+
+  // ---- Accepting new orders (pause) + editable waitlist copy ----
+  var accepting = String(state.settings.orders_paused) !== 'true';
+  var phHead = state.settings.orders_paused_headline || '';
+  var phMsg  = state.settings.orders_paused_message || '';
+  var phWait = state.settings.orders_paused_wait || '';
+  var pausePanel =
     '<div class="panel" style="max-width:680px">'+
+      '<div class="panel-h"><div class="panel-t">Accepting new orders'+
+        '<small>Turn this off when you’re backlogged. Your order page stops taking new orders and instead shows your message with an email sign-up — every visitor becomes a lead you can reach out to first when you reopen. Reorder links from past customers still work, and gift purchases stay open.</small></div></div>'+
+      '<div class="panel-b">'+
+        '<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'+
+          '<button class="switch'+(accepting?' on':'')+'" data-orders-pause-toggle role="switch" aria-checked="'+(accepting?'true':'false')+'"><span class="switch-dot"></span></button>'+
+          '<span class="muted" style="font-size:14px">'+(accepting?'You’re accepting new orders':'Paused — visitors see your waitlist')+'</span>'+
+        '</div>'+
+        '<div style="margin-top:16px;border-top:1px solid var(--line,#EEE3DA);padding-top:14px">'+
+          '<div class="nt-lbl">Headline (shown while paused)</div>'+
+          '<input class="input" data-pause-headline value="'+esc(phHead)+'" placeholder="Orders are paused right now">'+
+          '<div class="nt-lbl" style="margin-top:10px">Message</div>'+
+          '<textarea class="input nt-area" data-pause-message rows="4" placeholder="What visitors read while orders are paused">'+esc(phMsg)+'</textarea>'+
+          '<div class="nt-lbl" style="margin-top:10px">Current wait (weeks — optional)</div>'+
+          '<input class="input" data-pause-wait value="'+esc(phWait)+'" placeholder="e.g. 3" inputmode="numeric" style="max-width:120px">'+
+          '<div style="margin-top:14px"><button class="btn" data-orders-pause-save>Save</button></div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+
+  // ---- Waitlist (captured while paused) ----
+  var leads = state.waitlist || [];
+  var leadRows = leads.length ? leads.map(function(r, i){
+    var notified = !!r.notified_at;
+    var pill = notified
+      ? '<span class="pill" style="background:#EAF3EC;color:#4B7C56"><span class="pdot" style="background:#4B7C56"></span>Notified</span>'
+      : '<span class="pill" style="background:#FBF1F0;color:#B46869"><span class="pdot" style="background:#B46869"></span>Waiting</span>';
+    var acts = '<button class="ico" data-lead-copy="'+esc(r.email)+'" title="Copy email">'+(I.copy||I.mail)+'</button>';
+    if(!notified) acts += '<button class="ico" data-lead-notify="'+r.id+'" title="Mark as notified">'+I.check+'</button>';
+    acts += '<button class="ico" data-lead-remove="'+r.id+'" title="Remove from waitlist">'+I.x+'</button>';
+    return '<tr>'+
+      '<td data-label="#" class="muted" style="width:34px">'+(i+1)+'</td>'+
+      '<td data-label="Name">'+esc(r.name||'—')+'</td>'+
+      '<td data-label="Email">'+esc(r.email)+'</td>'+
+      '<td data-label="Joined" class="hide-sm muted">'+fmtDay(r.created_at)+'</td>'+
+      '<td data-label="Status">'+pill+'</td>'+
+      '<td class="col-act"><div class="row-actions">'+acts+'</div></td>'+
+    '</tr>';
+  }).join('') : '<tr><td colspan="6"><div class="empty">'+I.inbox+'<div>No one on the waitlist yet. Sign-ups appear here while orders are paused.</div></div></td></tr>';
+
+  var waitlistPanel =
+    '<div class="panel" style="margin-top:16px">'+
+      '<div class="panel-h"><div class="panel-t">Waitlist'+
+        '<small>People who asked to be notified while orders were paused, earliest first — this is your first-in-line queue. Copy an email to reach out, mark someone notified once you have, or remove them.</small></div></div>'+
+      '<div class="panel-b"><div class="table-wrap"><table class="tbl"><thead><tr>'+
+        '<th style="width:34px">#</th><th>Name</th><th>Email</th><th class="hide-sm">Joined</th><th>Status</th><th></th>'+
+      '</tr></thead><tbody>'+leadRows+'</tbody></table></div></div>'+
+    '</div>';
+
+  return '<div class="view">'+
+    pausePanel+
+    waitlistPanel+
+    '<div class="panel" style="max-width:680px;margin-top:16px">'+
       '<div class="panel-h"><div class="panel-t">Payment handles'+
         '<small>Shown on the checkout payment screen. Turn one off to hide it; leave a handle blank and it stays hidden until you fill it in.</small></div></div>'+
       '<div class="panel-b"><div class="pm-list">'+cards+'</div></div>'+
@@ -1546,6 +1616,64 @@ function saveReengageSettings(btn){
   });
 }
 
+/* ───────────────────────── orders pause + waitlist ───────────────────────── */
+function saveOrderPauseSettings(btn){
+  var tog = document.querySelector('[data-orders-pause-toggle]');
+  var accepting = tog ? tog.classList.contains('on') : true;   // on = accepting
+  var paused = accepting ? 'false' : 'true';
+  var hi = document.querySelector('[data-pause-headline]');
+  var mi = document.querySelector('[data-pause-message]');
+  var wi = document.querySelector('[data-pause-wait]');
+  var headline = hi ? hi.value.trim() : '';
+  var message  = mi ? mi.value.trim() : '';
+  var wait      = wi ? wi.value.trim().replace(/[^0-9]/g,'') : '';   // keep it a clean number
+  btn.disabled=true; var orig=btn.textContent; btn.innerHTML='<span class="spin"></span>';
+  Promise.all([
+    sb.from('app_settings').update({value:paused}).eq('key','orders_paused'),
+    sb.from('app_settings').update({value:headline}).eq('key','orders_paused_headline'),
+    sb.from('app_settings').update({value:message}).eq('key','orders_paused_message'),
+    sb.from('app_settings').update({value:wait}).eq('key','orders_paused_wait')
+  ]).then(function(rs){
+    btn.disabled=false; btn.textContent=orig;
+    var err=rs.filter(function(r){return r.error;})[0];
+    if(err){ toast('Couldn’t save', err.error.message,'err'); return; }
+    state.settings.orders_paused=paused;
+    state.settings.orders_paused_headline=headline;
+    state.settings.orders_paused_message=message;
+    state.settings.orders_paused_wait=wait;
+    toast(accepting?'Accepting new orders':'Orders paused', accepting?'Your order page is live':'Visitors now see the waitlist','ok');
+    render();
+  });
+}
+function markLeadNotified(id){
+  var i=state.waitlist.findIndex(function(x){return x.id===id;});
+  var prev=i>=0?Object.assign({},state.waitlist[i]):null;
+  var now=new Date().toISOString();
+  if(i>=0){ state.waitlist[i]=Object.assign({},state.waitlist[i],{notified_at:now}); }
+  render();
+  sb.from('waitlist_leads').update({notified_at:now}).eq('id',id).then(function(r){
+    if(r.error){ if(prev){state.waitlist[i]=prev;} render(); toast('Couldn’t update', r.error.message,'err'); }
+    else toast('Marked as notified','','ok');
+  });
+}
+function removeLead(id){
+  var i=state.waitlist.findIndex(function(x){return x.id===id;});
+  var prev=i>=0?state.waitlist[i]:null;
+  if(i>=0){ state.waitlist.splice(i,1); }
+  render();
+  sb.from('waitlist_leads').delete().eq('id',id).then(function(r){
+    if(r.error){ if(prev){state.waitlist.splice(i,0,prev);} render(); toast('Couldn’t remove', r.error.message,'err'); }
+    else toast('Removed from waitlist','','ok');
+  });
+}
+function copyLeadEmail(email){
+  try{
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(email).then(function(){ toast('Email copied', email,'ok'); }, function(){ toast('Copy this', email,'ok'); });
+    } else { toast('Copy this', email,'ok'); }
+  }catch(e){ toast('Copy this', email,'ok'); }
+}
+
 /* ───────────────────────── drawer ───────────────────────── */
 function openOrder(id){
   state.drawerId = id;
@@ -1920,6 +2048,11 @@ function wire(){
   document.querySelectorAll('[data-resub]').forEach(function(b){ b.onclick=function(){ resubscribe(b.getAttribute('data-resub')); }; });
   document.querySelectorAll('[data-reengage-toggle]').forEach(function(b){ b.onclick=function(){ var on=!b.classList.contains('on'); b.classList.toggle('on',on); b.setAttribute('aria-checked',on?'true':'false'); }; });
   document.querySelectorAll('[data-reengage-save]').forEach(function(b){ b.onclick=function(){ saveReengageSettings(b); }; });
+  document.querySelectorAll('[data-orders-pause-toggle]').forEach(function(b){ b.onclick=function(){ var on=!b.classList.contains('on'); b.classList.toggle('on',on); b.setAttribute('aria-checked',on?'true':'false'); }; });
+  document.querySelectorAll('[data-orders-pause-save]').forEach(function(b){ b.onclick=function(){ saveOrderPauseSettings(b); }; });
+  document.querySelectorAll('[data-lead-copy]').forEach(function(b){ b.onclick=function(){ copyLeadEmail(b.getAttribute('data-lead-copy')); }; });
+  document.querySelectorAll('[data-lead-notify]').forEach(function(b){ b.onclick=function(){ markLeadNotified(b.getAttribute('data-lead-notify')); }; });
+  document.querySelectorAll('[data-lead-remove]').forEach(function(b){ b.onclick=function(){ removeLead(b.getAttribute('data-lead-remove')); }; });
   document.querySelectorAll('[data-gc-generate]').forEach(function(b){ b.onclick=function(){ generateGiftCard(b); }; });
   document.querySelectorAll('[data-gc-issue]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); issueGiftCard(b.getAttribute('data-gc-issue')); }; });
   document.querySelectorAll('[data-gc-redeem]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); redeemGiftCard(b.getAttribute('data-gc-redeem')); }; });

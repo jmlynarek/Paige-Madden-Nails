@@ -61,7 +61,7 @@ function renderEmailHtml(
   // later with saved sizes/details pre-filled (design blank).
   const reorderBtn = order.public_token
     ? '<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:20px"><tr><td>' +
-        '<a href="' + SITE_URL + '/reorder?t=' + esc(order.public_token) + '" style="display:inline-block;background:#B46869;color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:13px 26px;border-radius:999px;font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif">View your order</a>' +
+        '<a href="' + SITE_URL + '/reorder?t=' + esc(order.public_token) + '" style="display:inline-block;background:#B46869;color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:13px 26px;border-radius:999px;font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif">Save this link — reorder anytime</a>' +
       '</td></tr>' +
       '<tr><td style="padding:8px 0 0;color:#8C6A60;font-size:12.5px;font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif">Keep this link — you can reorder anytime and we\'ll remember your sizes.</td></tr></table>'
     : "";

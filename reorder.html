@@ -48,7 +48,7 @@
 (function(){
   var SUPABASE_URL = 'https://ggvjyzragfxbnsthpvso.supabase.co';
   var SUPABASE_KEY = 'sb_publishable_cwjdd7fSLlGqA7o8qLdLRA_qdk7xKhh';
-  var STORAGE_KEY = 'pmn-order-v1';
+  var STORAGE_KEY = 'pmn-order-v2';   // must match index.html's key
 
   function fail(){
     document.getElementById('loading').classList.add('hide');
@@ -79,8 +79,15 @@
       zip:         o.postal_code || ''
       // tier, notes, inspoLink intentionally left at defaults/blank → fresh design
     };
+    // Drop them into the Receipt Builder with shape + sizes pre-filled (both
+    // collapse to editable receipt rows) and the design step active — design
+    // is intentionally left blank so they pick something fresh. index.html's
+    // loadState() fills any unset fields from blankData().
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: 2, data: data }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        step: 'main',
+        data: Object.assign(data, { active: 3, sizeConfirmed: true, designDone: false })
+      }));
     } catch (e) { /* if storage is blocked, the wizard just starts clean */ }
     location.replace('/');
   }).catch(fail);

@@ -148,6 +148,13 @@
     color: var(--rose); cursor: pointer; transition: background .15s ease, transform .1s ease;
   }
   .rb-welcome__gift:active { transform: scale(0.99); background: rgba(180,104,105,0.06); }
+  /* Paused / waitlist welcome variant */
+  .rb-welcome__msg { font-family: var(--sans); font-size: 15px; line-height: 1.62; color: var(--ink-2); margin-top: 14px; max-width: 34ch; }
+  .rb-welcome__wait {
+    margin-top: 15px; font-size: 13px; font-weight: 600; color: var(--rose);
+    background: var(--blush); border: 1px solid var(--rose-line); border-radius: 99px; padding: 6px 15px;
+  }
+  .rb-wl { width: 100%; max-width: 340px; margin-top: 22px; display: flex; flex-direction: column; gap: 9px; }
 
   /* ── Gift-purchase amount chips (Send a gift flow) ── */
   .rb-amts { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 12px; }
@@ -703,6 +710,11 @@
   var giftData = init.gift || blankGift();
   var lastGift = init.lastGift || null;    // { gift_ref, amount, ship_fee, method }
   var sendingGift = false;
+  // Shop open/paused state (loaded from get_order_status). While paused, the
+  // Welcome screen swaps its "Start" CTA for a waitlist capture. Defaults to
+  // "open" so the site fails safe if the RPC is slow/unavailable.
+  var orderStatus = { paused: false, headline: '', message: '', wait: '', joined: false };
+  var joiningWaitlist = false;
 
   function orderLabel(no) { return 'PM-' + no; }
   function syncTier() { data.tier = data.simpleColors ? 'classic' : 'custom'; }
@@ -769,7 +781,14 @@
   }
 
   // ── WELCOME ──
+  var socialsHtml =
+    '<div class="rb-socials">' +
+      '<a class="rb-social" href="https://instagram.com/' + INSTAGRAM_HANDLE + '" target="_blank" rel="noopener">' + Icon.instagram + 'Instagram</a>' +
+      '<a class="rb-social" href="' + TIKTOK_URL + '" target="_blank" rel="noopener">' + Icon.tiktok + 'TikTok</a>' +
+    '</div>';
+
   function WelcomeScreen() {
+    if (orderStatus.paused) return PausedWelcomeScreen();
     var app = el('div', 'rb-app');
     app.innerHTML =
       '<div class="rb-welcome">' +
@@ -777,10 +796,7 @@
           '<img class="rb-welcome__logo rb-pop" style="animation:pop .6s ease both" src="logo.jpeg" alt="Paige Madden Nails" />' +
           '<div class="rb-welcome__tag">Custom press-ons,<br>made just for you.</div>' +
           '<div class="rb-welcome__strip">Custom sizing · Handmade · Pickup or ship</div>' +
-          '<div class="rb-socials">' +
-            '<a class="rb-social" href="https://instagram.com/' + INSTAGRAM_HANDLE + '" target="_blank" rel="noopener">' + Icon.instagram + 'Instagram</a>' +
-            '<a class="rb-social" href="' + TIKTOK_URL + '" target="_blank" rel="noopener">' + Icon.tiktok + 'TikTok</a>' +
-          '</div>' +
+          socialsHtml +
         '</div>' +
         '<div class="rb-welcome__foot">' +
           '<button class="btn" data-start>Start my custom order →</button>' +
@@ -794,6 +810,111 @@
       step = 'gift'; render();
     };
     return app;
+  }
+
+  // Shown when Paige has paused new orders. Captures the visitor as a lead
+  // ("get on the wait list") instead of starting an order. Reorders bypass
+  // this entirely (they enter at step 'main'), and gift purchases stay open.
+  function PausedWelcomeScreen() {
+    var app = el('div', 'rb-app');
+    var headline = orderStatus.headline || 'Orders are paused right now';
+    var waitTxt = String(orderStatus.wait || '').trim();
+    var waitLine = waitTxt
+      ? '<div class="rb-welcome__wait">Currently about ' + esc(waitTxt) + ' week' + (waitTxt === '1' ? '' : 's') + ' behind</div>'
+      : '';
+
+    if (orderStatus.joined) {
+      // Thank-you state after joining the waitlist.
+      app.innerHTML =
+        '<div class="rb-welcome">' +
+          '<div class="rb-welcome__body">' +
+            '<img class="rb-welcome__logo rb-pop" style="animation:pop .6s ease both" src="logo.jpeg" alt="Paige Madden Nails" />' +
+            '<div class="rb-welcome__tag">You\'re on the list 💕</div>' +
+            '<div class="rb-welcome__msg">Thank you! I\'ll email you the moment I reopen — and you\'ll be first in line.</div>' +
+            socialsHtml +
+          '</div>' +
+          '<div class="rb-welcome__foot">' +
+            '<button class="rb-welcome__gift" type="button" data-gift>🎁 Send a gift</button>' +
+          '</div>' +
+        '</div>';
+      app.querySelector('[data-gift]').onclick = function () { step = 'gift'; render(); };
+      return app;
+    }
+
+    app.innerHTML =
+      '<div class="rb-welcome">' +
+        '<div class="rb-welcome__body">' +
+          '<img class="rb-welcome__logo rb-pop" style="animation:pop .6s ease both" src="logo.jpeg" alt="Paige Madden Nails" />' +
+          '<div class="rb-welcome__tag">' + esc(headline) + '</div>' +
+          '<div class="rb-welcome__msg">' + esc(orderStatus.message || '').replace(/\n/g, '<br>') + '</div>' +
+          waitLine +
+          '<div class="rb-wl">' +
+            '<input class="rb-inp" data-wl-name placeholder="First name (optional)" autocomplete="given-name" />' +
+            '<input class="rb-inp" data-wl-email type="email" inputmode="email" placeholder="Email *" autocomplete="email" />' +
+            '<div class="rb-subhint" data-wl-hint></div>' +
+          '</div>' +
+          socialsHtml +
+        '</div>' +
+        '<div class="rb-welcome__foot">' +
+          '<button class="btn" data-wl-submit>Notify me when orders reopen</button>' +
+          '<button class="rb-welcome__gift" type="button" data-gift>🎁 Send a gift</button>' +
+        '</div>' +
+      '</div>';
+
+    var emailIn = app.querySelector('[data-wl-email]');
+    var nameIn = app.querySelector('[data-wl-name]');
+    var hint = app.querySelector('[data-wl-hint]');
+    var btn = app.querySelector('[data-wl-submit]');
+
+    app.querySelector('[data-gift]').onclick = function () { step = 'gift'; render(); };
+    emailIn.onkeydown = function (e) { if (e.key === 'Enter') btn.click(); };
+
+    btn.onclick = function () {
+      if (joiningWaitlist) return;
+      var email = (emailIn.value || '').trim();
+      var name = (nameIn.value || '').trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        emailIn.classList.add('err');
+        hint.innerHTML = '<span style="color:var(--rose);font-weight:600">Please enter a valid email.</span>';
+        emailIn.focus();
+        return;
+      }
+      emailIn.classList.remove('err');
+      joiningWaitlist = true;
+      btn.disabled = true;
+      var orig = btn.textContent;
+      btn.textContent = 'Adding you…';
+      joinWaitlist(email, name).then(function (ok) {
+        joiningWaitlist = false;
+        if (ok) { orderStatus.joined = true; render(); }
+        else {
+          btn.disabled = false; btn.textContent = orig;
+          hint.innerHTML = '<span style="color:var(--rose);font-weight:600">That didn’t go through — check your connection and try again.</span>';
+        }
+      });
+    };
+    return app;
+  }
+
+  // Saves the lead (dedup server-side) and, best-effort, pings Paige's inbox
+  // via the same FormSubmit endpoint the order alerts use — so she sees leads
+  // without opening the dashboard. Resolves true if the DB save succeeded.
+  function joinWaitlist(email, name) {
+    var dbSave = sb
+      ? sb.rpc('join_waitlist', { p_email: email, p_name: name || null })
+          .then(function (res) { return !res.error && res.data === true; }, function () { return false; })
+      : Promise.resolve(false);
+    // Fire-and-forget notification (never blocks the result).
+    try {
+      var fd = new FormData();
+      fd.append('_subject', 'New waitlist signup' + (name ? ' — ' + name : ''));
+      fd.append('_captcha', 'false');
+      fd.append('Name', name || '—');
+      fd.append('Email', email);
+      fd.append('Source', 'Order pause / waitlist');
+      fetch(FORMSUBMIT_ENDPOINT, { method: 'POST', body: fd, mode: 'no-cors' }).catch(function () {});
+    } catch (e) {}
+    return dbSave;
   }
 
   // ════════════════════════════════════════ MAIN ════════
@@ -2071,10 +2192,26 @@
     });
   }
 
+  // Ask the server whether new orders are paused. Only ever swaps the Welcome
+  // screen — an in-progress order (step 'main', incl. reorders) is untouched.
+  function loadOrderStatus() {
+    if (!sb) return;
+    sb.rpc('get_order_status').then(function (res) {
+      if (res.error || !res.data) return;
+      var d = res.data;
+      orderStatus.paused = d.paused === true;
+      orderStatus.headline = d.headline || '';
+      orderStatus.message = d.message || '';
+      orderStatus.wait = d.wait || '';
+      if (orderStatus.paused && step === 'welcome') render();
+    }, function () {});
+  }
+
   // boot
   syncTier();
   render();
   loadReferenceData();
+  loadOrderStatus();
   </script>
 </body>
 </html>
