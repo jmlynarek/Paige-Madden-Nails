@@ -2240,15 +2240,32 @@
     var vv = window.visualViewport;
     if (!vv) return; // CSS falls back to 100dvh
     var docEl = document.documentElement;
-    function sync() { docEl.style.setProperty('--app-h', Math.round(vv.height) + 'px'); }
+    function focusedField() {
+      var a = document.activeElement;
+      return a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) ? a : null;
+    }
+    function keyboardOpen() { return (window.innerHeight - vv.height) > 120; }
+    function reveal() {
+      var f = focusedField();
+      if (f && keyboardOpen()) {
+        void docEl.offsetHeight; // flush layout so the shrunken shell is applied first
+        try { f.scrollIntoView({ block: 'center' }); } catch (err) {}
+      }
+    }
+    function sync() {
+      docEl.style.setProperty('--app-h', Math.round(vv.height) + 'px');
+      // Reveal *after* the shell has resized to the visible area — scrolling
+      // before the shrink would just push the field back under the keyboard.
+      requestAnimationFrame(reveal);
+    }
     vv.addEventListener('resize', sync);
     sync();
+    // Switching fields while the keyboard is already up fires no resize, so
+    // also reveal on focus once the keyboard has settled.
     document.addEventListener('focusin', function (e) {
-      var t = e.target;
-      if (!t || !/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
-      setTimeout(function () {
-        try { t.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (err) {}
-      }, 320);
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) {
+        setTimeout(reveal, 350);
+      }
     });
   })();
 
