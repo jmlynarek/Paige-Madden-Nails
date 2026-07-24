@@ -235,8 +235,12 @@
   /* ── Receipt row ── */
   .rb-row {
     background: var(--surface); border-radius: 18px; box-shadow: var(--shadow-sm);
-    padding: 2px 18px;
+    padding: 2px 18px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: box-shadow .15s ease, transform .1s ease;
   }
+  .rb-row:hover { box-shadow: 0 4px 14px rgba(95,70,63,0.12); }
+  .rb-row:active { transform: scale(0.99); }
+  .rb-row:focus-visible { outline: 2.5px solid var(--rose); outline-offset: 2px; }
   .rb-row__in { display: flex; align-items: center; gap: 12px; padding: 11px 0; }
   .rb-row__ico { width: 26px; display: flex; justify-content: center; flex-shrink: 0; color: var(--rose); }
   .rb-row__ico img { width: 26px; height: 34px; object-fit: contain; }
@@ -420,6 +424,10 @@
   }
   .rb-inp:focus { border-color: var(--rose); box-shadow: 0 0 0 3.5px rgba(180,104,105,0.13); }
   .rb-inp.err { border-color: var(--dusty); box-shadow: 0 0 0 3.5px rgba(220,130,137,0.16); }
+  .rb-inp.req { border-color: var(--rose-30); background: #FDF6F6; }
+  .rb-inp.req:focus { border-color: var(--rose); background: #fff; }
+  select.rb-sel.req { border-color: var(--rose-30); background: #FDF6F6; }
+  select.rb-sel.req:focus { border-color: var(--rose); background: #fff; }
   .rb-2 { display: flex; gap: 10px; margin-top: 13px; }
   .rb-2--tight { margin-top: 10px; }
   .rb-name { flex: 1; min-width: 0; }
@@ -475,7 +483,7 @@
   .rb-gift__msg .ok { color: var(--rose); font-weight: 600; }
   .rb-gift__msg .muted { color: var(--ink-soft); }
   .rb-gift__remove { background: none; border: 0; color: var(--ink-soft); text-decoration: underline; cursor: pointer; font: inherit; padding: 0; margin-left: 6px; }
-  .rb-sum { background: var(--blush); border-radius: 14px; padding: 12px 15px; margin-top: 13px; }
+  .rb-sum { background: #FBF1F0; border-radius: 14px; padding: 12px 15px; margin-top: 13px; }
   .rb-sum__row { display: flex; justify-content: space-between; font-size: 13px; color: rgba(95,70,63,0.7); }
   .rb-sum__row + .rb-sum__row { margin-top: 4px; }
   .rb-sum__total {
@@ -1035,10 +1043,18 @@
       '<div class="rb-row__in">' +
         '<span class="rb-row__ico">' + ico + '</span>' +
         '<div class="rb-row__body"><div class="rb-row__label">' + label + '</div><div class="rb-row__val' + valCls + '">' + esc(val) + '</div></div>' +
-        '<button class="rb-edit" type="button" data-edit>Edit</button>' +
+        '<span class="rb-edit" aria-hidden="true">Edit</span>' +
       '</div>';
     var target = kind === 'shape' ? 1 : kind === 'size' ? 2 : 3;
-    row.querySelector('[data-edit]').onclick = function () { goSection(target); };
+    // The whole row is the tap target (mobile UX) — the "Edit" text is just a visual affordance.
+    row.setAttribute('role', 'button');
+    row.setAttribute('tabindex', '0');
+    row.setAttribute('aria-label', 'Edit ' + label);
+    var open = function () { goSection(target); };
+    row.onclick = open;
+    row.onkeydown = function (e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); open(); }
+    };
     return row;
   }
 
@@ -1237,7 +1253,7 @@
       }
       if (!photos.length) {
         var req = el('div', 'rb-req');
-        req.innerHTML = '<span class="rb-req__badge">Required</span> Add a photo — Paige matches your set to it. Tap or drop one here.';
+        req.innerHTML = '<span class="rb-req__badge">Required</span> Add up to two inspo pictures.';
         drop.appendChild(req);
       }
     }
@@ -1294,10 +1310,10 @@
     card.innerHTML =
       '<div class="rb-card__head"><div class="rb-card__title">Delivery &amp; payment</div><span class="rb-card__meta">4 of 4</span></div>' +
       '<div class="rb-2">' +
-        '<input class="rb-inp rb-name" data-name placeholder="First & last name *" autocomplete="name" />' +
-        '<input class="rb-inp rb-phone" data-phone placeholder="Phone *" inputmode="numeric" autocomplete="tel-national" maxlength="12" />' +
+        '<input class="rb-inp rb-name req" data-name placeholder="First & last name *" autocomplete="name" />' +
+        '<input class="rb-inp rb-phone req" data-phone placeholder="Phone *" inputmode="numeric" autocomplete="tel-national" maxlength="12" />' +
       '</div>' +
-      '<input class="rb-inp" data-email type="email" placeholder="Email *" autocomplete="email" inputmode="email" style="margin-top:8px" />' +
+      '<input class="rb-inp req" data-email type="email" placeholder="Email *" autocomplete="email" inputmode="email" style="margin-top:8px" />' +
       '<div class="rb-seg">' +
         '<button type="button" data-ful="pickup">Pickup · free</button>' +
         '<button type="button" data-ful="shipping">Ship to me · ' + money(SHIP_FEE) + '</button>' +
@@ -1357,11 +1373,11 @@
       if (!isShipping()) { addrWrap.innerHTML = ''; return; }
       addrWrap.innerHTML =
         '<div class="rb-reveal">' +
-          '<input class="rb-inp" data-street placeholder="Street address *" autocomplete="address-line1" style="margin-top:10px" />' +
+          '<input class="rb-inp req" data-street placeholder="Street address *" autocomplete="address-line1" style="margin-top:10px" />' +
           '<div class="rb-2 rb-2--tight">' +
-            '<input class="rb-inp rb-name" data-city placeholder="City *" autocomplete="address-level2" />' +
-            '<select class="rb-sel" data-state autocomplete="address-level1"></select>' +
-            '<input class="rb-inp rb-zip" data-zip placeholder="Zip *" inputmode="numeric" autocomplete="postal-code" maxlength="10" />' +
+            '<input class="rb-inp rb-name req" data-city placeholder="City *" autocomplete="address-level2" />' +
+            '<select class="rb-sel req" data-state autocomplete="address-level1"></select>' +
+            '<input class="rb-inp rb-zip req" data-zip placeholder="Zip *" inputmode="numeric" autocomplete="postal-code" maxlength="10" />' +
           '</div>' +
         '</div>';
       var stateSel = addrWrap.querySelector('[data-state]');
@@ -1433,6 +1449,8 @@
 
     paintSeg(); paintTurn(); renderAddr(); paintSum(sumEl); paintGiftMsg();
     if (data.giftCredit > 0 || data.giftCode) { giftBody.hidden = false; giftToggle.style.display = 'none'; }
+    // Drop the cursor into the name field once the card is in the DOM (preventScroll: don't yank the page).
+    requestAnimationFrame(function () { try { nameEl.focus({ preventScroll: true }); } catch (e) { nameEl.focus(); } });
     return card;
   }
 
