@@ -1781,7 +1781,26 @@ function renderDrawer(){
     sections.push({ id:'sec-ship', icon:I.pin, label:'Shipping', open:false, sub:shipAddrSub, html:shipAddrHtml });
     sections.push({ id:'sec-label', icon:I.tag, label:'Shipping label', open:true, sub:shipLabelSub, html:shipLabelHtml });
   } else {
-    sections.push({ id:'sec-ship', icon:I.bag, label:'Pickup', open:false, sub:'Local pickup', html:'<div class="dr-card"><div class="kv"><span class="k">Method</span><span class="v">Local pickup</span></div></div>' });
+    // Pickup order — but let the admin switch it to shipping (customer changed
+    // their mind). Collecting an address flips fulfillment='shipping', which
+    // makes renderDrawer show the Shipping + buy-label sections next pass.
+    var swf = function(pid,label,val,ph){ return '<label style="display:flex;flex-direction:column;gap:4px"><span class="muted" style="font-size:11.5px">'+label+'</span><input class="input" id="'+pid+'" type="text" value="'+esc(val||'')+'"'+(ph?' placeholder="'+esc(ph)+'"':'')+'></label>'; };
+    var pickupHtml =
+      '<div class="dr-card"><div class="kv"><span class="k">Method</span><span class="v">Local pickup</span></div></div>'+
+      '<div class="muted" style="font-size:12px;margin:10px 0 8px">Customer wants it shipped instead? Add an address to switch this order to shipping and buy a label.</div>'+
+      '<button class="btn-line" id="toShip" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px">'+I.truck+'Switch to shipping…</button>'+
+      '<div id="shipForm" style="display:none;margin-top:12px">'+
+        '<div style="display:grid;gap:8px">'+
+          swf('swName','Recipient',o.customer_name)+
+          swf('swL1','Street address','','123 Main St')+
+          swf('swL2','Apt / unit (optional)','')+
+          '<div style="display:grid;grid-template-columns:1.6fr .7fr .9fr;gap:8px">'+
+            swf('swCity','City','')+swf('swRegion','State','','MI')+swf('swZip','ZIP','')+
+          '</div>'+
+        '</div>'+
+        '<button class="btn" id="doSwitch" style="margin-top:12px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px">'+I.truck+'Save &amp; switch to shipping</button>'+
+      '</div>';
+    sections.push({ id:'sec-ship', icon:I.bag, label:'Pickup', open:false, sub:'Local pickup', html:pickupHtml });
   }
   var gift = Number(o.gift_credit||0);
   var due = Math.max(0, orderValue(o) - gift);
@@ -1858,6 +1877,15 @@ function renderDrawer(){
   host.querySelectorAll('[data-del]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); delOrder(b.getAttribute('data-del')); }; });
   var buyBtn = $('#buyLabel');
   if(buyBtn){ buyBtn.onclick = function(){ buyLabel(id); }; }
+  var toShip = $('#toShip');
+  if(toShip){ toShip.onclick = function(){
+    var f=$('#shipForm'); if(f) f.style.display='block';
+    toShip.style.display='none';
+    var sec=host.querySelector('#sec-ship'); if(sec) sec.classList.add('open');
+    var l1=$('#swL1'); if(l1) l1.focus();
+  }; }
+  var doSwitch = $('#doSwitch');
+  if(doSwitch){ doSwitch.onclick = function(){ switchToShipping(id); }; }
 }
 
 /* ───────────────────────── shipping labels ───────────────────────── */
@@ -1892,6 +1920,23 @@ function buyLabel(id){
     renderDrawer(); render();
     if(d.label_url){ window.open(d.label_url, '_blank', 'noopener'); }
   }).catch(function(e){ toast('Label failed', String((e&&e.message)||e), 'err'); reset(); });
+}
+
+// Flip a local-pickup order to shipping by adding a ship-to address. Fees are
+// left untouched (Paige collects any postage from the buyer offline); this only
+// sets fulfillment + speed + address so the buy-label flow unlocks. One-way.
+function switchToShipping(id){
+  var v=function(sel){ var n=$(sel); return n?String(n.value).trim():''; };
+  var l1=v('#swL1'), city=v('#swCity'), region=v('#swRegion').toUpperCase(), zip=v('#swZip');
+  if(!l1||!city||!region||!zip){ toast('Missing address','Street, city, state and ZIP are all required.','err'); return; }
+  var patch = {
+    fulfillment:'shipping', ship_speed:'standard',
+    ship_to_name: v('#swName')||null,
+    address_line1:l1, address_line2:(v('#swL2')||null),
+    city:city, region:region, postal_code:zip
+  };
+  updateOrder(id, patch, 'Switched to shipping'); // optimistic: patches state synchronously, then persists
+  renderDrawer(); // re-render into the Shipping + buy-label sections
 }
 
 /* ───────────────────────── mutations ───────────────────────── */
