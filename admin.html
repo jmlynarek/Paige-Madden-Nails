@@ -423,6 +423,7 @@ var I = {
 /* ───────────────────────── status meta ───────────────────────── */
 var STATUS = {
   new:            { label:'New',             color:'#3B7DD8', bg:'#EAF1FC' },
+  unpaid:         { label:'Unpaid',          color:'#C77A3B', bg:'#FBF0E4' },
   in_progress:    { label:'In Progress',     color:'#7C5CDA', bg:'#EDEAFB' },
   ready:          { label:'Ready',           color:'#0E9E8E', bg:'#E1F4F1' },
   completed:      { label:'Completed',       color:'#2BA05A', bg:'#E5F4EA' },
@@ -432,12 +433,15 @@ var STATUS = {
 // New → In Progress → Ready → Completed. "Ready" means the set is finished
 // (pickup: ready to grab; shipping: ready to ship — buy the label in the
 // drawer); "Completed" means handed off (picked up / shipped).
+// "Unpaid" and "Cancelled" are deliberately side-flags, NOT steps in this line.
 function flowFor(o){
   return ['new','in_progress','ready','completed'];
 }
 // Full ordered status set (drives tabs, the pipeline chart, and the
 // editable notification templates). Each one can carry a customer email.
-var ALL_STATUSES = ['new','in_progress','ready','completed','cancelled'];
+// "Unpaid" sits right after "New": an order arrives, payment can't be matched,
+// Paige flags it Unpaid (emails a gentle nudge), then moves it on once paid.
+var ALL_STATUSES = ['new','unpaid','in_progress','ready','completed','cancelled'];
 
 /* ───────────────────────── state ───────────────────────── */
 var state = {
@@ -666,11 +670,13 @@ function viewDashboard(){
     return '<div class="kpi"><div class="kpi-top"><span class="kpi-ic" style="background:'+icbg+';color:'+iccol+'">'+ic+'</span>'+label+'</div>'+
       '<div class="kpi-val">'+val+'</div><div class="kpi-sub">'+sub+'</div></div>';
   };
+  // Needs-attention = new orders to review + unpaid orders awaiting payment.
+  var attn = c.new + (c.unpaid||0);
   var kpis = '<div class="kpis">'+
     kpi(I.cash,'#E5F4EA','#2BA05A','Revenue (completed)', money(revenue), c.completed+' completed order'+(c.completed===1?'':'s'))+
     kpi(I.spark,'#FBF1DC','#C98A12','Open pipeline', money(pipeline), (c.new+c.in_progress+c.ready)+' active')+
     kpi(I.cart,'#EAF1FC','#3B7DD8','Total orders', c.all, '<span class="trend '+(tr>=0?'up':'down')+'">'+(tr>=0?'▲':'▼')+' '+Math.abs(tr)+'%</span> last 7 days')+
-    kpi(I.bell,'#FBE9EA','#B46869','Needs attention', c.new, c.new?'New order'+(c.new===1?'':'s')+' to review':'All caught up ✨')+
+    kpi(I.bell,'#FBE9EA','#B46869','Needs attention', attn, attn?(c.new+' new'+(c.unpaid?' · '+c.unpaid+' unpaid':''))+' to handle':'All caught up ✨')+
   '</div>';
 
   var parts = ALL_STATUSES.map(function(k){ return {name:STATUS[k].label, v:c[k], color:STATUS[k].color}; });
@@ -898,6 +904,7 @@ function savePayment(id, btn){
 // A short hint shown under each template card in Settings.
 var NT_HINT = {
   new:             'Sent the moment an order comes in.',
+  unpaid:          'Sent when you mark an order Unpaid — a gentle nudge that payment hasn’t arrived, so the set hasn’t been started. Includes the amount due and order number.',
   in_progress:     'Sent when you start painting the set. Off by default.',
   ready:           'Sent to pickup customers when their set is ready to grab. Delivery orders skip this.',
   completed:       'Sent when an order is done — pickup: a thank-you; delivery: shipped, with the tracking link.',
@@ -956,9 +963,13 @@ function renderEmailHtml(tpl, order){
   var heading = esc(tpl.heading || '');
   var amtStr = order.gift_amount!=null ? money(order.gift_amount) : '$50';
   // Gift-email placeholders ({{code}} only ever lands in the recipient email).
+  // Amount still owed on the order (set price + fees, net of any gift credit).
+  var totalStr = money(Math.max(0, orderValue(order) - Number(order.gift_credit || 0)));
   var bodyRaw = (tpl.body || '')
     .replace(/\{\{\s*reorder_link\s*\}\}/g,'')
     .replace(/\{\{\s*amount\s*\}\}/g, amtStr)
+    .replace(/\{\{\s*total\s*\}\}/g, totalStr)
+    .replace(/\{\{\s*order_no\s*\}\}/g, order.order_no!=null ? 'PM-'+order.order_no : '')
     .replace(/\{\{\s*code\s*\}\}/g, order.gift_code || '')
     .replace(/\{\{\s*from\s*\}\}/g, order.gift_from || 'Someone')
     .replace(/\{\{\s*recipient\s*\}\}/g, order.gift_recipient || 'them')
@@ -1623,9 +1634,21 @@ function renderDrawer(){
   // ---- accordion sections (display order). open:true => expanded by default ----
   var sections = [];
   sections.push({ id:'sec-status', icon:I.flag, label:'Status', open:true, sub:statusPill(o.status), html:
+    (o.status==='unpaid'?
+      // Unpaid is a side-flag: skip the linear stepper, offer the "paid" path + a resend.
+      '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">'+statusPill('unpaid')+'<span class="muted" style="font-size:12.5px">Waiting on payment — reminder sent.</span></div>'+
+      '<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">'+
+        '<button class="btn" data-status="in_progress" style="width:auto;display:inline-flex;padding:8px 14px;font-size:13px">Payment received → In Progress</button>'+
+        '<button class="btn-ghost" data-unpaid-email="'+id+'" style="width:auto;display:inline;padding:8px 6px;font-size:12.5px">Resend reminder</button>'+
+        '<button class="btn-ghost" data-status="cancelled" style="width:auto;display:inline;padding:8px 6px;font-size:12.5px;color:#C9534A">Cancel order</button>'+
+      '</div>'
+    :
     '<div class="stepper">'+steps+'</div>'+
     (o.status==='cancelled'?'<div style="margin-top:10px;display:flex;flex-wrap:wrap;align-items:center;gap:8px">'+statusPill('cancelled')+' <button class="btn-ghost" data-status="new" style="width:auto;display:inline;padding:0 6px;font-size:12.5px">Reopen</button><button class="btn-ghost" data-cancel-email="'+id+'" style="width:auto;display:inline;padding:0 6px;font-size:12.5px">Send cancellation email</button></div>':
-      '<div style="margin-top:10px;text-align:right"><button class="btn-ghost" data-status="cancelled" style="width:auto;display:inline;padding:4px 6px;font-size:12.5px;color:#C9534A">Cancel order</button></div>') });
+      '<div style="margin-top:10px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px">'+
+        (o.status!=='completed'?'<button class="btn-ghost" data-status="unpaid" style="width:auto;display:inline;padding:4px 6px;font-size:12.5px;color:#C77A3B">Mark unpaid</button>':'')+
+        '<button class="btn-ghost" data-status="cancelled" style="width:auto;display:inline;padding:4px 6px;font-size:12.5px;color:#C9534A">Cancel order</button>'+
+      '</div>')) });
   if(isShip){
     sections.push({ id:'sec-ship', icon:I.pin, label:'Shipping', open:false, sub:shipAddrSub, html:shipAddrHtml });
     sections.push({ id:'sec-label', icon:I.tag, label:'Shipping label', open:true, sub:shipLabelSub, html:shipLabelHtml });
@@ -1703,6 +1726,7 @@ function renderDrawer(){
   host.querySelectorAll('[data-close]').forEach(function(b){ b.onclick = closeDrawer; });
   host.querySelectorAll('[data-status]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); setStatus(id, b.getAttribute('data-status')); }; });
   host.querySelectorAll('[data-cancel-email]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); sendCancelEmail(b.getAttribute('data-cancel-email')); }; });
+  host.querySelectorAll('[data-unpaid-email]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); resendUnpaidEmail(b.getAttribute('data-unpaid-email')); }; });
   host.querySelectorAll('[data-del]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); delOrder(b.getAttribute('data-del')); }; });
   var buyBtn = $('#buyLabel');
   if(buyBtn){ buyBtn.onclick = function(){ buyLabel(id); }; }
@@ -1773,6 +1797,15 @@ function sendCancelEmail(id){
   if(!o.email){ toast('No email on file', 'This order has no email address.', 'err'); return; }
   if(!confirm('Send the cancellation email to '+o.email+'?')) return;
   notifyCustomer(o, 'cancelled');
+}
+// Re-send the "waiting on payment" nudge while the order is already Unpaid
+// (setStatus dedupes no-op transitions, so a plain re-click wouldn't email).
+function resendUnpaidEmail(id){
+  var o = state.orders.find(function(x){return x.id===id;});
+  if(!o) return;
+  if(!o.email){ toast('No email on file', 'This order has no email address.', 'err'); return; }
+  if(!confirm('Re-send the payment reminder to '+o.email+'?')) return;
+  notifyCustomer(o, 'unpaid');
 }
 function markSeen(ids){
   ids.forEach(function(id){ var i=state.orders.findIndex(function(x){return x.id===id;}); if(i>=0)state.orders[i].admin_seen=true; });
