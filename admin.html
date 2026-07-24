@@ -835,33 +835,6 @@ function viewSettings(){
     '</div>';
   }).join('');
 
-  var ntCards = ALL_STATUSES.map(function(s){
-    var t = tplFor(s);
-    var on = t.enabled !== false;
-    var m = STATUS[s];
-    return '<div class="nt-card'+(on?'':' off')+'" data-nt="'+s+'">'+
-      '<div class="nt-head">'+
-        '<span class="pill" style="background:'+m.bg+';color:'+m.color+'"><span class="pdot" style="background:'+m.color+'"></span>'+m.label+'</span>'+
-        '<button class="switch'+(on?' on':'')+'" data-nt-toggle="'+s+'" role="switch" aria-checked="'+(on?'true':'false')+'"><span class="switch-dot"></span></button>'+
-      '</div>'+
-      '<p class="nt-hint">'+esc(NT_HINT[s]||'')+'</p>'+
-      '<div class="nt-grid">'+
-        '<div class="nt-edit">'+
-          '<label class="nt-lbl">Email subject</label>'+
-          '<input class="input" data-nt-subject value="'+esc(t.subject||'')+'" placeholder="Subject line">'+
-          '<label class="nt-lbl">Heading</label>'+
-          '<input class="input" data-nt-heading value="'+esc(t.heading||'')+'" placeholder="Big headline in the email">'+
-          '<label class="nt-lbl">Message</label>'+
-          '<textarea class="input nt-area" data-nt-body rows="5" placeholder="What the customer reads">'+esc(t.body||'')+'</textarea>'+
-          '<button class="btn" data-nt-save="'+s+'" style="margin-top:10px">Save</button>'+
-        '</div>'+
-        '<div class="nt-preview-wrap"><div class="nt-lbl">Live preview</div>'+
-          '<iframe class="nt-preview" data-nt-preview title="Email preview" sandbox="allow-same-origin"></iframe>'+
-        '</div>'+
-      '</div>'+
-    '</div>';
-  }).join('');
-
   // ---- Accepting new orders (pause) + editable waitlist copy ----
   var accepting = String(state.settings.orders_paused) !== 'true';
   var phHead = state.settings.orders_paused_headline || '';
@@ -924,11 +897,6 @@ function viewSettings(){
       '<div class="panel-h"><div class="panel-t">Payment handles'+
         '<small>Shown on the checkout payment screen. Turn one off to hide it; leave a handle blank and it stays hidden until you fill it in.</small></div></div>'+
       '<div class="panel-b"><div class="pm-list">'+cards+'</div></div>'+
-    '</div>'+
-    '<div class="panel" style="max-width:880px;margin-top:16px">'+
-      '<div class="panel-h"><div class="panel-t">Customer notifications'+
-        '<small>One on-brand email per status. Edit the wording, watch the live preview, and Save. Turn one off to skip that email. These send automatically once email delivery is connected.</small></div></div>'+
-      '<div class="panel-b"><div class="nt-list">'+ntCards+'</div></div>'+
     '</div>'+
     '<div class="panel" style="max-width:680px;margin-top:16px"><div class="panel-b" style="padding:18px"><div class="panel-t" style="font-size:14px;margin-bottom:4px">Account</div><p class="muted" style="font-size:13.5px">Signed in as <b>'+esc(state.user.email)+'</b>. Manage design tiers, nail shapes and pricing from the Supabase dashboard.</p></div></div>'+
   '</div>';
@@ -1204,8 +1172,6 @@ function viewGiftCards(){
   var active = cards.filter(function(c){return c.status==='active';});
   var activeVal = active.reduce(function(s,c){return s+Number(c.amount||0);},0);
   var pending = cards.filter(function(c){return c.status==='pending';});
-  var t = tplFor('gift_card');
-  var tOn = t.enabled !== false;
 
   // ---- pending online purchases (awaiting offline payment) ----
   var pendRows = pending.map(function(c){
@@ -1238,17 +1204,6 @@ function viewGiftCards(){
       '<div class="panel-b">'+pendRows+'</div>'+
     '</div>' : '';
 
-  // ---- online gift emails (sent at Issue & send) ----
-  var giftEmailsPanel =
-    '<div class="panel" style="max-width:880px;margin-top:16px">'+
-      '<div class="panel-h"><div class="panel-t">Online gift emails'+
-        '<small>Sent when you Issue &amp; send a pending purchase. The <b>recipient</b> email is the only one that carries the code — placeholders: <b>{{amount}}</b>, <b>{{code}}</b>, <b>{{from}}</b>, <b>{{recipient}}</b>, <b>{{message}}</b>.</small></div></div>'+
-      '<div class="panel-b"><div class="nt-list">'+
-        ntEditorCard('gift_recipient', 'Recipient gift', 'Sent to the recipient with their code when you issue an emailed gift.')+
-        ntEditorCard('gift_buyer_receipt', 'Buyer receipt', 'Sent to the buyer confirming their gift went out (never contains the code).')+
-      '</div></div>'+
-    '</div>';
-
   // ---- generate a code (the booth flow) ----
   var genPanel =
     '<div class="panel" style="max-width:880px">'+
@@ -1266,36 +1221,6 @@ function viewGiftCards(){
         '</div>'+
         '<div data-gc-result style="margin-top:14px"></div>'+
       '</div>'+
-    '</div>';
-
-  // ---- editable buyer-receipt email (reuses the notifications editor) ----
-  var tplPanel =
-    '<div class="panel" style="max-width:880px;margin-top:16px">'+
-      '<div class="panel-h"><div class="panel-t">Buyer receipt email'+
-        '<small>The thank-you the buyer receives when you generate a card. Use <b>{{amount}}</b> for the dollar value. The code is deliberately never included.</small></div></div>'+
-      '<div class="panel-b"><div class="nt-list">'+
-        '<div class="nt-card'+(tOn?'':' off')+'" data-nt="gift_card">'+
-          '<div class="nt-head">'+
-            '<span class="pill" style="background:#FBF1F0;color:#B46869"><span class="pdot" style="background:#B46869"></span>Gift receipt</span>'+
-            '<button class="switch'+(tOn?' on':'')+'" data-nt-toggle="gift_card" role="switch" aria-checked="'+(tOn?'true':'false')+'"><span class="switch-dot"></span></button>'+
-          '</div>'+
-          '<p class="nt-hint">Sent to the buyer the moment you generate their card.</p>'+
-          '<div class="nt-grid">'+
-            '<div class="nt-edit">'+
-              '<label class="nt-lbl">Email subject</label>'+
-              '<input class="input" data-nt-subject value="'+esc(t.subject||'')+'" placeholder="Subject line">'+
-              '<label class="nt-lbl">Heading</label>'+
-              '<input class="input" data-nt-heading value="'+esc(t.heading||'')+'" placeholder="Big headline in the email">'+
-              '<label class="nt-lbl">Message</label>'+
-              '<textarea class="input nt-area" data-nt-body rows="5" placeholder="What the buyer reads">'+esc(t.body||'')+'</textarea>'+
-              '<button class="btn" data-nt-save="gift_card" style="margin-top:10px">Save</button>'+
-            '</div>'+
-            '<div class="nt-preview-wrap"><div class="nt-lbl">Live preview</div>'+
-              '<iframe class="nt-preview" data-nt-preview title="Email preview" sandbox="allow-same-origin"></iframe>'+
-            '</div>'+
-          '</div>'+
-        '</div>'+
-      '</div></div>'+
     '</div>';
 
   // ---- the card ledger (issued/booth cards; pending live in their own panel) ----
@@ -1329,7 +1254,7 @@ function viewGiftCards(){
       '</tr></thead><tbody>'+rows+'</tbody></table></div></div>'+
     '</div>';
 
-  return '<div class="view">'+pendingPanel+genPanel+ledgerPanel+tplPanel+giftEmailsPanel+'</div>';
+  return '<div class="view">'+pendingPanel+genPanel+ledgerPanel+'</div>';
 }
 
 // Generate a code (admin RPC), then email the buyer a receipt (no code).
@@ -1473,55 +1398,85 @@ function redeemGiftCard(id){
   });
 }
 
-function viewMarketing(){
-  var enabled = String(state.settings.reengage_enabled) !== 'false';
-  var delay = state.settings.reengage_delay_days || '30';
-  var t = tplFor('re_engagement');
-  var tOn = t.enabled !== false;
-
-  // ---- reminder on/off + timing ----
-  var settingsPanel =
+/* ───────────────────────── notifications (all editable emails) ───────────────────────── */
+// One home for the wording, on/off and cadence of every automatic customer email —
+// pulled together from Settings (order updates), Gift Cards (gift emails) and Marketing
+// (reminders). The cards are the same generic [data-nt] editor used elsewhere, so the
+// save / toggle / live-preview wiring in wire() picks them up with no extra handlers.
+function viewNotifications(){
+  // ---- Order updates: one card per status, keeping each status's coloured pill ----
+  var orderCards = ALL_STATUSES.map(function(s){
+    var t = tplFor(s);
+    var on = t.enabled !== false;
+    var m = STATUS[s];
+    return '<div class="nt-card'+(on?'':' off')+'" data-nt="'+s+'">'+
+      '<div class="nt-head">'+
+        '<span class="pill" style="background:'+m.bg+';color:'+m.color+'"><span class="pdot" style="background:'+m.color+'"></span>'+m.label+'</span>'+
+        '<button class="switch'+(on?' on':'')+'" data-nt-toggle="'+s+'" role="switch" aria-checked="'+(on?'true':'false')+'"><span class="switch-dot"></span></button>'+
+      '</div>'+
+      '<p class="nt-hint">'+esc(NT_HINT[s]||'')+'</p>'+
+      '<div class="nt-grid">'+
+        '<div class="nt-edit">'+
+          '<label class="nt-lbl">Email subject</label>'+
+          '<input class="input" data-nt-subject value="'+esc(t.subject||'')+'" placeholder="Subject line">'+
+          '<label class="nt-lbl">Heading</label>'+
+          '<input class="input" data-nt-heading value="'+esc(t.heading||'')+'" placeholder="Big headline in the email">'+
+          '<label class="nt-lbl">Message</label>'+
+          '<textarea class="input nt-area" data-nt-body rows="5" placeholder="What the customer reads">'+esc(t.body||'')+'</textarea>'+
+          '<button class="btn" data-nt-save="'+s+'" style="margin-top:10px">Save</button>'+
+        '</div>'+
+        '<div class="nt-preview-wrap"><div class="nt-lbl">Live preview</div>'+
+          '<iframe class="nt-preview" data-nt-preview title="Email preview" sandbox="allow-same-origin"></iframe>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  var orderPanel =
     '<div class="panel" style="max-width:880px">'+
-      '<div class="panel-h"><div class="panel-t">Reminder emails'+
-        '<small>A gentle nudge to past customers to order again — their sizes are saved, so they just pick a new design. Turn the whole thing off here, or change how many days after an order is finished the reminder goes out.</small></div></div>'+
-      '<div class="panel-b"><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'+
-        '<button class="switch'+(enabled?' on':'')+'" data-reengage-toggle role="switch" aria-checked="'+(enabled?'true':'false')+'"><span class="switch-dot"></span></button>'+
-        '<span class="muted" style="font-size:14px">'+(enabled?'Reminders are on':'Reminders are off')+'</span>'+
-        '<span style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:14px">Send after <input class="input" data-reengage-delay value="'+esc(delay)+'" style="width:64px;text-align:center" inputmode="numeric"> days'+
-        '<button class="btn" data-reengage-save>Save</button></span>'+
+      '<div class="panel-h"><div class="panel-t">Order updates'+
+        '<small>One on-brand email per order status. Edit the wording, watch the live preview, and Save. Turn one off to skip that email.</small></div></div>'+
+      '<div class="panel-b"><div class="nt-list">'+orderCards+'</div></div>'+
+    '</div>';
+
+  // ---- Gift emails (sent around gift-card purchases) ----
+  var giftPanel =
+    '<div class="panel" style="max-width:880px;margin-top:16px">'+
+      '<div class="panel-h"><div class="panel-t">Gift emails'+
+        '<small>Sent around gift-card purchases. Only the <b>recipient</b> email ever carries the code — placeholders: <b>{{amount}}</b>, <b>{{code}}</b>, <b>{{from}}</b>, <b>{{recipient}}</b>, <b>{{message}}</b>.</small></div></div>'+
+      '<div class="panel-b"><div class="nt-list">'+
+        ntEditorCard('gift_recipient', 'Recipient gift', 'Sent to the recipient with their code when you issue an emailed gift.')+
+        ntEditorCard('gift_buyer_receipt', 'Buyer receipt', 'Sent to the buyer confirming their gift went out (never contains the code).')+
+        ntEditorCard('gift_card', 'Gift receipt', 'Sent to the buyer the moment you generate their card at the booth.')+
       '</div></div>'+
     '</div>';
 
-  // ---- editable reminder template (reuses the notifications editor) ----
-  var tplPanel =
+  // ---- Reminders: cadence (on/off + timing) then wording ----
+  var reEnabled = String(state.settings.reengage_enabled) !== 'false';
+  var reDelay = state.settings.reengage_delay_days || '30';
+  var reminderCadence =
+    '<div class="panel" style="max-width:880px;margin-top:16px">'+
+      '<div class="panel-h"><div class="panel-t">Reminder emails'+
+        '<small>A gentle nudge to past customers to order again — their sizes are saved, so they just pick a new design. Turn the whole thing off here, or change how many days after an order is finished the reminder goes out.</small></div></div>'+
+      '<div class="panel-b"><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">'+
+        '<button class="switch'+(reEnabled?' on':'')+'" data-reengage-toggle role="switch" aria-checked="'+(reEnabled?'true':'false')+'"><span class="switch-dot"></span></button>'+
+        '<span class="muted" style="font-size:14px">'+(reEnabled?'Reminders are on':'Reminders are off')+'</span>'+
+        '<span style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:14px">Send after <input class="input" data-reengage-delay value="'+esc(reDelay)+'" style="width:64px;text-align:center" inputmode="numeric"> days'+
+        '<button class="btn" data-reengage-save>Save</button></span>'+
+      '</div></div>'+
+    '</div>';
+  var reminderTpl =
     '<div class="panel" style="max-width:880px;margin-top:16px">'+
       '<div class="panel-h"><div class="panel-t">Reminder message'+
         '<small>Edit the wording, watch the live preview, and Save. A “Start a new order” button is added automatically.</small></div></div>'+
       '<div class="panel-b"><div class="nt-list">'+
-        '<div class="nt-card'+(tOn?'':' off')+'" data-nt="re_engagement">'+
-          '<div class="nt-head">'+
-            '<span class="pill" style="background:#FBF1F0;color:#B46869"><span class="pdot" style="background:#B46869"></span>Reminder email</span>'+
-            '<button class="switch'+(tOn?' on':'')+'" data-nt-toggle="re_engagement" role="switch" aria-checked="'+(tOn?'true':'false')+'"><span class="switch-dot"></span></button>'+
-          '</div>'+
-          '<p class="nt-hint">Sent about '+esc(delay)+' days after an order is finished.</p>'+
-          '<div class="nt-grid">'+
-            '<div class="nt-edit">'+
-              '<label class="nt-lbl">Email subject</label>'+
-              '<input class="input" data-nt-subject value="'+esc(t.subject||'')+'" placeholder="Subject line">'+
-              '<label class="nt-lbl">Heading</label>'+
-              '<input class="input" data-nt-heading value="'+esc(t.heading||'')+'" placeholder="Big headline in the email">'+
-              '<label class="nt-lbl">Message</label>'+
-              '<textarea class="input nt-area" data-nt-body rows="5" placeholder="What the customer reads">'+esc(t.body||'')+'</textarea>'+
-              '<button class="btn" data-nt-save="re_engagement" style="margin-top:10px">Save</button>'+
-            '</div>'+
-            '<div class="nt-preview-wrap"><div class="nt-lbl">Live preview</div>'+
-              '<iframe class="nt-preview" data-nt-preview title="Email preview" sandbox="allow-same-origin"></iframe>'+
-            '</div>'+
-          '</div>'+
-        '</div>'+
+        ntEditorCard('re_engagement', 'Reminder email', 'Sent about '+esc(reDelay)+' days after an order is finished.')+
       '</div></div>'+
     '</div>';
 
+  return '<div class="view">'+orderPanel+giftPanel+reminderCadence+reminderTpl+'</div>';
+}
+
+function viewMarketing(){
   // ---- the scheduled-send queue ----
   var q = state.scheduled;
   var qRows = q.length ? q.map(function(s){
@@ -1567,7 +1522,7 @@ function viewMarketing(){
       '</div>';
   }
 
-  return '<div class="view">'+settingsPanel+tplPanel+queuePanel+optPanel+'</div>';
+  return '<div class="view">'+queuePanel+optPanel+'</div>';
 }
 
 function cancelSend(id){
@@ -2006,7 +1961,7 @@ function renderNotif(){
       '<span class="ntf-new"></span></div>';
   }).join('') : '<div class="empty" style="padding:34px">'+I.check+'<div>You’re all caught up.</div></div>';
 
-  host.innerHTML = '<div class="pop"><div class="pop-h"><span class="pt">Notifications</span>'+
+  host.innerHTML = '<div class="pop"><div class="pop-h"><span class="pt">Activity</span>'+
     (list.length?'<button class="clr" data-markall>Mark all read</button>':'')+'</div>'+
     '<div class="pop-list">'+items+'</div></div>';
 }
@@ -2023,6 +1978,7 @@ function render(){
     {k:'customers', label:'Customers', icon:I.users},
     {k:'giftcards', label:'Gift Cards', icon:I.gift},
     {k:'marketing', label:'Marketing', icon:I.spark},
+    {k:'notifications', label:'Notifications', icon:I.bell},
     {k:'settings', label:'Settings', icon:I.cog}
   ];
   var navHtml = nav.map(function(n){
@@ -2030,7 +1986,7 @@ function render(){
       (n.count?'<span class="nav-count">'+n.count+'</span>':'')+'</button>';
   }).join('');
 
-  var titles = { dashboard:['Dashboard','Your studio at a glance'], orders:['Orders','Manage every custom request'], customers:['Customers',''], giftcards:['Gift Cards','Generate & track gift codes'], marketing:['Marketing','Reminder emails & repeat customers'], settings:['Settings',''] };
+  var titles = { dashboard:['Dashboard','Your studio at a glance'], orders:['Orders','Manage every custom request'], customers:['Customers',''], giftcards:['Gift Cards','Generate & track gift codes'], marketing:['Marketing','Reminder emails & repeat customers'], notifications:['Notifications','The wording of every automatic email'], settings:['Settings',''] };
   var t = titles[state.view]||['',''];
 
   var content = state.view==='dashboard'?viewDashboard()
@@ -2038,6 +1994,7 @@ function render(){
     : state.view==='customers'?viewSimple('Customers','Every order is grouped by customer here in a future update. For now, open any order to see full contact details and reach out by email or phone.')
     : state.view==='giftcards'?viewGiftCards()
     : state.view==='marketing'?viewMarketing()
+    : state.view==='notifications'?viewNotifications()
     : viewSettings();
 
   $('#root').innerHTML =
