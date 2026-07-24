@@ -109,7 +109,7 @@
   .btn:focus-visible, .rb-shape:focus-visible, .rb-preset:focus-visible, .rb-chip:focus-visible,
   .rb-collapse:focus-visible, .rb-edit:focus-visible, .rb-seg button:focus-visible, .rb-opt:focus-visible,
   .rb-add:focus-visible, .rb-thumb__x:focus-visible, .rb-toggle:focus-visible, .rb-pill:focus-visible,
-  .rb-code:focus-visible, .rb-paytile:focus-visible {
+  .rb-code:focus-visible, .rb-paytile:focus-visible, .rb-startover:focus-visible, .rb-modal__btn:focus-visible {
     outline: 2.5px solid var(--rose);
     outline-offset: 2px;
   }
@@ -173,6 +173,48 @@
     padding: 7px 14px; font-size: 14px; font-weight: 700; color: var(--rose);
     white-space: nowrap; flex-shrink: 0;
   }
+  .rb-head__left { display: flex; align-items: center; gap: 13px; min-width: 0; }
+  .rb-startover {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--line); background: rgba(255,255,255,0.55);
+    border-radius: 99px; padding: 7px 13px 7px 11px;
+    font-family: var(--sans); font-size: 12.5px; font-weight: 600; letter-spacing: .01em;
+    color: var(--ink-2); cursor: pointer; white-space: nowrap;
+    -webkit-tap-highlight-color: transparent;
+    transition: color .16s ease, border-color .16s ease, background .16s ease;
+  }
+  .rb-startover svg { opacity: .8; }
+  .rb-startover:hover { color: var(--rose); border-color: var(--rose-line); background: #fff; }
+  .rb-startover:active { background: var(--blush); border-color: var(--rose-line); }
+
+  /* ── Confirm modal (on-brand, replaces native confirm) ── */
+  .rb-modal-ov {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: center;
+    padding: calc(var(--safe-top) + 24px) 24px calc(var(--safe-bottom) + 24px);
+    background: rgba(95, 70, 63, 0.42);
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+    animation: reveal .18s ease both;
+  }
+  .rb-modal {
+    width: 100%; max-width: 340px;
+    background: var(--surface); border-radius: 22px;
+    padding: 26px 24px 20px;
+    box-shadow: 0 24px 64px rgba(95, 70, 63, 0.30);
+  }
+  .rb-modal__title { font-family: var(--serif); font-size: 25px; font-weight: 600; color: var(--ink); line-height: 1.15; }
+  .rb-modal__msg { font-size: 14.5px; line-height: 1.5; color: var(--ink-soft); margin: 9px 0 22px; }
+  .rb-modal__actions { display: flex; gap: 10px; }
+  .rb-modal__btn {
+    flex: 1; border-radius: 99px; padding: 13px 14px;
+    font-family: var(--sans); font-size: 14.5px; font-weight: 700;
+    cursor: pointer; border: 1px solid transparent; white-space: nowrap;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .rb-modal__btn--ghost { background: none; border-color: var(--line); color: var(--ink-2); }
+  .rb-modal__btn--ghost:hover { border-color: var(--rose-line); color: var(--rose); }
+  .rb-modal__btn--go { background: var(--rose); color: #fff; box-shadow: var(--shadow-cta); }
+  .rb-modal__btn--go:hover { background: var(--rose-deep); }
 
   /* ── Scroll area ── */
   .rb-scroll {
@@ -635,6 +677,7 @@
   // ── Icons ──
   var Icon = {
     cart:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 4h2.2l2 11.2a1.5 1.5 0 001.5 1.3h8.3a1.5 1.5 0 001.5-1.2L20 8H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="20" r="1.4" fill="currentColor"/><circle cx="17" cy="20" r="1.4" fill="currentColor"/></svg>',
+    restart: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 3v5h5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     ruler: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 9h18v6H3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 9v2.5M11 9v2.5M15 9v2.5M19 9v2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
     palette:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3.5c-4.7 0-8.5 3.6-8.5 8 0 4.4 3.8 8 8.5 8 .9 0 1.5-.7 1.5-1.5 0-.4-.2-.8-.4-1.1-.3-.3-.4-.6-.4-1 0-.8.7-1.5 1.5-1.5h1.8c2.5 0 4.5-2 4.5-4.4 0-3.7-3.8-6.5-8.5-6.5z" stroke="currentColor" stroke-width="1.6"/><circle cx="7.8" cy="10.2" r="1.1" fill="currentColor"/><circle cx="11.9" cy="7.9" r="1.1" fill="currentColor"/><circle cx="16" cy="10.2" r="1.1" fill="currentColor"/></svg>',
     chevUp:'<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3.5 10l4.5-4.5L12.5 10" stroke="#8C6A60" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
@@ -736,10 +779,20 @@
 
     // Header
     var head = el('div', 'rb-head');
+    // Logo-only in the in-order header (the round logo already carries the
+    // "Paige Madden" wordmark). "Start over" lives on the LEFT beside the logo —
+    // deliberately opposite the total pill so it never crowds or gets mistaken
+    // for the cart, styled as a quiet outlined chip.
     head.innerHTML =
-      '<div class="rb-brand"><img class="rb-brand__logo" src="logo.jpeg" alt="" /><span class="rb-brand__name">Paige Madden</span></div>' +
+      '<div class="rb-head__left">' +
+        '<img class="rb-brand__logo" src="logo.jpeg" alt="Paige Madden Nails" />' +
+        '<button class="rb-startover" type="button" data-restart aria-label="Start over — clear this order">' +
+          Icon.restart + '<span>Start over</span>' +
+        '</button>' +
+      '</div>' +
       '<div class="rb-pill" data-pill>' + Icon.cart + '<span data-pilltext></span></div>';
     app.appendChild(head);
+    head.querySelector('[data-restart]').onclick = confirmReset;
     curPill = head.querySelector('[data-pilltext]');
 
     // Scroll body
@@ -1331,6 +1384,45 @@
     photos = []; lastOrder = null; data = blankData(); step = 'welcome'; sending = false;
     try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
     render();
+  }
+
+  // Header "Start over" — reuse resetOrder, but only nag if there's real work
+  // to lose (keyed off the same completion flags the flow already tracks).
+  function hasProgress() {
+    return !!(data.shape || data.sizeConfirmed || data.designDone || photos.length);
+  }
+  function confirmReset() {
+    if (!hasProgress()) { resetOrder(); return; }
+    confirmModal({
+      title: 'Start over?',
+      msg: 'This clears the shape, sizes, and photos you’ve added and takes you back to the start.',
+      confirmLabel: 'Start over',
+      onConfirm: resetOrder
+    });
+  }
+
+  // On-brand confirm dialog (replaces the native confirm() — that gray
+  // "site says…" box looks broken on the boutique site). Lives on document.body
+  // so a render() that clears #root doesn't wipe it.
+  function confirmModal(o) {
+    var ov = el('div', 'rb-modal-ov');
+    ov.innerHTML =
+      '<div class="rb-modal rb-pop" role="dialog" aria-modal="true">' +
+        '<div class="rb-modal__title">' + esc(o.title) + '</div>' +
+        '<div class="rb-modal__msg">' + esc(o.msg) + '</div>' +
+        '<div class="rb-modal__actions">' +
+          '<button class="rb-modal__btn rb-modal__btn--ghost" type="button" data-cancel>Keep editing</button>' +
+          '<button class="rb-modal__btn rb-modal__btn--go" type="button" data-ok>' + esc(o.confirmLabel) + '</button>' +
+        '</div>' +
+      '</div>';
+    function close() { document.removeEventListener('keydown', onKey); ov.remove(); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+    ov.querySelector('[data-cancel]').onclick = close;
+    ov.querySelector('[data-ok]').onclick = function () { close(); o.onConfirm(); };
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(ov);
+    ov.querySelector('[data-cancel]').focus();  // safe default: focus "Keep editing"
   }
 
   // ════════════════════════════════════════ SEND A GIFT ════════
