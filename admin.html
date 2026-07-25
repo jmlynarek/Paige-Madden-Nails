@@ -64,9 +64,8 @@
     width: 100%; max-width: 400px; background: var(--surface); border: 1px solid var(--line);
     border-radius: 22px; box-shadow: var(--shadow); padding: 34px 30px 30px; text-align: center;
   }
-  .auth-mark { width: 46px; height: 46px; border-radius: 13px; margin: 0 auto 16px; display: grid; place-items: center;
-    background: linear-gradient(150deg, var(--dusty), var(--rose)); box-shadow: 0 6px 16px var(--rose-30, rgba(180,104,105,.34)); }
-  .auth-mark svg { width: 24px; height: 24px; }
+  .auth-mark { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 16px; display: block;
+    object-fit: cover; mix-blend-mode: multiply; }
   .auth-script { font-family: var(--script); font-size: 34px; color: var(--rose); line-height: 1; margin: 2px 0 4px; }
   .auth-sub { font-family: var(--serif); font-size: 18px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-2); margin-bottom: 6px; }
   .auth-hint { font-size: 13.5px; color: var(--ink-soft); margin: 0 0 22px; line-height: 1.5; }
@@ -99,9 +98,7 @@
     padding: 20px 16px calc(16px + var(--safe-bottom)); position: sticky; top: 0; height: 100dvh;
   }
   .brand { display: flex; align-items: center; gap: 11px; padding: 4px 8px 18px; }
-  .brand-mark { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex: none;
-    background: linear-gradient(150deg, var(--dusty), var(--rose)); box-shadow: 0 5px 13px rgba(180,104,105,.30); }
-  .brand-mark svg { width: 20px; height: 20px; }
+  .brand-mark { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; mix-blend-mode: multiply; flex: none; }
   .brand-name { font-family: var(--script); font-size: 25px; color: var(--rose); line-height: .9; }
   .brand-sub { font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase; color: var(--ink-soft); margin-top: 2px; }
   .nav-label { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--ink-soft); padding: 14px 10px 8px; }
@@ -513,7 +510,7 @@ function renderAuth(msg, kind){
   var root = $('#root');
   root.innerHTML =
     '<div class="auth"><div class="auth-card">'+
-      '<div class="auth-mark">'+I.nail+'</div>'+
+      '<img class="auth-mark" src="logo.jpeg" alt="Paige Madden Nails" />'+
       '<div class="auth-script">Paige Madden</div>'+
       '<div class="auth-sub">Orders Admin</div>'+
       '<p class="auth-hint">Sign in to manage your orders.</p>'+
@@ -2087,7 +2084,7 @@ function render(){
   $('#root').innerHTML =
     '<div class="shell">'+
       '<aside class="sidebar'+(state.sidebarOpen?' open':'')+'" id="sidebar">'+
-        '<div class="brand"><span class="brand-mark">'+I.nail+'</span><div><div class="brand-name">Paige Madden</div><div class="brand-sub">Nails · Admin</div></div></div>'+
+        '<div class="brand"><img class="brand-mark" src="logo.jpeg" alt="Paige Madden Nails" /><div><div class="brand-name">Paige Madden</div><div class="brand-sub">Nails · Admin</div></div></div>'+
         '<div class="nav-label">Main</div>'+navHtml+
         '<div class="sidebar-foot"><div class="me">'+avatar(state.user.email)+
           '<div style="min-width:0"><div class="me-name">Paige</div><div class="me-mail">'+esc(state.user.email)+'</div></div>'+
