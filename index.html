@@ -514,11 +514,6 @@
   }
   .rb-gift__toggle-txt { text-decoration: underline; }
   .rb-gift__body { margin-top: 9px; }
-  .rb-gift__cancel {
-    background: none; border: 0; padding: 0; margin-top: 9px;
-    font-family: var(--sans); font-size: 13px; color: var(--ink-soft);
-    text-decoration: underline; cursor: pointer;
-  }
   .rb-gift__label { font-size: 12.5px; font-weight: 600; color: var(--ink); margin-bottom: 7px; }
   .rb-gift__label .opt { font-weight: 500; color: var(--ink-soft); }
   .rb-gift__row { display: flex; gap: 8px; }
@@ -526,6 +521,14 @@
     border: 1px solid var(--rose-30); background: #fff; color: var(--rose); border-radius: 13px;
     padding: 0 16px; height: 48px; font-family: var(--sans); font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap;
   }
+  /* Inline "remove/close" X — same shell as Apply, square, muted glyph */
+  .rb-gift__x {
+    flex-shrink: 0; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--rose-30); background: #fff; color: var(--ink-soft); border-radius: 13px;
+    font-family: var(--sans); font-size: 17px; line-height: 1; cursor: pointer;
+    transition: color .15s ease, border-color .15s ease;
+  }
+  .rb-gift__x:hover { color: var(--rose); border-color: var(--rose); }
   .rb-gift__msg { font-size: 12.5px; margin-top: 8px; }
   .rb-gift__msg .ok { color: var(--rose); font-weight: 600; }
   .rb-gift__msg .muted { color: var(--ink-soft); }
@@ -1420,9 +1423,9 @@
             '<div class="rb-gift__row">' +
               '<input class="rb-inp" data-gift placeholder="Enter code" autocapitalize="characters" autocomplete="off" style="flex:1;text-transform:uppercase" />' +
               '<button class="rb-gift__apply" type="button" data-gift-apply>Apply</button>' +
+              '<button class="rb-gift__x" type="button" data-gift-cancel aria-label="Remove gift code">✕</button>' +
             '</div>' +
             '<div class="rb-gift__msg" data-gift-msg></div>' +
-            '<button type="button" class="rb-gift__cancel" data-gift-cancel>Cancel</button>' +
           '</div>' +
         '</div>' +
       '</div>';
