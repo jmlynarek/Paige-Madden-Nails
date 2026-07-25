@@ -2043,8 +2043,12 @@
           '<div class="rb-total__label">Total to send</div>' +
           '<div class="rb-total__amt">' + esc(money(total)) + '</div>' +
           (breakdown ? '<div class="rb-total__note" style="margin-top:6px">' + esc(breakdown) + '</div>' : '') +
-          '<button class="rb-code" type="button" data-copy="' + esc(code) + '"><span class="rb-code__t">' + esc(code) + '</span><span class="rb-code__ico">' + Icon.copy + '</span></button>' +
-          '<div class="rb-total__note">Add <b>' + esc(code) + '</b> to your payment note so Paige can match it.</div>' +
+        '</div>' +
+        '<div class="rb-codebox">' +
+          '<div class="rb-codebox__req">Don’t skip this</div>' +
+          '<div class="rb-codebox__label">Add this code to your payment note</div>' +
+          '<button class="rb-codebox__code" type="button" data-copy="' + esc(code) + '"><span class="rb-code__t">' + esc(code) + '</span><span class="rb-code__ico">' + Icon.copy + '</span></button>' +
+          '<div class="rb-codebox__why">It’s the <b>only way</b> Paige can match your payment to your gift.</div>' +
         '</div>' +
         (PAY_METHODS.length
           ? '<div class="rb-pays">' + tiles + '</div>'
