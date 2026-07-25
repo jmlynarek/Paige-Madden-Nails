@@ -360,6 +360,16 @@
   .nt-back svg { width: 18px; height: 18px; transform: rotate(90deg); }
   /* customer detail header — a larger avatar, everything else reuses the kit */
   .cust-hero .avatar { width: 52px; height: 52px; font-size: 18px; }
+  /* interactive reporting: KPI cards lift on hover; clickable ones jump to a segment */
+  .kpi { transition: transform .15s, box-shadow .15s; }
+  .kpi:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+  .kpi.click { cursor: pointer; }
+  /* chart bars: hovering one dims the rest; a themed tooltip follows the cursor */
+  .cbar { transition: opacity .12s; }
+  svg:hover .cbar { opacity: .45; }
+  svg .cbar:hover { opacity: 1; }
+  .tip { position: fixed; z-index: 300; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-pop); padding: 8px 11px; font-size: 12.5px; font-weight: 600; color: var(--ink); pointer-events: none; opacity: 0; transition: opacity .12s; max-width: 240px; line-height: 1.45; }
+  .tip small { display: block; color: var(--ink-soft); font-weight: 500; font-size: 11.5px; margin-top: 1px; }
 
   /* ===================== NOTIFICATIONS ===================== */
   .pop { position: absolute; top: 52px; right: 0; width: 360px; max-width: 90vw; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-pop); z-index: 60; overflow: hidden; transform-origin: top right; }
@@ -506,7 +516,7 @@ var state = {
   drawerId: null, giftDrawerId: null, photos: {}, ntSel: null,
   // Customers tab (lightweight CRM): selected customer key, segment chip,
   // tab-local search text, sort mode, and saved per-customer notes (key → text).
-  custSel: null, custSeg: 'all', custQ: '', custSort: 'recent', custNotes: {},
+  custSel: null, custSeg: 'all', custQ: '', custSort: 'recent', custNotes: {}, custRange: 6,
   // Unsaved pickup→shipping address, kept in state so re-renders (photo load,
   // realtime echoes) don't wipe what the admin typed. Keyed to the order id.
   shipDraft: null
@@ -2185,9 +2195,12 @@ function custPills(c){
 // Paired bars per calendar month: customers whose FIRST order landed that month
 // (new) vs customers placing an order whose first was in an earlier month
 // (returning). Order activity, not completion. Modeled on barChart()'s SVG.
-function custMonthChart(list){
+// n = how many months back to show (the Trends range picker feeds this).
+// Bars carry data-tip for the themed hover tooltip (wireTips) + .cbar hover CSS.
+function custMonthChart(list, n){
+  n = Math.max(3, Math.min(24, n||6));
   var months=[], now=new Date();
-  for(var i=5;i>=0;i--){ var d=new Date(now.getFullYear(), now.getMonth()-i, 1); months.push({y:d.getFullYear(), m:d.getMonth(), label:d.toLocaleDateString('en-US',{month:'short'}), nw:0, ret:0}); }
+  for(var i=n-1;i>=0;i--){ var d=new Date(now.getFullYear(), now.getMonth()-i, 1); months.push({y:d.getFullYear(), m:d.getMonth(), label:d.toLocaleDateString('en-US',{month:'short'}), nw:0, ret:0}); }
   function slot(t){ var x=new Date(t); for(var j=0;j<months.length;j++){ if(months[j].y===x.getFullYear()&&months[j].m===x.getMonth()) return months[j]; } return null; }
   list.forEach(function(c){
     var f=slot(c.firstAt); if(f) f.nw++;
@@ -2200,15 +2213,17 @@ function custMonthChart(list){
     });
   });
   var max=1; months.forEach(function(m){ max=Math.max(max, m.nw, m.ret); });
-  var W=640, H=180, pad=8, gw=(W-pad*2)/months.length, bw=Math.min(34,(gw-18)/2);
+  var W=640, H=180, pad=8, gw=(W-pad*2)/months.length, bw=Math.max(3, Math.min(34,(gw-10)/2));
+  var step=Math.ceil(months.length/8);
   var bars='', labels='', gl='';
   for(var g=1;g<=3;g++){ var gy=pad+(H-pad*2)*(g/4); gl+='<line x1="0" y1="'+gy.toFixed(1)+'" x2="'+W+'" y2="'+gy.toFixed(1)+'" stroke="rgba(95,70,63,0.07)" stroke-width="1"/>'; }
   months.forEach(function(m,idx){
     var cx=pad+idx*gw+gw/2;
     var h1=(H-pad*2)*(m.nw/max), h2=(H-pad*2)*(m.ret/max);
-    bars+='<rect x="'+(cx-bw-2).toFixed(1)+'" y="'+(H-pad-Math.max(h1,m.nw?3:0)).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(h1,m.nw?3:0).toFixed(1)+'" rx="4" fill="url(#bgc1)"><title>'+m.label+': '+m.nw+' new customer'+(m.nw===1?'':'s')+'</title></rect>';
-    bars+='<rect x="'+(cx+2).toFixed(1)+'" y="'+(H-pad-Math.max(h2,m.ret?3:0)).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(h2,m.ret?3:0).toFixed(1)+'" rx="4" fill="#E8B6BA"><title>'+m.label+': '+m.ret+' returning</title></rect>';
-    labels+='<text x="'+cx.toFixed(1)+'" y="'+(H+13)+'" text-anchor="middle" font-size="9.5" fill="rgba(95,70,63,0.5)">'+m.label+'</text>';
+    var tipTxt = m.label+' '+m.y+' — '+m.nw+' new customer'+(m.nw===1?'':'s')+'<small>'+m.ret+' returning that month</small>';
+    bars+='<rect class="cbar" data-tip="'+tipTxt+'" x="'+(cx-bw-1).toFixed(1)+'" y="'+(H-pad-Math.max(h1,m.nw?3:0)).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(h1,m.nw?3:0).toFixed(1)+'" rx="'+Math.min(4,bw/2).toFixed(1)+'" fill="url(#bgc1)"/>';
+    bars+='<rect class="cbar" data-tip="'+tipTxt+'" x="'+(cx+1).toFixed(1)+'" y="'+(H-pad-Math.max(h2,m.ret?3:0)).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(h2,m.ret?3:0).toFixed(1)+'" rx="'+Math.min(4,bw/2).toFixed(1)+'" fill="#E8B6BA"/>';
+    if(idx%step===0) labels+='<text x="'+cx.toFixed(1)+'" y="'+(H+13)+'" text-anchor="middle" font-size="9.5" fill="rgba(95,70,63,0.5)">'+m.label+'</text>';
   });
   return '<svg viewBox="0 0 '+W+' '+(H+18)+'" width="100%" preserveAspectRatio="none" style="display:block">'+
     '<defs><linearGradient id="bgc1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#DC8289"/><stop offset="1" stop-color="#B46869"/></linearGradient></defs>'+
@@ -2231,16 +2246,57 @@ function viewCustomers(){
   var now = new Date();
   var newThisMonth = list.filter(function(c){ var d=new Date(c.firstAt); return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth(); }).length;
 
-  var kpi = function(ic, icbg, iccol, label, val, sub){
-    return '<div class="kpi"><div class="kpi-top"><span class="kpi-ic" style="background:'+icbg+';color:'+iccol+'">'+ic+'</span>'+label+'</div>'+
+  // KPI cards: hover explains the metric; the segment-linked ones are clickable
+  // and jump the list to that segment (data-cust-seg is the same wiring the
+  // filter chips use; the handler scrolls #custList into view for kpi clicks).
+  var kpi = function(ic, icbg, iccol, label, val, sub, tip, seg){
+    return '<div class="kpi'+(seg?' click':'')+'"'+(seg?' data-cust-seg="'+seg+'"':'')+(tip?' title="'+tip+'"':'')+'><div class="kpi-top"><span class="kpi-ic" style="background:'+icbg+';color:'+iccol+'">'+ic+'</span>'+label+'</div>'+
       '<div class="kpi-val">'+val+'</div><div class="kpi-sub">'+sub+'</div></div>';
   };
   var kpis = '<div class="kpis">'+
-    kpi(I.users,'#EAF1FC','#3B7DD8','Customers', total, newThisMonth?('+'+newThisMonth+' new this month'):'People with a completed order')+
-    kpi(I.spark,'#EDEAFB','#7C5CDA','Repeat rate', (total?Math.round(repeat.length/total*100):0)+'%', repeat.length+' ordered again')+
-    kpi(I.cash,'#E5F4EA','#2BA05A','Avg lifetime value', money(total?totalLtv/total:0), totalOwed>0 ? (money(totalLtv)+' collected · <span style="color:#C77A3B;font-weight:700">'+money(totalOwed)+' owed</span>') : (money(totalLtv)+' collected all-time'))+
-    kpi(I.bell,'#FBF1DC','#C98A12','Due for reorder', due.length, due.length?('quiet '+reengageDays+'+ days'):'All engaged')+
+    kpi(I.users,'#EAF1FC','#3B7DD8','Customers', total, newThisMonth?('+'+newThisMonth+' new this month'):'People with a completed order',
+      'Everyone with at least one completed order — click to see the full list', 'all')+
+    kpi(I.spark,'#EDEAFB','#7C5CDA','Repeat rate', (total?Math.round(repeat.length/total*100):0)+'%', repeat.length+' ordered again',
+      'Share of customers who placed 2 or more orders — click to see them', 'repeat')+
+    kpi(I.cash,'#E5F4EA','#2BA05A','Avg lifetime value', money(total?totalLtv/total:0), totalOwed>0 ? (money(totalLtv)+' collected · <span style="color:#C77A3B;font-weight:700">'+money(totalOwed)+' owed</span>') : (money(totalLtv)+' collected all-time'),
+      'Collected revenue ÷ customers. Owed = placed but payment not collected yet')+
+    kpi(I.bell,'#FBF1DC','#C98A12','Due for reorder', due.length, due.length?('quiet '+reengageDays+'+ days'):'All engaged',
+      'Reachable customers quiet past the '+reengageDays+'-day reminder window — click to see them', 'due')+
   '</div>';
+
+  // ---- Trends: everything below responds to the 6m / 12m / All range picker ----
+  var N = state.custRange;                       // months in range; 0 = all-time
+  var nowD = new Date();
+  var curStart  = N ? new Date(nowD.getFullYear(), nowD.getMonth()-(N-1), 1).getTime() : 0;
+  var prevStart = N ? new Date(nowD.getFullYear(), nowD.getMonth()-(2*N-1), 1).getTime() : 0;
+  var inCur  = function(t){ return t>=curStart; };
+  var inPrev = function(t){ return t>=prevStart && t<curStart; };
+  var tr = { newC:[0,0], ret:[0,0], placed:[0,0], coll:[0,0] };   // [current, prior]
+  list.forEach(function(c){
+    if(inCur(c.firstAt)) tr.newC[0]++; else if(N && inPrev(c.firstAt)) tr.newC[1]++;
+    var retCur=false, retPrev=false;
+    c.active.forEach(function(o){
+      var t=new Date(o.created_at).getTime();
+      if(inCur(t)){ tr.placed[0]++; if(c.firstAt<curStart) retCur=true; }
+      else if(N && inPrev(t)){ tr.placed[1]++; if(c.firstAt<prevStart) retPrev=true; }
+      // money is dated when it arrived: paid_at for collected orders, order
+      // date for gift credit burned at checkout
+      var amt=orderCollected(o);
+      if(amt>0){ var w=orderPaid(o) ? new Date(o.paid_at||o.created_at).getTime() : t;
+        if(inCur(w)) tr.coll[0]+=amt; else if(N && inPrev(w)) tr.coll[1]+=amt; }
+    });
+    if(retCur) tr.ret[0]++; if(retPrev) tr.ret[1]++;
+  });
+  var trendPct = function(cur, prev){
+    if(!N) return '';
+    var p = prev===0 ? (cur>0?100:0) : Math.round((cur-prev)/prev*100);
+    return ' <span class="trend '+(p>=0?'up':'down')+'" style="font-size:12.5px">'+(p>=0?'▲':'▼')+' '+Math.abs(p)+'%</span>';
+  };
+  var tstat = function(label, val, cur, prev, tip){
+    return '<div style="flex:1;min-width:118px" title="'+tip+'"><div class="muted" style="font-size:12px;font-weight:600">'+label+'</div>'+
+      '<div style="font-size:22px;font-weight:800;letter-spacing:-.02em;margin-top:3px">'+val+trendPct(cur,prev)+'</div>'+
+      '<div class="muted" style="font-size:11.5px;margin-top:2px">'+(N?('vs prior '+N+' months'):'all-time')+'</div></div>';
+  };
 
   var top = list.slice().sort(function(a,b){return b.ltv-a.ltv;}).slice(0,5);
   var top3Ltv = top.slice(0,3).reduce(function(s,c){return s+c.ltv;},0);
@@ -2253,10 +2309,26 @@ function viewCustomers(){
   }).join('') : '<div class="muted" style="font-size:13px">No customers yet.</div>';
 
   var legendDot = function(col,label){ return '<span class="chip"><span style="width:9px;height:9px;border-radius:50%;background:'+col+';display:inline-block"></span>'+label+'</span>'; };
+  // All-time view: size the chart to the whole history (capped inside the fn)
+  var chartMonths = N || (function(){
+    var earliest = list.reduce(function(m,c){ return Math.min(m, c.firstAt); }, Date.now());
+    var em = new Date(earliest);
+    return (nowD.getFullYear()-em.getFullYear())*12 + (nowD.getMonth()-em.getMonth()) + 1;
+  })();
+  var rangeSeg = '<div class="seg">'+[[6,'6m'],[12,'12m'],[0,'All']].map(function(r){
+    return '<button data-cust-range="'+r[0]+'" class="'+(state.custRange===r[0]?'on':'')+'">'+r[1]+'</button>';
+  }).join('')+'</div>';
   var mid = '<div class="grid-2">'+
-    '<div class="panel"><div class="panel-h"><div class="panel-t">New vs returning<small>Customers placing orders · last 6 months</small></div>'+
-      '<div class="panel-tools" style="align-items:center;gap:12px">'+legendDot('var(--rose)','New')+legendDot('#E8B6BA','Returning')+'</div></div>'+
-      '<div class="panel-b">'+custMonthChart(list)+'</div></div>'+
+    '<div class="panel"><div class="panel-h"><div class="panel-t">Trends<small>New vs returning · hover the bars for detail</small></div>'+
+      '<div class="panel-tools" style="align-items:center;gap:12px;flex-wrap:wrap">'+legendDot('var(--rose)','New')+legendDot('#E8B6BA','Returning')+rangeSeg+'</div></div>'+
+      '<div class="panel-b">'+
+        '<div style="display:flex;gap:18px;flex-wrap:wrap;margin-bottom:14px">'+
+          tstat('New customers', tr.newC[0], tr.newC[0], tr.newC[1], 'Customers whose first order landed in this period')+
+          tstat('Returning', tr.ret[0], tr.ret[0], tr.ret[1], 'Customers ordering again in this period (first order was earlier)')+
+          tstat('Orders placed', tr.placed[0], tr.placed[0], tr.placed[1], 'Real (non-cancelled) orders created in this period')+
+          tstat('Collected', money(tr.coll[0]), tr.coll[0], tr.coll[1], 'Money that arrived in this period — payments collected plus gift credit burned at checkout')+
+        '</div>'+
+        custMonthChart(list, chartMonths)+'</div></div>'+
     '<div class="panel"><div class="panel-h"><div class="panel-t">Top customers<small>'+(conc?('Top 3 = '+conc+'% of all-time revenue'):'By lifetime value')+'</small></div></div>'+
       '<div class="panel-b"><div class="nt-rows">'+topRows+'</div></div></div>'+
   '</div>';
@@ -2294,7 +2366,7 @@ function viewCustomers(){
     '<button data-cust-sort="count" class="'+(state.custSort==='count'?'on':'')+'">Most orders</button>'+
   '</div>';
 
-  var listPanel = '<div class="panel">'+
+  var listPanel = '<div class="panel" id="custList">'+
     '<div class="panel-h" style="flex-wrap:wrap"><div class="panel-t">All customers<small>'+total+' total · a completed order makes a customer</small></div>'+
       '<div class="panel-tools" style="align-items:center;flex-wrap:wrap">'+
         '<div class="search">'+I.search+'<input id="custSearch" placeholder="Search customers…" value="'+esc(state.custQ)+'" style="width:190px"></div>'+
@@ -3055,8 +3127,9 @@ function wire(){
   document.querySelectorAll('[data-nt-back]').forEach(function(b){ b.onclick=function(){ state.ntSel=null; render(); window.scrollTo(0,0); }; });
   document.querySelectorAll('[data-cust-open]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); state.custSel=b.getAttribute('data-cust-open'); render(); window.scrollTo(0,0); }; });
   document.querySelectorAll('[data-cust-back]').forEach(function(b){ b.onclick=function(){ state.custSel=null; render(); window.scrollTo(0,0); }; });
-  document.querySelectorAll('[data-cust-seg]').forEach(function(b){ b.onclick=function(){ state.custSeg=b.getAttribute('data-cust-seg'); render(); }; });
+  document.querySelectorAll('[data-cust-seg]').forEach(function(b){ b.onclick=function(){ state.custSeg=b.getAttribute('data-cust-seg'); var fromKpi=b.classList.contains('kpi'); render(); if(fromKpi){ var lp=$('#custList'); if(lp) lp.scrollIntoView({behavior:'smooth', block:'start'}); } }; });
   document.querySelectorAll('[data-cust-sort]').forEach(function(b){ b.onclick=function(){ state.custSort=b.getAttribute('data-cust-sort'); render(); }; });
+  document.querySelectorAll('[data-cust-range]').forEach(function(b){ b.onclick=function(){ state.custRange=Number(b.getAttribute('data-cust-range')); render(); }; });
   document.querySelectorAll('[data-cust-jump]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); state.view='customers'; state.custSel=b.getAttribute('data-cust-jump'); render(); window.scrollTo(0,0); }; });
   document.querySelectorAll('[data-cust-note-save]').forEach(function(b){ b.onclick=function(){ saveCustomerNote(b); }; });
   var cs=$('#custSearch'); if(cs) cs.oninput=function(){ state.custQ=cs.value; render(); var n=$('#custSearch'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } };
@@ -3107,6 +3180,23 @@ function wire(){
   var so=$('#signout'); if(so) so.onclick=function(){ sb.auth.signOut(); };
 
   var gs=$('#globalSearch'); if(gs) gs.oninput=function(){ state.q=gs.value; if(state.view!=='orders'){ state.view='orders'; } var rows=filteredOrders(); var tw=$('.table-wrap'); if(state.view==='orders'){ render(); var g=$('#globalSearch'); if(g){ g.focus(); g.setSelectionRange(g.value.length,g.value.length); } } };
+  wireTips();
+}
+
+// Themed hover tooltip for any element carrying data-tip (chart bars). One
+// fixed-position .tip div follows the cursor; content is our own markup.
+function wireTips(){
+  var tip = $('#tipHost');
+  if(!tip){ tip = el('div','tip'); tip.id='tipHost'; document.body.appendChild(tip); }
+  document.querySelectorAll('[data-tip]').forEach(function(n){
+    n.addEventListener('mousemove', function(e){
+      tip.innerHTML = n.getAttribute('data-tip');
+      tip.style.left = Math.min(e.clientX+14, window.innerWidth-250)+'px';
+      tip.style.top  = (e.clientY-14)+'px';
+      tip.style.opacity = '1';
+    });
+    n.addEventListener('mouseleave', function(){ tip.style.opacity='0'; });
+  });
 }
 
 // close popovers on outside click / escape
