@@ -1810,9 +1810,17 @@
       '<div class="rb-row__in">' +
         '<span class="rb-row__ico">' + ico + '</span>' +
         '<div class="rb-row__body"><div class="rb-row__label">' + label + '</div><div class="rb-row__val' + valCls + '">' + esc(val) + '</div></div>' +
-        '<button class="rb-edit" type="button" data-edit>Edit</button>' +
+        '<span class="rb-edit" aria-hidden="true">Edit</span>' +
       '</div>';
-    row.querySelector('[data-edit]').onclick = function () { goGiftSection(kind === 'amount' ? 1 : 2); };
+    // The whole row is the tap target (mobile UX) — the "Edit" text is just a visual affordance.
+    row.setAttribute('role', 'button');
+    row.setAttribute('tabindex', '0');
+    row.setAttribute('aria-label', 'Edit ' + label);
+    var open = function () { goGiftSection(kind === 'amount' ? 1 : 2); };
+    row.onclick = open;
+    row.onkeydown = function (e) {
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); open(); }
+    };
     return row;
   }
 
