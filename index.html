@@ -716,7 +716,7 @@
   var PAY_METHODS = [];
 
   // ── State (data.* names kept so the Supabase RPC call is unchanged) ──
-  var STORAGE_KEY = 'pmn-order-v2';
+  var STORAGE_KEY = 'pmn-order-v3';   // v3: added the Info section (contact fields moved to step 1); v2 carts hold stale section indices
   function blankData() {
     return {
       // order fields (used by create_order)
@@ -727,7 +727,7 @@
       tier: 'custom',
       giftCode: '', giftCredit: 0,
       // receipt-builder UI state
-      active: 1, sizeConfirmed: false, designDone: false, simpleColors: false,
+      active: 1, infoDone: false, sizeConfirmed: false, designDone: false, simpleColors: false,
     };
   }
   // Gift-purchase flow state (kept separate from `data` so create_order is untouched).
@@ -800,6 +800,7 @@
     cart:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M3 4h2.2l2 11.2a1.5 1.5 0 001.5 1.3h8.3a1.5 1.5 0 001.5-1.2L20 8H6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="20" r="1.4" fill="currentColor"/><circle cx="17" cy="20" r="1.4" fill="currentColor"/></svg>',
     restart: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 3v5h5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     ruler: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 9h18v6H3z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M7 9v2.5M11 9v2.5M15 9v2.5M19 9v2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+    user: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.6" stroke="currentColor" stroke-width="1.6"/><path d="M5 20c0-3.6 3.1-6 7-6s7 2.4 7 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
     palette:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3.5c-4.7 0-8.5 3.6-8.5 8 0 4.4 3.8 8 8.5 8 .9 0 1.5-.7 1.5-1.5 0-.4-.2-.8-.4-1.1-.3-.3-.4-.6-.4-1 0-.8.7-1.5 1.5-1.5h1.8c2.5 0 4.5-2 4.5-4.4 0-3.7-3.8-6.5-8.5-6.5z" stroke="currentColor" stroke-width="1.6"/><circle cx="7.8" cy="10.2" r="1.1" fill="currentColor"/><circle cx="11.9" cy="7.9" r="1.1" fill="currentColor"/><circle cx="16" cy="10.2" r="1.1" fill="currentColor"/></svg>',
     chevUp:'<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3.5 10l4.5-4.5L12.5 10" stroke="#8C6A60" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     plus:  '<svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M10 4v12M4 10h12" stroke="#8C6A60" stroke-width="1.8" stroke-linecap="round"/></svg>',
@@ -984,10 +985,11 @@
   var curScroll = null, curActiveCard = null, curFootBtn = null, curFootHint = null, curPill = null, scrollT = null;
 
   function nextIncomplete() {
-    if (!data.shape) return 1;
-    if (!data.sizeConfirmed) return 2;
-    if (!data.designDone) return 3;
-    return 4;
+    if (!data.infoDone) return 1;
+    if (!data.shape) return 2;
+    if (!data.sizeConfirmed) return 3;
+    if (!data.designDone) return 4;
+    return 5;
   }
   function queueScroll() {
     clearTimeout(scrollT);
@@ -1053,25 +1055,29 @@
 
   function paintPill() {
     if (!curPill) return;
-    curPill.textContent = data.active === 4 ? money(amountDue()) + ' total' : 'Your set · ' + money(basePrice());
+    curPill.textContent = data.active === 5 ? money(amountDue()) + ' total' : 'Your set · ' + money(basePrice());
   }
 
   function buildSections(scroll, animateActive) {
-    // 1 — Shape
-    if (data.active === 1) scroll.appendChild(shapeEditor(animateActive));
+    // 1 — Info (name / phone / email)
+    if (data.active === 1) scroll.appendChild(infoEditor(animateActive));
+    else if (data.infoDone) scroll.appendChild(receiptRow('info'));
+    else scroll.appendChild(upcoming(1, 'Your info'));
+    // 2 — Shape
+    if (data.active === 2) scroll.appendChild(shapeEditor(animateActive));
     else if (data.shape) scroll.appendChild(receiptRow('shape'));
-    else scroll.appendChild(upcoming(1, 'Your shape'));
-    // 2 — Sizes
-    if (data.active === 2) scroll.appendChild(sizeEditor(animateActive));
+    else scroll.appendChild(upcoming(2, 'Your shape'));
+    // 3 — Sizes
+    if (data.active === 3) scroll.appendChild(sizeEditor(animateActive));
     else if (data.sizeConfirmed) scroll.appendChild(receiptRow('size'));
-    else scroll.appendChild(upcoming(2, 'Your sizes'));
-    // 3 — Inspo
-    if (data.active === 3) scroll.appendChild(designEditor(animateActive));
+    else scroll.appendChild(upcoming(3, 'Your sizes'));
+    // 4 — Inspo
+    if (data.active === 4) scroll.appendChild(designEditor(animateActive));
     else if (data.designDone) scroll.appendChild(receiptRow('design'));
-    else scroll.appendChild(upcoming(3, 'Your inspo'));
-    // 4 — Delivery & payment
-    if (data.active === 4) scroll.appendChild(deliveryEditor(animateActive));
-    else scroll.appendChild(upcoming(4, 'Delivery & payment'));
+    else scroll.appendChild(upcoming(4, 'Your inspo'));
+    // 5 — Delivery & payment
+    if (data.active === 5) scroll.appendChild(deliveryEditor(animateActive));
+    else scroll.appendChild(upcoming(5, 'Delivery & payment'));
   }
 
   function upcoming(n, label) {
@@ -1081,7 +1087,10 @@
   function receiptRow(kind) {
     var row = el('div', 'rb-row');
     var ico, label, val, valCls = '';
-    if (kind === 'shape') {
+    if (kind === 'info') {
+      ico = Icon.user; label = 'Your info';
+      val = data.name.trim() || data.email.trim() || '—';
+    } else if (kind === 'shape') {
       var s = SHAPES.filter(function (x) { return x.id === data.shape; })[0];
       ico = s ? '<img src="' + s.img + '" alt="" />' : Icon.palette;
       label = 'Shape'; val = data.shape;
@@ -1098,7 +1107,7 @@
         '<div class="rb-row__body"><div class="rb-row__label">' + label + '</div><div class="rb-row__val' + valCls + '">' + esc(val) + '</div></div>' +
         '<span class="rb-edit" aria-hidden="true">Edit</span>' +
       '</div>';
-    var target = kind === 'shape' ? 1 : kind === 'size' ? 2 : 3;
+    var target = kind === 'info' ? 1 : kind === 'shape' ? 2 : kind === 'size' ? 3 : 4;
     // The whole row is the tap target (mobile UX) — the "Edit" text is just a visual affordance.
     row.setAttribute('role', 'button');
     row.setAttribute('tabindex', '0');
@@ -1113,7 +1122,7 @@
 
   function cardHead(title, n, canCollapse) {
     return '<div class="rb-card__head"><div class="rb-card__title">' + title + '</div>' +
-      '<div class="rb-card__right"><span class="rb-card__meta">' + n + ' of 4</span>' +
+      '<div class="rb-card__right"><span class="rb-card__meta">' + n + ' of 5</span>' +
       (canCollapse ? '<button class="rb-collapse" type="button" data-collapse aria-label="Collapse">' + Icon.chevUp + '</button>' : '') +
       '</div></div>';
   }
@@ -1127,7 +1136,7 @@
   function shapeEditor(animate) {
     var card = el('div', 'rb-card' + (animate ? ' rb-reveal' : ''));
     curActiveCard = card;
-    card.innerHTML = cardHead('Your Shape', 1, !!data.shape) + '<div class="rb-shapes" data-shapes></div><div class="rb-caption">Tap your shape</div>';
+    card.innerHTML = cardHead('Your Shape', 2, !!data.shape) + '<div class="rb-shapes" data-shapes></div><div class="rb-caption">Tap your shape</div>';
     var wrap = card.querySelector('[data-shapes]');
     SHAPES.forEach(function (s) {
       var b = el('button', 'rb-shape' + (data.shape === s.id ? ' on' : ''));
@@ -1144,7 +1153,7 @@
   function sizeEditor(animate) {
     var card = el('div', 'rb-card' + (animate ? ' rb-reveal' : ''));
     curActiveCard = card;
-    card.innerHTML = cardHead('Your Sizes', 2, data.sizeConfirmed) +
+    card.innerHTML = cardHead('Your Sizes', 3, data.sizeConfirmed) +
       '<a class="rb-vid" href="' + SIZE_VIDEO_URL + '" target="_blank" rel="noopener">' +
         '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>' +
         'Not sure of your size? Watch the fit video</a>' +
@@ -1248,7 +1257,7 @@
   function designEditor(animate) {
     var card = el('div', 'rb-card' + (animate ? ' rb-reveal' : ''));
     curActiveCard = card;
-    card.innerHTML = cardHead('Your Inspo', 3, data.designDone) +
+    card.innerHTML = cardHead('Your Inspo', 4, data.designDone) +
       '<input type="file" accept="image/*" multiple data-file style="display:none" />' +
       '<div class="rb-drop" data-drop></div>' +
       '<div data-price></div>' +
@@ -1356,17 +1365,47 @@
     return card;
   }
 
-  // ── Section 4 · DELIVERY & PAYMENT ──
-  function deliveryEditor(animate) {
+  // ── Section 1 · INFO (name / phone / email) ──
+  // Contact info is captured up front so Paige can send the order-confirmation
+  // email and reach the customer. These three fields moved here out of the
+  // (previously cramped) Delivery & payment card.
+  function infoEditor(animate) {
     var card = el('div', 'rb-card' + (animate ? ' rb-reveal' : ''));
     curActiveCard = card;
-    card.innerHTML =
-      '<div class="rb-card__head"><div class="rb-card__title">Delivery &amp; payment</div><span class="rb-card__meta">4 of 4</span></div>' +
+    card.innerHTML = cardHead('Your Info', 1, !!data.infoDone) +
       '<div class="rb-2">' +
         '<input class="rb-inp rb-name req" data-name placeholder="First & last name *" autocomplete="name" />' +
         '<input class="rb-inp rb-phone req" data-phone placeholder="Phone *" inputmode="numeric" autocomplete="tel-national" maxlength="12" />' +
       '</div>' +
       '<input class="rb-inp req" data-email type="email" placeholder="Email *" autocomplete="email" inputmode="email" style="margin-top:8px" />' +
+      '<div class="rb-caption">So Paige can send your confirmation and reach you about your set.</div>';
+
+    var nameEl = card.querySelector('[data-name]');
+    var phoneEl = card.querySelector('[data-phone]');
+    var emailEl = card.querySelector('[data-email]');
+    nameEl.value = data.name; phoneEl.value = data.phone; emailEl.value = data.email;
+    nameEl.oninput = function () { data.name = nameEl.value; persist(); paintFooter(); };
+    emailEl.oninput = function () { data.email = emailEl.value; persist(); paintFooter(); };
+    phoneEl.oninput = function () {
+      var d = phoneEl.value.replace(/\D/g, '').slice(0, 10);
+      var v = d;
+      if (d.length > 6) v = d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6);
+      else if (d.length > 3) v = d.slice(0, 3) + '-' + d.slice(3);
+      data.phone = v; phoneEl.value = v; persist(); paintFooter();
+    };
+
+    wireCollapse(card);
+    // Drop the cursor into the name field once the card is in the DOM (preventScroll: don't yank the page).
+    requestAnimationFrame(function () { try { nameEl.focus({ preventScroll: true }); } catch (e) { nameEl.focus(); } });
+    return card;
+  }
+
+  // ── Section 5 · DELIVERY & PAYMENT ──
+  function deliveryEditor(animate) {
+    var card = el('div', 'rb-card' + (animate ? ' rb-reveal' : ''));
+    curActiveCard = card;
+    card.innerHTML =
+      '<div class="rb-card__head"><div class="rb-card__title">Delivery &amp; payment</div><span class="rb-card__meta">5 of 5</span></div>' +
       '<div class="rb-seg">' +
         '<button type="button" data-ful="pickup">Pickup · free</button>' +
         '<button type="button" data-ful="shipping">Ship to me · ' + money(SHIP_FEE) + '</button>' +
@@ -1391,9 +1430,6 @@
         '</div>' +
       '</div>';
 
-    var nameEl = card.querySelector('[data-name]');
-    var phoneEl = card.querySelector('[data-phone]');
-    var emailEl = card.querySelector('[data-email]');
     var addrWrap = card.querySelector('[data-addr]');
     var sumEl = card.querySelector('[data-sum]');
     var giftEl = card.querySelector('[data-gift]');
@@ -1402,16 +1438,7 @@
     var giftToggle = card.querySelector('[data-gift-toggle]');
     var giftCancel = card.querySelector('[data-gift-cancel]');
 
-    nameEl.value = data.name; phoneEl.value = data.phone; emailEl.value = data.email; giftEl.value = data.giftCode || '';
-    nameEl.oninput = function () { data.name = nameEl.value; persist(); paintFooter(); };
-    emailEl.oninput = function () { data.email = emailEl.value; persist(); paintFooter(); };
-    phoneEl.oninput = function () {
-      var d = phoneEl.value.replace(/\D/g, '').slice(0, 10);
-      var v = d;
-      if (d.length > 6) v = d.slice(0, 3) + '-' + d.slice(3, 6) + '-' + d.slice(6);
-      else if (d.length > 3) v = d.slice(0, 3) + '-' + d.slice(3);
-      data.phone = v; phoneEl.value = v; persist(); paintFooter();
-    };
+    giftEl.value = data.giftCode || '';
 
     function paintSeg() {
       card.querySelectorAll('[data-ful]').forEach(function (b) {
@@ -1504,8 +1531,6 @@
 
     paintSeg(); paintTurn(); renderAddr(); paintSum(sumEl); paintGiftMsg();
     if (data.giftCredit > 0 || data.giftCode) { giftBody.hidden = false; giftToggle.style.display = 'none'; }
-    // Drop the cursor into the name field once the card is in the DOM (preventScroll: don't yank the page).
-    requestAnimationFrame(function () { try { nameEl.focus({ preventScroll: true }); } catch (e) { nameEl.focus(); } });
     return card;
   }
 
@@ -1529,16 +1554,26 @@
   // ── Footer state machine (no AI: tier is the solid-colors toggle) ──
   function computeFooter() {
     var a = data.active;
-    if (a === 1) return { label: 'Pick your shape', enabled: false, hint: 'Your total updates as you pick' };
-    if (a === 2) {
+    if (a === 1) {
+      var infoDigits = data.phone.replace(/\D/g, '');
+      var infoEmailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim());
+      var infoOk = !!data.name.trim() && infoEmailOk && infoDigits.length === 10;
+      return {
+        label: 'Continue', enabled: infoOk,
+        hint: infoOk ? 'So Paige can send your confirmation and reach you' : 'Name, email & phone so Paige can reach you',
+        go: infoOk ? function () { data.infoDone = true; data.active = nextIncomplete(); renderMain({ advance: true }); } : null,
+      };
+    }
+    if (a === 2) return { label: 'Pick your shape', enabled: false, hint: 'Your total updates as you pick' };
+    if (a === 3) {
       var sized = FINGERS.every(function (f) { return data.sizes[f] != null; });
       if (!sized) return { label: 'Pick your sizes', enabled: false, hint: 'Small, Medium, or Large — then adjust any finger' };
       if (!data.sizeConfirmed) return { label: 'Continue', enabled: false, hint: 'Lock in your sizes below to continue' };
       return { label: 'Continue', enabled: true, hint: 'Free sizing card included with every kit',
         go: function () { data.active = nextIncomplete(); renderMain({ advance: true }); } };
     }
-    if (a === 3) {
-      var advance = function () { data.designDone = true; data.active = 4; renderMain({ advance: true }); };
+    if (a === 4) {
+      var advance = function () { data.designDone = true; data.active = nextIncomplete(); renderMain({ advance: true }); };
       if (data.simpleColors) {
         return hasPhoto()
           ? { label: 'Continue — ' + money(40), enabled: true, hint: 'Classic set · 1–2 solid colors — $40', go: advance }
@@ -1548,7 +1583,7 @@
         ? { label: 'Continue — ' + money(50), enabled: true, hint: 'Custom set · priced from your inspo — Paige confirms', go: advance }
         : { label: 'Continue', enabled: false, hint: 'Add a photo so Paige knows the vibe' };
     }
-    // section 4
+    // section 5 — Delivery & payment (contact is captured in section 1; re-checked here defensively)
     var digits = data.phone.replace(/\D/g, '');
     var emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim());
     var ok = !!data.name.trim() && emailOk && digits.length === 10 &&
@@ -1558,7 +1593,7 @@
       label: sending ? 'Sending…' : (due > 0 ? 'Submit & pay ' + money(due) : 'Submit my order'),
       enabled: ok && !sending,
       spin: sending,
-      hint: ok ? 'Your set starts once payment lands' : 'Name, email + phone is all Paige needs',
+      hint: ok ? 'Your set starts once payment lands' : (isShipping() ? 'Add your shipping address to continue' : 'Choose pickup or shipping to continue'),
       go: function () {
         if (sending) return;
         if (photos.length && photos.reduce(function (s, p) { return s + p.blob.size; }, 0) > TOTAL_LIMIT) {
@@ -2224,7 +2259,7 @@
       .then(function (res) {
         if (!res.error && res.data && res.data.length) {
           SHAPES = res.data.map(function (s) { return { id: s.id, img: s.image }; });
-          if (step === 'main' && data.active === 1) renderMain({ advance: false });
+          if (step === 'main' && data.active === 2) renderMain({ advance: false });
         }
       });
     sb.from('payment_methods').select('id,label,handle').eq('enabled', true).order('sort')
