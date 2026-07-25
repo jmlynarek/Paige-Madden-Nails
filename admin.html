@@ -86,6 +86,8 @@
   .btn:active { transform: translateY(0); }
   .btn[disabled] { opacity: .55; pointer-events: none; }
   .btn svg, .btn-line svg { width: 17px; height: 17px; flex: none; }
+  .btn-pay { background: linear-gradient(150deg, #5E9070, #0E7E5B); box-shadow: 0 8px 20px rgba(14,126,91,.24); }
+  .btn-pay:hover { box-shadow: 0 12px 26px rgba(14,126,91,.3); }
   .btn-ghost { background: transparent; color: var(--ink-2); box-shadow: none; font-weight: 600; }
   .btn-ghost:hover { transform: none; box-shadow: none; color: var(--rose); }
   /* small pill button for secondary drawer actions — matches the badge/pill language */
@@ -210,6 +212,9 @@
   .ico { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; color: var(--ink-2); }
   .ico:hover { background: var(--blush); color: var(--rose); border-color: var(--highlight); }
   .ico.danger:hover { background: #FBE9E7; color: #C9534A; border-color: #F3C7C2; }
+  .ico.pay { color: rgba(95, 70, 63, 0.32); }
+  .ico.pay.on { background: #EAF3EC; color: #0E7E5B; border-color: #CBE2D2; }
+  .ico.pay.on:hover { background: #DFEEE4; color: #0E7E5B; border-color: #B9D6C4; }
   .ico svg { width: 15px; height: 15px; }
   .unseen-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--rose); display: inline-block; margin-right: 2px; }
 
@@ -463,7 +468,8 @@ var I = {
   image:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg>',
   note:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/></svg>',
   user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg>',
-  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>'
+  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>',
+  dollar:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5v19"/><path d="M16.5 5.8H10.2a3.1 3.1 0 0 0 0 6.2h3.6a3.1 3.1 0 0 1 0 6.2H7.2"/></svg>'
 };
 
 /* ───────────────────────── status meta ───────────────────────── */
@@ -893,6 +899,8 @@ function viewOrders(){
   var rows = filteredOrders();
   var body = rows.length ? rows.map(function(o){
     var ship = o.fulfillment==='shipping';
+    // Gift-card shipments are prepaid by definition; everything else follows orderPaid().
+    var paid = !!o.gift_shipment_id || orderPaid(o);
     var fulfilChip = (ship && o.label_url)
       ? '<span class="chip" style="color:#0E9E8E" title="Label purchased">'+I.tag+'Labeled</span>'
       : '<span class="chip">'+(ship?I.truck:I.bag)+(ship?'Ship':'Pickup')+'</span>';
@@ -909,7 +917,7 @@ function viewOrders(){
       '<td data-label="Total"><span class="money">'+money(orderValue(o))+'</span></td>'+
       '<td data-label="Status">'+statusPill(o.status)+'</td>'+
       '<td data-label="Fulfil" class="hide-sm">'+fulfilChip+'</td>'+
-      '<td class="col-act"><div class="row-actions"><button class="ico" data-open="'+o.id+'" title="View">'+I.pencil+'</button><button class="ico danger" data-del="'+o.id+'" title="Delete">'+I.trash+'</button></div></td>'+
+      '<td class="col-act"><div class="row-actions"><button class="ico pay'+(paid?' on':'')+'" data-open="'+o.id+'" title="'+(paid?'Payment collected':'Payment not collected yet')+'">'+I.dollar+'</button><button class="ico" data-open="'+o.id+'" title="View">'+I.pencil+'</button><button class="ico danger" data-del="'+o.id+'" title="Delete">'+I.trash+'</button></div></td>'+
     '</tr>';
   }).join('') : '<tr><td colspan="8"><div class="empty">'+I.inbox+'<div>No orders match this view.</div></div></td></tr>';
 
@@ -2666,7 +2674,7 @@ function renderDrawer(){
     var payToggle = nothingDue ? '' : (collected
       ? '<div style="margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px">'+(o.paid_at?'<span class="muted" style="font-size:12.5px">Collected '+fmtDate(o.paid_at)+'</span>':'<span class="muted" style="font-size:12.5px">Payment collected.</span>')+'<button class="btn-chip" data-pay-collected="'+id+'" data-to="0">Mark not collected</button></div>'
       : '<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">'+
-          '<button class="btn" data-pay-collected="'+id+'" data-to="1" style="width:auto;flex:1;min-width:190px;display:inline-flex;align-items:center;justify-content:center;gap:6px">'+I.check+'Mark payment collected</button>'+
+          '<button class="btn btn-pay" data-pay-collected="'+id+'" data-to="1" style="width:auto;flex:1;min-width:190px;display:inline-flex;align-items:center;justify-content:center;gap:6px">'+I.dollar+'Mark payment collected</button>'+
           (o.email?'<button class="btn btn-line" data-unpaid-email="'+id+'" style="width:auto;flex:none;display:inline-flex;align-items:center;justify-content:center;gap:6px">'+I.mail+'Send reminder email</button>':'')+
         '</div>');
     sections.push({ id:'sec-pay', icon:I.cart, label:'Payment', open:false, badge:payBadge,
