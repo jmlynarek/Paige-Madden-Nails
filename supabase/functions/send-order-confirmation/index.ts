@@ -69,7 +69,6 @@ function cap(s: unknown): string {
 type OrderRow = {
   order_no?: number | null;
   customer_name?: string | null;
-  public_token?: string | null;
   quoted_price?: number | null;
   tier_price?: number | null;
   ship_fee?: number | null;
@@ -137,14 +136,9 @@ function renderEmailHtml(
   const bodyHtml = esc(bodyRaw).replace(/\n/g, "<br>");
   const orderNo = order.order_no != null ? "Order PM-" + order.order_no : "";
   const name = esc(order.customer_name || "there");
-  // A permanent, login-free link to view this order and start a new one
-  // later with saved sizes/details pre-filled (design blank).
-  const reorderBtn = order.public_token
-    ? '<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:22px"><tr><td>' +
-        '<a href="' + SITE_URL + '/reorder?t=' + esc(order.public_token) + '" style="display:inline-block;background:#B46869;color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:13px 26px;border-radius:999px;' + SANS + '">Save this link — reorder anytime</a>' +
-      '</td></tr>' +
-      '<tr><td style="padding:8px 0 0;color:#8C6A60;font-size:12.5px;' + SANS + '">Keep this link — you can reorder anytime and we\'ll remember your sizes.</td></tr></table>'
-    : "";
+  // No reorder button here (removed 2026-07-25): this email has one job —
+  // receipt + payment pending + "you'll hear from me soon". The reorder link
+  // still reaches customers via the re-engagement nudge after completion.
   return '<!doctype html><html><head><meta charset="utf-8">' +
     '<meta name="viewport" content="width=device-width,initial-scale=1">' +
     '<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">' +
@@ -163,7 +157,6 @@ function renderEmailHtml(
           '<p style="' + SANS + ';color:#8C6A60;font-size:15.5px;line-height:1.65;margin:10px 0 0">Hi ' + name + ',</p>' +
           '<p style="' + SANS + ';color:#8C6A60;font-size:15.5px;line-height:1.65;margin:8px 0 0">' + bodyHtml + '</p>' +
           receiptHtml(order) +
-          reorderBtn +
         '</td></tr>' +
         '<tr><td style="padding:14px 38px 30px">' +
           '<p style="' + SERIF + ';color:#B46869;font-size:21px;margin:8px 0 0">With love, Paige 💕</p>' +
@@ -195,7 +188,7 @@ Deno.serve(async (req) => {
 
   const { data: order, error: orderErr } = await admin
     .from("orders")
-    .select("id, order_no, customer_name, email, public_token, quoted_price, tier_price, ship_fee, rush_fee, gift_credit, design_tier, nail_shape, fulfillment, ship_speed")
+    .select("id, order_no, customer_name, email, quoted_price, tier_price, ship_fee, rush_fee, gift_credit, design_tier, nail_shape, fulfillment, ship_speed")
     .eq("id", orderId)
     .maybeSingle();
   if (orderErr) return json({ error: "Could not load the order." }, 500);
