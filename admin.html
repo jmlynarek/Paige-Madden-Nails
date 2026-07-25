@@ -243,6 +243,12 @@
   .acc-sub { font-size: 12px; font-weight: 600; color: var(--ink-soft); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; max-width: 230px; display: flex; align-items: center; }
   .acc-chev { display: inline-flex; color: var(--ink-soft); transition: transform .2s; flex: none; }
   .acc-chev svg { width: 18px; height: 18px; }
+  /* compact state badge in a collapsed section header — an at-a-glance status cue */
+  .acc-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 20px; white-space: nowrap; flex: none; }
+  .acc-badge svg { width: 13px; height: 13px; }
+  .acc-badge.ok   { background: #E5F4EA; color: #1F8F50; }
+  .acc-badge.warn { background: #FBF0E4; color: #C77A3B; }
+  .acc-badge.info { background: #EAF1FC; color: #3B7DD8; }
   .acc.open > .acc-h .acc-sub { display: none; }
   .acc.open > .acc-h .acc-chev { transform: rotate(180deg); }
   .acc.open > .acc-h { border-bottom: 1px solid var(--hair); border-radius: 14px 14px 0 0; }
@@ -497,6 +503,9 @@ function ago(d){
   return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric'});
 }
 function statusPill(s){ var m=STATUS[s]||{label:s,color:'#888',bg:'#eee'}; return '<span class="pill" style="background:'+m.bg+';color:'+m.color+'"><span class="pdot" style="background:'+m.color+'"></span>'+m.label+'</span>'; }
+// Compact status cue shown at the top-right of an accordion section header,
+// visible whether the section is open or collapsed. tone: 'ok' | 'warn' | 'info'.
+function accBadge(text, tone, withCheck){ return '<span class="acc-badge '+(tone||'info')+'">'+(withCheck?I.check:'')+text+'</span>'; }
 
 /* ───────────────────────── toasts ───────────────────────── */
 function toast(title, sub, kind){
@@ -1869,7 +1878,7 @@ function renderDrawer(){
   var isGift = !!o.gift_shipment_id;   // a physical gift card Paige mails out
 
   // ---- shipping is split into two accordions: address + label ----
-  var shipAddrHtml='', shipAddrSub='', shipLabelHtml='', shipLabelSub='';
+  var shipAddrHtml='', shipAddrSub='', shipLabelHtml='', shipLabelSub='', shipLabelBadge='';
   if(isShip){
     var addr=[o.address_line1, o.address_line2, [o.city,o.region].filter(Boolean).join(', '), o.postal_code].filter(Boolean).join(' · ');
     shipAddrSub =esc([o.city,o.region].filter(Boolean).join(', ') || (o.ship_to_name||o.customer_name));
@@ -1879,6 +1888,7 @@ function renderDrawer(){
 
     if(o.label_url){
       // Label already bought — tracking + reprint.
+      shipLabelBadge = accBadge('Label bought','ok',true);
       shipLabelSub = (o.service_level?esc(o.service_level)+' · ':'')+money(o.shipping_cost);
       shipLabelHtml = '<div class="dr-card">'+
         '<div class="kv"><span class="k">Carrier</span><span class="v">'+esc(o.carrier||'USPS')+(o.service_level?' · '+esc(o.service_level):'')+'</span></div>'+
@@ -1889,7 +1899,8 @@ function renderDrawer(){
         '<a class="btn" href="'+esc(o.label_url)+'" target="_blank" rel="noopener" style="margin-top:10px;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none">'+I.box+'Print label</a>';
     } else {
       // No label yet — parcel inputs + buy button.
-      shipLabelSub = 'Not bought yet';
+      shipLabelBadge = accBadge('Not bought','warn');
+      shipLabelSub = '';
       var pf = function(pid,label,val,step,min){ return '<label style="display:flex;flex-direction:column;gap:4px"><span class="muted" style="font-size:11.5px">'+label+'</span><input class="input" id="'+pid+'" type="number" min="'+min+'" step="'+step+'" value="'+val+'"></label>'; };
       shipLabelHtml = '<div class="muted" style="font-size:12px;margin:-2px 0 10px">Buys the cheapest USPS rate (Standard).</div>'+
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
@@ -1935,7 +1946,7 @@ function renderDrawer(){
       '</div>')) });
   if(isShip){
     sections.push({ id:'sec-ship', icon:I.pin, label:'Shipping', open:false, sub:shipAddrSub, html:shipAddrHtml });
-    sections.push({ id:'sec-label', icon:I.tag, label:'Shipping label', open:true, sub:shipLabelSub, html:shipLabelHtml });
+    sections.push({ id:'sec-label', icon:I.tag, label:'Shipping label', open:true, badge:shipLabelBadge, sub:shipLabelSub, html:shipLabelHtml });
   } else {
     // Pickup order — but let the admin switch it to shipping (customer changed
     // their mind). Collecting an address flips fulfillment='shipping', which
@@ -1968,7 +1979,12 @@ function renderDrawer(){
         '<div class="kv"><span class="k">Paid</span><span class="v" style="color:#0E7E5B">Already paid — nothing to collect</span></div></div>'+
         (o.notes?'<div class="notes-box" style="margin-top:10px">'+esc(o.notes)+'</div>':'') });
   } else {
-    sections.push({ id:'sec-pay', icon:I.cart, label:'Payment', open:true,
+    var collected = !!o.payment_collected, nothingDue = due<=0;
+    var payBadge = nothingDue ? accBadge('Nothing due','ok',true) : (collected ? accBadge('Collected','ok',true) : accBadge('Not collected','warn'));
+    var payToggle = nothingDue ? '' : (collected
+      ? '<div style="margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;gap:10px">'+(o.paid_at?'<span class="muted" style="font-size:12.5px">Collected '+fmtDate(o.paid_at)+'</span>':'<span class="muted" style="font-size:12.5px">Payment collected.</span>')+'<button class="btn-ghost" data-pay-collected="'+id+'" data-to="0" style="width:auto;display:inline;padding:4px 6px;font-size:12.5px">Mark not collected</button></div>'
+      : '<button class="btn" data-pay-collected="'+id+'" data-to="1" style="margin-top:12px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px">'+I.check+'Mark payment collected</button>');
+    sections.push({ id:'sec-pay', icon:I.cart, label:'Payment', open:true, badge:payBadge,
       sub: gift>0 ? (due>0 ? money(due)+' due · '+money(gift)+' prepaid' : '🎁 Prepaid — nothing due') : money(orderValue(o))+' to collect', html:
       '<div class="dr-card">'+
         (o.gift_card_id?'<div class="kv"><span class="k"><span class="chip" style="color:#B46869">🎁 Prepaid</span></span><span class="v muted">gift card</span></div>':'')+
@@ -1977,20 +1993,20 @@ function renderDrawer(){
         (Number(o.rush_fee)>0?'<div class="kv"><span class="k">Rush</span><span class="v">'+money(o.rush_fee)+'</span></div>':'')+
         (gift>0?'<div class="kv"><span class="k">Gift credit</span><span class="v" style="color:#0E7E5B">− '+money(gift)+'</span></div>':'')+
         '<div class="kv"><span class="k"><b>'+(gift>0?'Still to collect':'Total to collect')+'</b></span><span class="v"><b>'+money(due)+'</b></span></div>'+
-      '</div>' });
+      '</div>'+payToggle });
     sections.push({ id:'sec-design', icon:I.palette, label:'Design', open:!isShip, sub:esc((o.nail_shape||'—')+' · '+tierName), html:
       '<div class="dr-card"><div class="kv"><span class="k">Shape</span><span class="v">'+esc(o.nail_shape||'—')+'</span></div><div class="kv"><span class="k">Tier</span><span class="v">'+esc(tierName)+'</span></div></div>'+
       '<div style="margin-top:12px"><div class="dr-sec-t" style="margin-bottom:8px">Sizes</div><div class="sizes">'+sizeCells+'</div></div>' });
   }
   if(o.notes && !isGift){ sections.push({ id:'sec-notes', icon:I.note, label:'Notes', open:false, sub:'', html:'<div class="notes-box">'+esc(o.notes)+'</div>' }); }
-  sections.push({ id:'sec-photos', icon:I.image, label:'Photos', open:false, sub:(ph&&ph.length?'('+ph.length+')':''), html:photosHtml });
+  sections.push({ id:'sec-photos', icon:I.image, label:'Photos', open:false, sub:(ph===undefined?'':(ph.length?ph.length+' photo'+(ph.length>1?'s':''):'None')), html:photosHtml });
   if(contact){ sections.push({ id:'sec-contact', icon:I.user, label:'Contact', open:false, sub:esc(o.email||o.phone||''), html:'<div class="dr-card">'+contact+'</div>' }); }
 
   function accHtml(s){
     return '<div class="acc'+(s.open?' open':'')+'" id="'+s.id+'">'+
       '<button class="acc-h" type="button" data-acc="'+s.id+'">'+
         '<span class="acc-l"><span class="acc-ic">'+(s.icon||'')+'</span><span class="acc-t">'+s.label+'</span></span>'+
-        '<span class="acc-r">'+(s.sub?'<span class="acc-sub">'+s.sub+'</span>':'')+'<span class="acc-chev">'+I.chev+'</span></span>'+
+        '<span class="acc-r">'+(s.badge||'')+(s.sub?'<span class="acc-sub">'+s.sub+'</span>':'')+'<span class="acc-chev">'+I.chev+'</span></span>'+
       '</button>'+
       '<div class="acc-b"><div class="acc-b-in"><div class="acc-pad">'+s.html+'</div></div></div>'+
     '</div>';
@@ -2030,6 +2046,7 @@ function renderDrawer(){
   host.querySelectorAll('[data-status]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); setStatus(id, b.getAttribute('data-status')); }; });
   host.querySelectorAll('[data-cancel-email]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); sendCancelEmail(b.getAttribute('data-cancel-email')); }; });
   host.querySelectorAll('[data-unpaid-email]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); resendUnpaidEmail(b.getAttribute('data-unpaid-email')); }; });
+  host.querySelectorAll('[data-pay-collected]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); setPaymentCollected(b.getAttribute('data-pay-collected'), b.getAttribute('data-to')==='1'); }; });
   host.querySelectorAll('[data-del]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); delOrder(b.getAttribute('data-del')); }; });
   var buyBtn = $('#buyLabel');
   if(buyBtn){ buyBtn.onclick = function(){ buyLabel(id); }; }
@@ -2105,6 +2122,10 @@ function updateOrder(id, patch, okMsg){
     if(r.error){ if(prev){state.orders[i]=prev;} render(); toast('Update failed', r.error.message, 'err'); }
     else if(okMsg){ toast(okMsg,'','ok'); }
   });
+}
+// Toggle the standalone "money arrived" flag (separate from the status flow).
+function setPaymentCollected(id, val){
+  updateOrder(id, { payment_collected: val, paid_at: val ? new Date().toISOString() : null }, val ? 'Payment marked collected' : 'Marked not collected');
 }
 function setStatus(id, status){
   var patch = { status: status };
