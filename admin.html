@@ -2056,11 +2056,14 @@ function render(){
   if(state.loading){ $('#root').innerHTML='<div class="loading-full"><div class="spin"></div></div>'; return; }
 
   var c = counts(), un = notifItems().length;
+  // Pending gift purchases = online buys awaiting payment (money to collect, a
+  // card to send). Surface the count on the nav like Orders so it's an alert.
+  var giftPending = (state.giftCards||[]).filter(function(g){ return g.status==='pending'; }).length;
   var nav = [
     {k:'dashboard', label:'Dashboard', icon:I.grid},
     {k:'orders', label:'Orders', icon:I.cart, count:c.all},
     {k:'customers', label:'Customers', icon:I.users},
-    {k:'giftcards', label:'Gift Cards', icon:I.gift},
+    {k:'giftcards', label:'Gift Cards', icon:I.gift, count:giftPending},
     {k:'marketing', label:'Marketing', icon:I.spark},
     {k:'notifications', label:'Notifications', icon:I.bell},
     {k:'settings', label:'Settings', icon:I.cog}
