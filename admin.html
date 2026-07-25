@@ -1962,6 +1962,11 @@ function renderDrawer(){
     // their mind). Collecting an address flips fulfillment='shipping', which
     // makes renderDrawer show the Shipping + buy-label sections next pass.
     var swf = function(pid,label,val,ph){ return '<label style="display:flex;flex-direction:column;gap:4px"><span class="muted" style="font-size:11.5px">'+label+'</span><input class="input" id="'+pid+'" type="text" value="'+esc(val||'')+'"'+(ph?' placeholder="'+esc(ph)+'"':'')+'></label>'; };
+    // State picker — all US states by USPS abbreviation, default Michigan (Paige's usual ship-to).
+    var US_STATES='AK AL AR AZ CA CO CT DC DE FL GA HI IA ID IL IN KS KY LA MA MD ME MI MN MO MS MT NC ND NE NH NJ NM NV NY OH OK OR PA RI SC SD TN TX UT VA VT WA WI WV WY'.split(' ');
+    var swSel = function(pid,label,val){ var cur=String(val||'MI').toUpperCase();
+      return '<label style="display:flex;flex-direction:column;gap:4px"><span class="muted" style="font-size:11.5px">'+label+'</span><select class="input" id="'+pid+'">'+
+        US_STATES.map(function(s){ return '<option value="'+s+'"'+(s===cur?' selected':'')+'>'+s+'</option>'; }).join('')+'</select></label>'; };
     // Restore any unsaved address from state so a mid-edit re-render (photos, realtime) can't wipe it.
     var d = (state.shipDraft && state.shipDraft.id===id) ? state.shipDraft : null;
     var dOpen = !!(d && d.open);
@@ -1975,7 +1980,7 @@ function renderDrawer(){
           swf('swL1','Street address', d?d.l1:'', '123 Main St')+
           swf('swL2','Apt / unit (optional)', d?d.l2:'')+
           '<div style="display:grid;grid-template-columns:1.6fr .7fr .9fr;gap:8px">'+
-            swf('swCity','City', d?d.city:'')+swf('swRegion','State', d?d.region:'', 'MI')+swf('swZip','ZIP', d?d.zip:'')+
+            swf('swCity','City', d?d.city:'')+swSel('swRegion','State', d ? d.region : 'MI')+swf('swZip','ZIP', d?d.zip:'')+
           '</div>'+
         '</div>'+
         '<button class="btn" id="doSwitch" style="margin-top:12px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px">'+I.truck+'Save &amp; switch to shipping</button>'+
@@ -2073,7 +2078,7 @@ function renderDrawer(){
     toShip.style.display='none';
     var sec=host.querySelector('#sec-ship'); if(sec) sec.classList.add('open');
     // Seed the draft so the open form + typed values survive any re-render.
-    if(!state.shipDraft || state.shipDraft.id!==id) state.shipDraft={id:id, name:(o.customer_name||''), l1:'',l2:'',city:'',region:'',zip:''};
+    if(!state.shipDraft || state.shipDraft.id!==id) state.shipDraft={id:id, name:(o.customer_name||''), l1:'',l2:'',city:'',region:'MI',zip:''};
     state.shipDraft.open=true;
     var l1=$('#swL1'); if(l1) l1.focus();
   }; }
@@ -2082,10 +2087,11 @@ function renderDrawer(){
   var draftMap={swName:'name', swL1:'l1', swL2:'l2', swCity:'city', swRegion:'region', swZip:'zip'};
   Object.keys(draftMap).forEach(function(fid){
     var el=$('#'+fid); if(!el) return;
-    el.oninput=function(){
-      if(!state.shipDraft || state.shipDraft.id!==id) state.shipDraft={id:id, name:'',l1:'',l2:'',city:'',region:'',zip:''};
+    var cap=function(){
+      if(!state.shipDraft || state.shipDraft.id!==id) state.shipDraft={id:id, name:'',l1:'',l2:'',city:'',region:'MI',zip:''};
       state.shipDraft[draftMap[fid]]=el.value; state.shipDraft.open=true;
     };
+    el.oninput=cap; el.onchange=cap; // onchange covers the State <select>
   });
   var doSwitch = $('#doSwitch');
   if(doSwitch){ doSwitch.onclick = function(){ switchToShipping(id); }; }
