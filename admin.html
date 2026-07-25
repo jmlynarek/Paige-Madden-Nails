@@ -2076,6 +2076,17 @@ function orderPaid(o){
 }
 // What's still owed on one order (order value minus any gift credit).
 function orderDue(o){ return Math.max(0, orderValue(o) - Number(o.gift_credit||0)); }
+// Money recognized toward lifetime value on one order:
+//   · settled (orderPaid) → the full order value;
+//   · not yet collected  → just the gift credit, which was burned against the
+//     order the moment it was placed (that cash arrived when the card sold).
+// So for every real order: recognized + orderDue = order value. Nothing
+// vanishes, nothing double-counts.
+function orderCollected(o){
+  if(o.status==='cancelled') return 0;
+  if(orderPaid(o)) return orderValue(o);
+  return Math.min(Number(o.gift_credit||0), orderValue(o));
+}
 // Most common value across orders; ties go to the most recent (arr is newest-first).
 function custMode(arr, field){
   var counts={}, best=null, bestN=0;
@@ -2116,10 +2127,15 @@ function buildCustomers(){
     c.n      = c.active.length;
     c.nPaid  = c.paid.length;
     c.completedN = c.completed.length;
-    // Gross LTV over paid orders (set + ship + rush; gift credit not subtracted —
-    // gift-card cash is tracked as its own stream on the Gift Cards panel).
-    c.ltv = c.paid.reduce(function(s,o){ return s+orderValue(o); },0);
-    // Money still owed: what's due on every real order not yet marked collected.
+    // LTV = money recognized so far (orderCollected): the full value of settled
+    // orders plus gift credit already burned on not-yet-collected ones.
+    // Order-centric on purpose — a gift-funded order is Joe's order; the gift
+    // BUYER's cash is tracked on the Gift Cards panel, not here.
+    c.ltv = c.active.reduce(function(s,o){ return s+orderCollected(o); },0);
+    // How that LTV arrived: gift-card credit vs actual cash from this customer.
+    c.ltvGift = c.active.reduce(function(s,o){ return s+Math.min(Number(o.gift_credit||0), orderValue(o)); },0);
+    c.ltvCash = Math.max(0, c.ltv - c.ltvGift);
+    // Money still owed. Invariant: ltv + outstanding = Σ order value over active.
     c.outstanding = c.active.reduce(function(s,o){ return s + (orderPaid(o)?0:orderDue(o)); },0);
     c.aov = c.nPaid ? c.ltv/c.nPaid : 0;
     c.firstAt = new Date(c.active[c.active.length-1].created_at).getTime();
@@ -2290,7 +2306,10 @@ function viewCustomerDetail(c){
   var gapSub = c.avgGapDays!=null ? ('orders every ~'+c.avgGapDays+' days') : 'one order so far';
   var unpaidN = c.n - c.nPaid;
   var kpis = '<div class="kpis">'+
-    kpi(I.cash,'#E5F4EA','#2BA05A','Lifetime value', money(c.ltv), c.nPaid?money(c.aov)+' avg per paid order':'no payments collected yet')+
+    kpi(I.cash,'#E5F4EA','#2BA05A','Lifetime value', money(c.ltv),
+      c.ltvGift>0 ? (money(c.ltvCash)+' cash · '+money(c.ltvGift)+' via gift cards')
+      : c.nPaid ? money(c.aov)+' avg per paid order'
+      : 'no payments collected yet')+
     kpi(I.cart,'#EAF1FC','#3B7DD8','Orders', c.n, c.nPaid+' paid'+(unpaidN>0?' · '+unpaidN+' unpaid':'')+' · '+gapSub)+
     kpi(I.clock,'#EDEAFB','#7C5CDA','Last ordered', ago(c.lastAt), fmtDay(c.lastAt))+
     (c.outstanding>0
@@ -2353,12 +2372,15 @@ function viewCustomerDetail(c){
   // ---- order history (all their orders; cancelled greyed; tap → order drawer) ----
   var histRows = c.orders.map(function(o){
     var tierName2 = (state.tiers.find(function(x){return x.id===o.design_tier;})||{}).name || o.design_tier || '—';
-    // Money chip is independent of status: Paid = counts toward LTV;
-    // Unpaid = a real order whose money hasn't been marked collected yet.
-    var payChip = o.status==='cancelled' ? ''
-      : orderPaid(o)
-        ? ' <span class="chip" style="color:#2BA05A" title="Payment collected — counts toward lifetime value">'+I.check+'Paid</span>'
-        : ' <span class="chip" style="color:#C77A3B" title="Payment not collected yet — '+money(orderDue(o))+' due">'+I.clock+'Unpaid</span>';
+    // Money chip is independent of status: Paid = fully settled; Partly paid =
+    // gift credit arrived but cash is still due; Unpaid = nothing collected yet.
+    var payChip = '';
+    if(o.status!=='cancelled'){
+      var giftPart = Math.min(Number(o.gift_credit||0), orderValue(o));
+      if(orderPaid(o)) payChip = ' <span class="chip" style="color:#2BA05A" title="Payment collected — counts toward lifetime value">'+I.check+'Paid</span>';
+      else if(giftPart>0) payChip = ' <span class="chip" style="color:#C77A3B" title="'+money(giftPart)+' prepaid by gift card, counted toward lifetime value — '+money(orderDue(o))+' still due">'+I.clock+'Partly paid · '+money(orderDue(o))+' due</span>';
+      else payChip = ' <span class="chip" style="color:#C77A3B" title="Payment not collected yet — '+money(orderDue(o))+' due">'+I.clock+'Unpaid</span>';
+    }
     return '<tr data-open="'+o.id+'"'+(o.status==='cancelled'?' style="opacity:.55"':'')+'>'+
       '<td data-label="Order"><span class="oid">'+shortId(o)+'</span>'+(o.gift_card_id?' <span class="chip" style="color:#B46869" title="Paid with a gift card">'+I.gift+'</span>':'')+'</td>'+
       '<td data-label="Date" class="muted">'+fmtDay(o.completed_at||o.created_at)+'</td>'+
