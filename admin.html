@@ -465,7 +465,7 @@ var state = {
   scheduled: [], optouts: [], settings: {}, giftCards: [], waitlist: [],
   view: 'dashboard', filter: 'all', q: '',
   range: 30, sidebarOpen: false, notifOpen: false,
-  drawerId: null, photos: {}, ntSel: null
+  drawerId: null, giftDrawerId: null, photos: {}, ntSel: null
 };
 
 /* ───────────────────────── helpers ───────────────────────── */
@@ -1193,6 +1193,14 @@ function giftAddr(c){
   return [c.ship_line1, c.ship_line2, [c.ship_city, c.ship_region, c.ship_postal].filter(Boolean).join(', ')]
     .filter(Boolean).join(', ');
 }
+// How the gift reaches its recipient: mailed physical card, emailed code, or a
+// booth card sold in person (no delivery_method on the row).
+function gcType(c){
+  if(c.delivery_method==='card')  return { label:'By mail',   icon:I.truck };
+  if(c.delivery_method==='email') return { label:'Email',     icon:I.mail };
+  return { label:'In person', icon:I.bag };
+}
+function gcTypeChip(c){ var t=gcType(c); return '<span class="chip">'+t.icon+t.label+'</span>'; }
 
 function viewGiftCards(){
   var cards = state.giftCards || [];
@@ -1220,6 +1228,7 @@ function viewGiftCards(){
       (c.gift_message ? '<div style="margin-top:2px;font-size:13px"><b>Message:</b> '+esc(c.gift_message)+'</div>' : '')+
       '<div style="margin-top:11px;display:flex;gap:8px;flex-wrap:wrap">'+
         '<button class="btn" data-gc-issue="'+c.id+'" style="width:auto;padding:0 20px">Issue &amp; send →</button>'+
+        '<button class="btn btn-line" data-gc-open="'+c.id+'" style="width:auto;padding:0 16px">View details</button>'+
         '<button class="btn btn-ghost danger" data-gc-void="'+c.id+'" style="width:auto;padding:0 16px">Void</button>'+
       '</div>'+
     '</div>';
@@ -1254,30 +1263,32 @@ function viewGiftCards(){
   var ledgerCards = cards.filter(function(c){return c.status!=='pending';});
   var rows = ledgerCards.length ? ledgerCards.map(function(c){
     var ord = c.redeemed_order_id ? state.orders.find(function(o){return o.id===c.redeemed_order_id;}) : null;
-    var acts = c.status==='active'
-      ? '<button class="ico" data-gc-redeem="'+c.id+'" title="Mark redeemed (used in person)">'+I.check+'</button>'+
-        '<button class="ico danger" data-gc-void="'+c.id+'" title="Void this card">'+I.x+'</button>'
-      : '<span class="muted">—</span>';
+    var acts = '<button class="ico" data-gc-open="'+c.id+'" title="View details">'+I.pencil+'</button>'+
+      (c.status==='active'
+        ? '<button class="ico" data-gc-redeem="'+c.id+'" title="Mark redeemed (used in person)">'+I.check+'</button>'+
+          '<button class="ico danger" data-gc-void="'+c.id+'" title="Void this card">'+I.x+'</button>'
+        : '');
     var redeemedCell = c.status!=='redeemed'
       ? '<span class="muted">—</span>'
       : (ord ? '<span class="oid" data-open="'+ord.id+'" style="cursor:pointer">'+shortId(ord)+'</span>' : '<span class="muted">In person</span>')+' <span class="muted">'+fmtDay(c.redeemed_at)+'</span>';
-    return '<tr>'+
+    return '<tr data-gc-open="'+c.id+'" style="cursor:pointer">'+
       '<td data-label="Code"><span class="oid" style="letter-spacing:1px">'+esc(c.code)+'</span></td>'+
       '<td data-label="Amount">'+money(c.amount)+'</td>'+
+      '<td data-label="Type">'+gcTypeChip(c)+'</td>'+
       '<td data-label="Buyer" class="hide-sm">'+esc(c.buyer_email||c.buyer_name||'—')+'</td>'+
       '<td data-label="Status">'+gcPill(c.status)+'</td>'+
       '<td data-label="Created" class="hide-sm muted">'+fmtDay(c.created_at)+'</td>'+
       '<td data-label="Redeemed">'+redeemedCell+'</td>'+
       '<td class="col-act"><div class="row-actions">'+acts+'</div></td>'+
     '</tr>';
-  }).join('') : '<tr><td colspan="7"><div class="empty">'+I.gift+'<div>No gift cards yet. Generate one above when you sell it at the booth.</div></div></td></tr>';
+  }).join('') : '<tr><td colspan="8"><div class="empty">'+I.gift+'<div>No gift cards yet. Generate one above when you sell it at the booth.</div></div></td></tr>';
 
   var ledgerPanel =
     '<div class="panel" style="margin-top:16px">'+
       '<div class="panel-h"><div class="panel-t">All gift cards'+
         '<small>'+active.length+' active · '+money(activeVal)+' outstanding. A card is single-use and burned the moment it’s redeemed.</small></div></div>'+
       '<div class="panel-b"><div class="table-wrap"><table class="tbl"><thead><tr>'+
-        '<th>Code</th><th>Amount</th><th class="hide-sm">Buyer</th><th>Status</th><th class="hide-sm">Created</th><th>Redeemed</th><th></th>'+
+        '<th>Code</th><th>Amount</th><th>Type</th><th class="hide-sm">Buyer</th><th>Status</th><th class="hide-sm">Created</th><th>Redeemed</th><th></th>'+
       '</tr></thead><tbody>'+rows+'</tbody></table></div></div>'+
     '</div>';
 
@@ -1702,7 +1713,126 @@ function openOrder(id){
   renderDrawer();
   if(o && !state.photos[id]) loadPhotos(id);
 }
-function closeDrawer(){ state.drawerId=null; renderDrawer(); }
+function closeDrawer(){ state.drawerId=null; state.giftDrawerId=null; renderDrawer(); }
+
+// Open a gift card in the side pane (mutually exclusive with the order drawer).
+function openGiftCard(id){ state.giftDrawerId=id; state.drawerId=null; renderDrawer(); }
+
+// The gift-card side pane. Everything about one gift in one place — crucially the
+// recipient's mailing address, which otherwise disappears once a pending purchase
+// is issued into the ledger. Same visual shell as the order drawer.
+function renderGiftDrawer(host){
+  var id = state.giftDrawerId;
+  var c = (state.giftCards||[]).find(function(x){return x.id===id;});
+  if(!c){ host.innerHTML=''; return; }
+
+  var isCard  = c.delivery_method==='card';
+  var isEmail = c.delivery_method==='email';
+  var total   = Number(c.amount||0) + Number(c.ship_fee||0);
+  var type    = gcType(c);
+  var addr    = giftAddr(c);
+  var title   = c.recipient_name || c.buyer_name || 'Gift card';
+  var ref     = c.purchase_ref || c.code || '—';
+  // A mailed card spawns a $0 ship order on issue — link to it if it exists.
+  var shipOrder = isCard ? (state.orders||[]).find(function(o){return o.gift_shipment_id===c.id;}) : null;
+
+  function kv(k,v){ return '<div class="kv"><span class="k">'+k+'</span><span class="v">'+v+'</span></div>'; }
+  var secs = '';
+
+  // ---- Overview ----
+  secs += '<div class="dr-sec-t" style="margin-bottom:8px">Overview</div>'+
+    '<div class="dr-card">'+
+      kv('Amount', money(c.amount))+
+      (Number(c.ship_fee)>0 ? kv('Shipping', money(c.ship_fee)) : '')+
+      kv('<b>'+(c.status==='pending'?'To collect':'Total')+'</b>', '<b>'+money(total)+'</b>')+
+      kv('Type', gcTypeChip(c))+
+      kv('Status', gcPill(c.status))+
+    '</div>';
+
+  // ---- Deliver to ----
+  if(isCard){
+    secs += '<div class="dr-sec-t" style="margin:16px 0 8px">Mail the card to</div>'+
+      '<div class="dr-card">'+
+        kv('Recipient', esc(c.recipient_name||'—'))+
+        kv('Address', addr ? esc(addr) : '<span class="muted">No address on file</span>')+
+      '</div>'+
+      (addr ? '<button class="btn btn-line" data-copy-text="'+esc((c.recipient_name?c.recipient_name+'\n':'')+addr.replace(/, /g,'\n'))+'" style="margin-top:8px;width:100%">Copy mailing address</button>' : '');
+  } else if(isEmail){
+    secs += '<div class="dr-sec-t" style="margin:16px 0 8px">Email the recipient</div>'+
+      '<div class="dr-card">'+
+        kv('Recipient', esc(c.recipient_name||'—'))+
+        kv('Email', c.recipient_email?'<a href="mailto:'+esc(c.recipient_email)+'">'+esc(c.recipient_email)+'</a>':'<span class="muted">—</span>')+
+      '</div>';
+  }
+
+  // ---- Message ----
+  if(c.gift_message){
+    secs += '<div class="dr-sec-t" style="margin:16px 0 8px">Gift message</div>'+
+      '<div class="notes-box">'+esc(c.gift_message)+'</div>';
+  }
+
+  // ---- From (buyer) ----
+  secs += '<div class="dr-sec-t" style="margin:16px 0 8px">From</div>'+
+    '<div class="dr-card">'+
+      kv('Buyer', esc(c.buyer_name||'—'))+
+      kv('Email', c.buyer_email?'<a href="mailto:'+esc(c.buyer_email)+'">'+esc(c.buyer_email)+'</a>':'<span class="muted">—</span>')+
+    '</div>';
+
+  // ---- The code (only exists once issued) ----
+  if(c.code){
+    secs += '<div class="dr-sec-t" style="margin:16px 0 8px">Gift code</div>'+
+      '<div class="dr-card"><div class="kv"><span class="k">Code</span>'+
+        '<span class="v"><span class="oid" style="letter-spacing:1px">'+esc(c.code)+'</span></span></div></div>'+
+      '<button class="btn btn-line" data-copy-text="'+esc(c.code)+'" style="margin-top:8px;width:100%">Copy code</button>';
+  } else if(c.status==='pending'){
+    secs += '<div class="dr-sec-t" style="margin:16px 0 8px">Gift code</div>'+
+      '<div class="muted" style="font-size:12.5px">Hidden until you confirm payment and <b>Issue &amp; send</b> — that releases the code.</div>';
+  }
+
+  // ---- Timeline ----
+  secs += '<div class="dr-sec-t" style="margin:16px 0 8px">Timeline</div>'+
+    '<div class="dr-card">'+
+      kv('Ordered', fmtDay(c.created_at))+
+      (c.issued_at ? kv('Issued', fmtDay(c.issued_at)) : '')+
+      (c.redeemed_at ? kv('Redeemed', fmtDay(c.redeemed_at)) : '')+
+    '</div>';
+
+  // ---- Linked shipping order ----
+  if(shipOrder){
+    secs += '<div class="dr-sec-t" style="margin:16px 0 8px">Shipping order</div>'+
+      '<button class="btn btn-line" data-open-order="'+shipOrder.id+'" style="width:100%">Open '+shortId(shipOrder)+' in Orders →</button>';
+  }
+
+  // ---- Footer actions by status ----
+  var foot = '<button class="btn btn-line" data-close>Close</button>';
+  if(c.status==='pending'){
+    foot = '<button class="btn" data-gc-issue="'+c.id+'" style="flex:1">Issue &amp; send →</button>'+
+      '<button class="btn btn-danger" data-gc-void="'+c.id+'">Void</button>';
+  } else if(c.status==='active'){
+    foot = '<button class="btn btn-line" data-gc-redeem="'+c.id+'" style="flex:1">Mark redeemed</button>'+
+      '<button class="btn btn-danger" data-gc-void="'+c.id+'">Void</button>';
+  }
+
+  host.innerHTML =
+    '<div class="scrim show" data-close></div>'+
+    '<aside class="drawer show">'+
+      '<div class="dr-head">'+avatar(title)+
+        '<div><div class="dr-title">'+esc(title)+'</div><div class="dr-meta">'+esc(ref)+' · '+esc(type.label)+'</div></div>'+
+        '<button class="icon-btn dr-x" data-close>'+I.x+'</button>'+
+      '</div>'+
+      '<div class="dr-body"><div style="padding:16px">'+secs+'</div></div>'+
+      '<div class="dr-foot">'+foot+'</div>'+
+    '</aside>';
+
+  host.querySelectorAll('[data-close]').forEach(function(b){ b.onclick=closeDrawer; });
+  host.querySelectorAll('[data-gc-issue]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); issueGiftCard(b.getAttribute('data-gc-issue')); }; });
+  host.querySelectorAll('[data-gc-void]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); voidGiftCard(b.getAttribute('data-gc-void')); }; });
+  host.querySelectorAll('[data-gc-redeem]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); redeemGiftCard(b.getAttribute('data-gc-redeem')); }; });
+  host.querySelectorAll('[data-open-order]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); openOrder(b.getAttribute('data-open-order')); }; });
+  host.querySelectorAll('[data-copy-text]').forEach(function(b){ b.onclick=function(){
+    var v=b.getAttribute('data-copy-text'); if(navigator.clipboard){ navigator.clipboard.writeText(v).then(function(){ toast('Copied','','ok'); }); }
+  }; });
+}
 
 function loadPhotos(id){
   sb.from('order_photos').select('*').eq('order_id', id).order('position').then(function(r){
@@ -1715,6 +1845,7 @@ function loadPhotos(id){
 
 function renderDrawer(){
   var host = $('#drawerHost'); if(!host) return;
+  if(state.giftDrawerId){ return renderGiftDrawer(host); }
   var id = state.drawerId;
   if(!id){ host.innerHTML=''; return; }
   var o = state.orders.find(function(x){return x.id===id;});
@@ -2149,6 +2280,7 @@ function wire(){
   document.querySelectorAll('[data-gc-issue]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); issueGiftCard(b.getAttribute('data-gc-issue')); }; });
   document.querySelectorAll('[data-gc-redeem]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); redeemGiftCard(b.getAttribute('data-gc-redeem')); }; });
   document.querySelectorAll('[data-gc-void]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); voidGiftCard(b.getAttribute('data-gc-void')); }; });
+  document.querySelectorAll('[data-gc-open]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); openGiftCard(b.getAttribute('data-gc-open')); }; });
 
   var bell=$('#bell'); if(bell) bell.onclick=function(e){ e.stopPropagation(); state.notifOpen=!state.notifOpen; renderNotif(); };
   var burger=$('#burger'); if(burger) burger.onclick=function(e){ e.stopPropagation(); state.sidebarOpen=!state.sidebarOpen; var s=$('#sidebar'); if(s)s.classList.toggle('open',state.sidebarOpen); };
@@ -2159,7 +2291,7 @@ function wire(){
 
 // close popovers on outside click / escape
 document.addEventListener('click', function(){ if(state.notifOpen){ state.notifOpen=false; renderNotif(); } });
-document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ if(state.drawerId){closeDrawer();} else if(state.notifOpen){state.notifOpen=false;renderNotif();} else if(state.sidebarOpen){state.sidebarOpen=false;var s=$('#sidebar');if(s)s.classList.remove('open');} } });
+document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ if(state.drawerId||state.giftDrawerId){closeDrawer();} else if(state.notifOpen){state.notifOpen=false;renderNotif();} else if(state.sidebarOpen){state.sidebarOpen=false;var s=$('#sidebar');if(s)s.classList.remove('open');} } });
 
 /* ───────────────────────── boot ───────────────────────── */
 function start(session){
