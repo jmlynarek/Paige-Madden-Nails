@@ -145,7 +145,7 @@ function renderEmailHtml(
     '<style>body{margin:0;padding:0;}</style></head>' +
     '<body style="margin:0;padding:0;background:#EBE2D9;background:linear-gradient(160deg,#F2ECE6 0%,#E7DDD4 100%);' + SANS + ';color:#5F463F;">' +
     '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(160deg,#F2ECE6 0%,#E7DDD4 100%)"><tr><td align="center" style="padding:34px 16px">' +
-      '<table role="presentation" width="520" cellpadding="0" cellspacing="0" style="width:520px;max-width:520px;background:#FFFFFF;border-radius:24px;overflow:hidden;box-shadow:0 18px 48px rgba(95,70,63,0.16)">' +
+      '<table role="presentation" width="520" cellpadding="0" cellspacing="0" style="width:100%;max-width:520px;background:#FFFFFF;border-radius:24px;overflow:hidden;box-shadow:0 18px 48px rgba(95,70,63,0.16)">' +
         // Header: blush band + the circular gold-ringed logo, matching the
         // order flow's welcome screen (index.html .rb-welcome__logo).
         '<tr><td align="center" style="background:#FBEBEB;background:linear-gradient(160deg,#FBEBEB 0%,#F8E4E3 100%);padding:28px 24px 24px;border-bottom:1px solid rgba(196,166,104,0.4)">' +
@@ -159,7 +159,7 @@ function renderEmailHtml(
           receiptHtml(order) +
         '</td></tr>' +
         '<tr><td style="padding:14px 38px 30px">' +
-          '<p style="' + SERIF + ';color:#B46869;font-size:21px;margin:8px 0 0">With love, Paige 💕</p>' +
+          '<p style="' + SERIF + ';color:#B46869;font-size:21px;margin:8px 0 0">With love, Paige</p>' +
           '<hr style="border:none;border-top:1px solid #EEE3DA;margin:22px 0 14px">' +
           '<p style="' + SANS + ';color:#B8A79E;font-size:11.5px;line-height:1.55;margin:0">You\'re receiving this because you placed an order with Paige Madden Nails.</p>' +
         '</td></tr>' +
