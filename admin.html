@@ -486,7 +486,10 @@ var state = {
   scheduled: [], optouts: [], settings: {}, giftCards: [], waitlist: [],
   view: 'dashboard', filter: 'all', q: '',
   range: 30, sidebarOpen: false, notifOpen: false,
-  drawerId: null, giftDrawerId: null, photos: {}, ntSel: null
+  drawerId: null, giftDrawerId: null, photos: {}, ntSel: null,
+  // Unsaved pickup→shipping address, kept in state so re-renders (photo load,
+  // realtime echoes) don't wipe what the admin typed. Keyed to the order id.
+  shipDraft: null
 };
 
 /* ───────────────────────── helpers ───────────────────────── */
@@ -1732,12 +1735,13 @@ function copyLeadEmail(email){
 /* ───────────────────────── drawer ───────────────────────── */
 function openOrder(id){
   state.drawerId = id;
+  if(state.shipDraft && state.shipDraft.id!==id) state.shipDraft=null; // drop a stale draft from another order
   var o = state.orders.find(function(x){return x.id===id;});
   if(o && !o.admin_seen){ markSeen([id]); }
   renderDrawer();
   if(o && !state.photos[id]) loadPhotos(id);
 }
-function closeDrawer(){ state.drawerId=null; state.giftDrawerId=null; renderDrawer(); }
+function closeDrawer(){ state.drawerId=null; state.giftDrawerId=null; state.shipDraft=null; renderDrawer(); }
 
 // Open a gift card in the side pane (mutually exclusive with the order drawer).
 function openGiftCard(id){ state.giftDrawerId=id; state.drawerId=null; renderDrawer(); }
@@ -1958,22 +1962,25 @@ function renderDrawer(){
     // their mind). Collecting an address flips fulfillment='shipping', which
     // makes renderDrawer show the Shipping + buy-label sections next pass.
     var swf = function(pid,label,val,ph){ return '<label style="display:flex;flex-direction:column;gap:4px"><span class="muted" style="font-size:11.5px">'+label+'</span><input class="input" id="'+pid+'" type="text" value="'+esc(val||'')+'"'+(ph?' placeholder="'+esc(ph)+'"':'')+'></label>'; };
+    // Restore any unsaved address from state so a mid-edit re-render (photos, realtime) can't wipe it.
+    var d = (state.shipDraft && state.shipDraft.id===id) ? state.shipDraft : null;
+    var dOpen = !!(d && d.open);
     var pickupHtml =
       '<div class="dr-card"><div class="kv"><span class="k">Method</span><span class="v">Local pickup</span></div></div>'+
       '<div class="muted" style="font-size:12px;margin:10px 0 8px">Customer wants it shipped instead? Add an address to switch this order to shipping and buy a label.</div>'+
-      '<button class="btn btn-line" id="toShip" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px">'+I.truck+'Switch to shipping…</button>'+
-      '<div id="shipForm" style="display:none;margin-top:12px">'+
+      '<button class="btn btn-line" id="toShip" style="width:100%;'+(dOpen?'display:none':'display:flex')+';align-items:center;justify-content:center;gap:6px">'+I.truck+'Switch to shipping…</button>'+
+      '<div id="shipForm" style="display:'+(dOpen?'block':'none')+';margin-top:12px">'+
         '<div style="display:grid;gap:8px">'+
-          swf('swName','Recipient',o.customer_name)+
-          swf('swL1','Street address','','123 Main St')+
-          swf('swL2','Apt / unit (optional)','')+
+          swf('swName','Recipient', d ? d.name : o.customer_name)+
+          swf('swL1','Street address', d?d.l1:'', '123 Main St')+
+          swf('swL2','Apt / unit (optional)', d?d.l2:'')+
           '<div style="display:grid;grid-template-columns:1.6fr .7fr .9fr;gap:8px">'+
-            swf('swCity','City','')+swf('swRegion','State','','MI')+swf('swZip','ZIP','')+
+            swf('swCity','City', d?d.city:'')+swf('swRegion','State', d?d.region:'', 'MI')+swf('swZip','ZIP', d?d.zip:'')+
           '</div>'+
         '</div>'+
         '<button class="btn" id="doSwitch" style="margin-top:12px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px">'+I.truck+'Save &amp; switch to shipping</button>'+
       '</div>';
-    sections.push({ id:'sec-ship', icon:I.bag, label:'Pickup', open:false, sub:'Local pickup', html:pickupHtml });
+    sections.push({ id:'sec-ship', icon:I.bag, label:'Pickup', open:dOpen, sub:'Local pickup', html:pickupHtml });
   }
   var gift = Number(o.gift_credit||0);
   var due = Math.max(0, orderValue(o) - gift);
@@ -2065,8 +2072,21 @@ function renderDrawer(){
     var f=$('#shipForm'); if(f) f.style.display='block';
     toShip.style.display='none';
     var sec=host.querySelector('#sec-ship'); if(sec) sec.classList.add('open');
+    // Seed the draft so the open form + typed values survive any re-render.
+    if(!state.shipDraft || state.shipDraft.id!==id) state.shipDraft={id:id, name:(o.customer_name||''), l1:'',l2:'',city:'',region:'',zip:''};
+    state.shipDraft.open=true;
     var l1=$('#swL1'); if(l1) l1.focus();
   }; }
+  // Mirror each keystroke into state.shipDraft (no re-render → focus is never lost),
+  // so switchToShipping and any rebuild read what was actually typed.
+  var draftMap={swName:'name', swL1:'l1', swL2:'l2', swCity:'city', swRegion:'region', swZip:'zip'};
+  Object.keys(draftMap).forEach(function(fid){
+    var el=$('#'+fid); if(!el) return;
+    el.oninput=function(){
+      if(!state.shipDraft || state.shipDraft.id!==id) state.shipDraft={id:id, name:'',l1:'',l2:'',city:'',region:'',zip:''};
+      state.shipDraft[draftMap[fid]]=el.value; state.shipDraft.open=true;
+    };
+  });
   var doSwitch = $('#doSwitch');
   if(doSwitch){ doSwitch.onclick = function(){ switchToShipping(id); }; }
 }
@@ -2109,15 +2129,19 @@ function buyLabel(id){
 // left untouched (Paige collects any postage from the buyer offline); this only
 // sets fulfillment + speed + address so the buy-label flow unlocks. One-way.
 function switchToShipping(id){
-  var v=function(sel){ var n=$(sel); return n?String(n.value).trim():''; };
-  var l1=v('#swL1'), city=v('#swCity'), region=v('#swRegion').toUpperCase(), zip=v('#swZip');
+  // Prefer the state draft (kept current on every keystroke) and fall back to the
+  // live inputs — so this is correct even if a re-render just rebuilt the DOM fields.
+  var d = (state.shipDraft && state.shipDraft.id===id) ? state.shipDraft : {};
+  var pick=function(key,sel){ if(d[key]!=null && String(d[key]).trim()!=='') return String(d[key]).trim(); var n=$(sel); return n?String(n.value).trim():''; };
+  var l1=pick('l1','#swL1'), city=pick('city','#swCity'), region=pick('region','#swRegion').toUpperCase(), zip=pick('zip','#swZip');
   if(!l1||!city||!region||!zip){ toast('Missing address','Street, city, state and ZIP are all required.','err'); return; }
   var patch = {
     fulfillment:'shipping', ship_speed:'standard',
-    ship_to_name: v('#swName')||null,
-    address_line1:l1, address_line2:(v('#swL2')||null),
+    ship_to_name: pick('name','#swName')||null,
+    address_line1:l1, address_line2:(pick('l2','#swL2')||null),
     city:city, region:region, postal_code:zip
   };
+  state.shipDraft=null; // committed — drop the draft
   updateOrder(id, patch, 'Switched to shipping'); // optimistic: patches state synchronously, then persists
   renderDrawer(); // re-render into the Shipping + buy-label sections
 }
