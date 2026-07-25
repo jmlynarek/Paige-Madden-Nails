@@ -845,6 +845,7 @@ function viewDashboard(){
   var cLtvSum = cl.reduce(function(s,x){return s+x.ltv;},0);
   var cRepeat = cl.filter(function(x){return x.n>=2;});
   var cRepeatRev = cRepeat.reduce(function(s,x){return s+x.ltv;},0);
+  var cOwed = cl.reduce(function(s,x){return s+x.outstanding;},0);
   var cDue = cl.filter(function(x){return x.due;}).length;
   var cTop = cl.slice().sort(function(a,b){return b.ltv-a.ltv;}).slice(0,3);
   var topMini = cTop.map(function(x){
@@ -860,9 +861,10 @@ function viewDashboard(){
       (cTotal ?
         '<div style="display:flex;gap:22px;flex-wrap:wrap">'+
           gcStat('Customers', cTotal, cRepeat.length+' repeat')+
-          gcStat('Avg customer value', money(cLtvSum/cTotal), money(cLtvSum)+' all-time')+
+          gcStat('Avg customer value', money(cLtvSum/cTotal), money(cLtvSum)+' collected all-time')+
           gcStat('Repeat rate', Math.round(cRepeat.length/cTotal*100)+'%', 'of customers reorder')+
           gcStat('Repeat revenue', (cLtvSum?Math.round(cRepeatRev/cLtvSum*100):0)+'%', 'from returning customers', '#0E7E5B')+
+          gcStat('Outstanding', money(cOwed), cOwed>0?'placed, not collected':'all collected', cOwed>0?'#C77A3B':'#0E7E5B')+
           gcStat('Due for reorder', cDue, cDue?'quiet lately':'all engaged', cDue?'#C98A12':'var(--ink)')+
         '</div>'+
         (cTop.length?'<div class="dr-sec-t" style="margin:16px 0 8px">Top customers by lifetime value</div><div class="nt-rows">'+topMini+'</div>':'')
@@ -2050,6 +2052,21 @@ function custKey(o){
 }
 // completed_at is stamped by a DB trigger, but old completed rows may predate it.
 function doneAt(o){ return new Date(o.completed_at || o.created_at).getTime(); }
+// "Money verified" — the order's cash actually arrived. This is the ONLY basis
+// for customer money math (LTV, avg order). Completed is deliberately NOT
+// enough: completed means Paige finished the set — some customers pay later.
+// Counts when:
+//   · Paige flipped "Payment collected" in the order drawer, or
+//   · a gift card fully prepaid the order (nothing was ever due).
+// Cancelled orders never count.
+function orderPaid(o){
+  if(o.status==='cancelled') return false;
+  if(o.payment_collected===true) return true;
+  var v = orderValue(o);
+  return v>0 && (v - Number(o.gift_credit||0)) <= 0;
+}
+// What's still owed on one order (order value minus any gift credit).
+function orderDue(o){ return Math.max(0, orderValue(o) - Number(o.gift_credit||0)); }
 // Most common value across orders; ties go to the most recent (arr is newest-first).
 function custMode(arr, field){
   var counts={}, best=null, bestN=0;
@@ -2081,13 +2098,23 @@ function buildCustomers(){
     c.name  = latest.customer_name || '—';
     c.email = custField(c.orders,'email');
     c.phone = custField(c.orders,'phone');
-    c.n     = c.completed.length;
-    // Gross LTV: full order value (set + ship + rush), matching the Dashboard's
-    // "Revenue (completed)" KPI. Gift-card cash is tracked as its own stream.
-    c.ltv   = c.completed.reduce(function(s,o){ return s+orderValue(o); },0);
-    c.aov   = c.n ? c.ltv/c.n : 0;
-    c.firstAt = doneAt(c.completed[c.completed.length-1]);
-    c.lastAt  = doneAt(c.completed[0]);
+    // Two bases, deliberately separate:
+    //   active = every real (non-cancelled) order → order counts, dates, habits.
+    //   paid   = money-verified orders (orderPaid) → ALL money math.
+    // Completed only gates who appears here; it says nothing about money.
+    c.active = c.orders.filter(function(o){ return o.status!=='cancelled'; });
+    c.paid   = c.active.filter(orderPaid);
+    c.n      = c.active.length;
+    c.nPaid  = c.paid.length;
+    c.completedN = c.completed.length;
+    // Gross LTV over paid orders (set + ship + rush; gift credit not subtracted —
+    // gift-card cash is tracked as its own stream on the Gift Cards panel).
+    c.ltv = c.paid.reduce(function(s,o){ return s+orderValue(o); },0);
+    // Money still owed: what's due on every real order not yet marked collected.
+    c.outstanding = c.active.reduce(function(s,o){ return s + (orderPaid(o)?0:orderDue(o)); },0);
+    c.aov = c.nPaid ? c.ltv/c.nPaid : 0;
+    c.firstAt = new Date(c.active[c.active.length-1].created_at).getTime();
+    c.lastAt  = new Date(c.active[0].created_at).getTime();
     c.daysSince = Math.max(0, Math.floor((Date.now()-c.lastAt)/864e5));
     c.avgGapDays = c.n>1 ? Math.round((c.lastAt-c.firstAt)/864e5/(c.n-1)) : null;
     c.hasOpen = c.orders.some(function(o){ return ['new','unpaid','in_progress','ready'].indexOf(o.status)>=0; });
@@ -2095,9 +2122,9 @@ function buildCustomers(){
     // Due = quiet past the reminder window AND actually reachable by the nudge
     // system (has an email, not opted out) AND not already mid-order.
     c.due = !!c.email && !c.optedOut && !c.hasOpen && c.daysSince >= reengageDays;
-    c.favShape = custMode(c.completed,'nail_shape');
-    c.favTier  = custMode(c.completed,'design_tier');
-    c.fulfil   = custMode(c.completed,'fulfillment');
+    c.favShape = custMode(c.active,'nail_shape');
+    c.favTier  = custMode(c.active,'design_tier');
+    c.fulfil   = custMode(c.active,'fulfillment');
     c.latest   = latest;
     list.push(c);
   });
@@ -2119,9 +2146,9 @@ function custPills(c){
   return p;
 }
 
-// Paired bars per calendar month: customers whose FIRST completed order landed
-// that month (new) vs customers completing an order whose first was earlier
-// (returning). Modeled on barChart()'s hand-rolled SVG.
+// Paired bars per calendar month: customers whose FIRST order landed that month
+// (new) vs customers placing an order whose first was in an earlier month
+// (returning). Order activity, not completion. Modeled on barChart()'s SVG.
 function custMonthChart(list){
   var months=[], now=new Date();
   for(var i=5;i>=0;i--){ var d=new Date(now.getFullYear(), now.getMonth()-i, 1); months.push({y:d.getFullYear(), m:d.getMonth(), label:d.toLocaleDateString('en-US',{month:'short'}), nw:0, ret:0}); }
@@ -2129,8 +2156,8 @@ function custMonthChart(list){
   list.forEach(function(c){
     var f=slot(c.firstAt); if(f) f.nw++;
     var seen={};
-    c.completed.forEach(function(o){
-      var t=doneAt(o), x=new Date(t);
+    c.active.forEach(function(o){
+      var t=new Date(o.created_at).getTime(), x=new Date(t);
       if(c.firstAt >= new Date(x.getFullYear(), x.getMonth(), 1).getTime()) return; // first order was this month → not returning
       var k=x.getFullYear()+'-'+x.getMonth(); if(seen[k]) return; seen[k]=1;
       var m=slot(t); if(m) m.ret++;
@@ -2161,6 +2188,7 @@ function viewCustomers(){
   }
   var total = list.length;
   var totalLtv = list.reduce(function(s,c){return s+c.ltv;},0);
+  var totalOwed = list.reduce(function(s,c){return s+c.outstanding;},0);
   var repeat = list.filter(function(c){return c.n>=2;});
   var due = list.filter(function(c){return c.due;});
   var reengageDays = parseInt(state.settings.reengage_delay_days,10) || 30;
@@ -2174,7 +2202,7 @@ function viewCustomers(){
   var kpis = '<div class="kpis">'+
     kpi(I.users,'#EAF1FC','#3B7DD8','Customers', total, newThisMonth?('+'+newThisMonth+' new this month'):'People with a completed order')+
     kpi(I.spark,'#EDEAFB','#7C5CDA','Repeat rate', (total?Math.round(repeat.length/total*100):0)+'%', repeat.length+' ordered again')+
-    kpi(I.cash,'#E5F4EA','#2BA05A','Avg lifetime value', money(total?totalLtv/total:0), money(totalLtv)+' all-time revenue')+
+    kpi(I.cash,'#E5F4EA','#2BA05A','Avg lifetime value', money(total?totalLtv/total:0), totalOwed>0 ? (money(totalLtv)+' collected · <span style="color:#C77A3B;font-weight:700">'+money(totalOwed)+' owed</span>') : (money(totalLtv)+' collected all-time'))+
     kpi(I.bell,'#FBF1DC','#C98A12','Due for reorder', due.length, due.length?('quiet '+reengageDays+'+ days'):'All engaged')+
   '</div>';
 
@@ -2190,7 +2218,7 @@ function viewCustomers(){
 
   var legendDot = function(col,label){ return '<span class="chip"><span style="width:9px;height:9px;border-radius:50%;background:'+col+';display:inline-block"></span>'+label+'</span>'; };
   var mid = '<div class="grid-2">'+
-    '<div class="panel"><div class="panel-h"><div class="panel-t">New vs returning<small>Customers completing orders · last 6 months</small></div>'+
+    '<div class="panel"><div class="panel-h"><div class="panel-t">New vs returning<small>Customers placing orders · last 6 months</small></div>'+
       '<div class="panel-tools" style="align-items:center;gap:12px">'+legendDot('var(--rose)','New')+legendDot('#E8B6BA','Returning')+'</div></div>'+
       '<div class="panel-b">'+custMonthChart(list)+'</div></div>'+
     '<div class="panel"><div class="panel-h"><div class="panel-t">Top customers<small>'+(conc?('Top 3 = '+conc+'% of all-time revenue'):'By lifetime value')+'</small></div></div>'+
@@ -2218,7 +2246,7 @@ function viewCustomers(){
       '<td data-label="Customer"><div class="cust">'+avatar(c.name)+'<div><div class="cust-name">'+esc(c.name)+'</div><div class="muted" style="font-size:11.5px">'+esc(c.email||c.phone||'')+'</div></div></div></td>'+
       '<td data-label="Last ordered">'+fmtDay(c.lastAt)+' <span class="muted hide-sm" style="font-size:11.5px">· '+(c.daysSince===0?'today':c.daysSince+'d ago')+'</span></td>'+
       '<td data-label="Orders">'+c.n+'</td>'+
-      '<td data-label="Lifetime value"><span class="money">'+money(c.ltv)+'</span></td>'+
+      '<td data-label="Lifetime value"><span class="money">'+money(c.ltv)+'</span>'+(c.outstanding>0?' <span style="font-size:11.5px;font-weight:700;color:#C77A3B" title="Placed but payment not collected yet">+'+money(c.outstanding)+' unpaid</span>':'')+'</td>'+
       '<td data-label="Avg order" class="hide-sm"><span class="money">'+money(c.aov)+'</span></td>'+
       '<td data-label="Status">'+custPills(c)+'</td>'+
     '</tr>';
@@ -2251,11 +2279,14 @@ function viewCustomerDetail(c){
       '<div class="kpi-val">'+val+'</div><div class="kpi-sub">'+sub+'</div></div>';
   };
   var gapSub = c.avgGapDays!=null ? ('orders every ~'+c.avgGapDays+' days') : 'one order so far';
+  var unpaidN = c.n - c.nPaid;
   var kpis = '<div class="kpis">'+
-    kpi(I.cash,'#E5F4EA','#2BA05A','Lifetime value', money(c.ltv), money(c.aov)+' avg per order')+
-    kpi(I.cart,'#EAF1FC','#3B7DD8','Completed orders', c.n, gapSub)+
+    kpi(I.cash,'#E5F4EA','#2BA05A','Lifetime value', money(c.ltv), c.nPaid?money(c.aov)+' avg per paid order':'no payments collected yet')+
+    kpi(I.cart,'#EAF1FC','#3B7DD8','Orders', c.n, c.nPaid+' paid'+(unpaidN>0?' · '+unpaidN+' unpaid':'')+' · '+gapSub)+
     kpi(I.clock,'#EDEAFB','#7C5CDA','Last ordered', ago(c.lastAt), fmtDay(c.lastAt))+
-    kpi(I.user,'#FBE9EA','#B46869','Customer since', fmtDay(c.firstAt), c.daysSince+' days since last order')+
+    (c.outstanding>0
+      ? kpi(I.bell,'#FBF0E4','#C77A3B','Outstanding', '<span style="color:#C77A3B">'+money(c.outstanding)+'</span>', 'placed but not collected')
+      : kpi(I.check,'#E5F4EA','#2BA05A','Outstanding', money(0), 'all payments collected'))+
   '</div>';
 
   // ---- contact card ----
@@ -2274,8 +2305,8 @@ function viewCustomerDetail(c){
     contact += '<div class="kv"><span class="k">'+I.palette+'</span><span class="v">Usually orders '+esc(c.favShape||'—')+(tierName?' · '+esc(tierName):'')+'</span></div>';
   }
 
-  // ---- sizes on file (latest completed order that has them) ----
-  var so=null; for(i=0;i<c.completed.length;i++){ if(c.completed[i].sizes){ so=c.completed[i]; break; } }
+  // ---- sizes on file (most recent order that has them) ----
+  var so=null; for(i=0;i<c.orders.length;i++){ if(c.orders[i].sizes){ so=c.orders[i]; break; } }
   var sizesHtml = so
     ? '<div class="sizes">'+['Thumb','Index','Middle','Ring','Pinky'].map(function(f){ var s=so.sizes||{}; return '<div class="size"><div class="fn">'+f+'</div><div class="sv">'+esc(s[f]!=null&&s[f]!==''?s[f]:'–')+'</div></div>'; }).join('')+'</div>'
     : '<div class="muted" style="font-size:13px">No sizes on file yet.</div>';
@@ -2313,18 +2344,25 @@ function viewCustomerDetail(c){
   // ---- order history (all their orders; cancelled greyed; tap → order drawer) ----
   var histRows = c.orders.map(function(o){
     var tierName2 = (state.tiers.find(function(x){return x.id===o.design_tier;})||{}).name || o.design_tier || '—';
+    // Money chip is independent of status: Paid = counts toward LTV;
+    // Unpaid = a real order whose money hasn't been marked collected yet.
+    var payChip = o.status==='cancelled' ? ''
+      : orderPaid(o)
+        ? ' <span class="chip" style="color:#2BA05A" title="Payment collected — counts toward lifetime value">'+I.check+'Paid</span>'
+        : ' <span class="chip" style="color:#C77A3B" title="Payment not collected yet — '+money(orderDue(o))+' due">'+I.clock+'Unpaid</span>';
     return '<tr data-open="'+o.id+'"'+(o.status==='cancelled'?' style="opacity:.55"':'')+'>'+
       '<td data-label="Order"><span class="oid">'+shortId(o)+'</span>'+(o.gift_card_id?' <span class="chip" style="color:#B46869" title="Paid with a gift card">'+I.gift+'</span>':'')+'</td>'+
       '<td data-label="Date" class="muted">'+fmtDay(o.completed_at||o.created_at)+'</td>'+
       '<td data-label="Design" class="hide-sm"><span class="chip" style="color:var(--ink-2)">'+I.palette+esc(o.nail_shape||'—')+'<span class="muted">· '+esc(tierName2)+'</span></span></td>'+
       '<td data-label="Total"><span class="money">'+money(orderValue(o))+'</span></td>'+
-      '<td data-label="Status">'+statusPill(o.status)+'</td>'+
+      '<td data-label="Status">'+statusPill(o.status)+payChip+'</td>'+
     '</tr>';
   }).join('');
 
   var head = '<div class="cust-hero" style="display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap">'+
     avatar(c.name)+
     '<div><div style="font-family:var(--serif);font-size:24px;font-weight:600;line-height:1.1">'+esc(c.name)+'</div>'+
+    '<div class="muted" style="font-size:12.5px;margin-top:3px">Customer since '+fmtDay(c.firstAt)+'</div>'+
     '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">'+custPills(c)+'</div></div></div>';
 
   return '<div class="view">'+
