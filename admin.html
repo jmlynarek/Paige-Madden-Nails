@@ -278,6 +278,10 @@
   .btn-line:hover { background: var(--surface-2); transform: none; box-shadow: none; }
   .btn-danger { width: auto; background: transparent; color: #C9534A; border: 1px solid #F0C8C3; box-shadow: none; flex: none; padding: 0 16px; }
   .btn-danger:hover { background: #FBE9E7; transform: none; box-shadow: none; }
+  /* Compact inline button — consistent height for action rows (gift cards etc.) */
+  .btn-sm { width: auto; flex: none; height: 40px; padding: 0 18px; font-size: 14px; border-radius: var(--r-sm); }
+  .btn.btn-sm { box-shadow: 0 3px 9px rgba(180,104,105,.22); }
+  .btn-line.btn-sm, .btn-danger.btn-sm, .btn-ghost.btn-sm { box-shadow: none; }
 
   /* ===================== SETTINGS · PAYMENT HANDLES ===================== */
   .pm-list { display: flex; flex-direction: column; gap: 14px; padding: 6px 0; }
@@ -1226,10 +1230,10 @@ function viewGiftCards(){
       '<div style="margin-top:4px;font-size:13px"><b>To:</b> '+to+'</div>'+
       '<div style="margin-top:2px;font-size:13px"><b>From:</b> '+esc(c.buyer_name||'—')+' · '+esc(c.buyer_email||'—')+'</div>'+
       (c.gift_message ? '<div style="margin-top:2px;font-size:13px"><b>Message:</b> '+esc(c.gift_message)+'</div>' : '')+
-      '<div style="margin-top:11px;display:flex;gap:8px;flex-wrap:wrap">'+
-        '<button class="btn" data-gc-issue="'+c.id+'" style="width:auto;padding:0 20px">Issue &amp; send →</button>'+
-        '<button class="btn btn-line" data-gc-open="'+c.id+'" style="width:auto;padding:0 16px">View details</button>'+
-        '<button class="btn btn-ghost danger" data-gc-void="'+c.id+'" style="width:auto;padding:0 16px">Void</button>'+
+      '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">'+
+        '<button class="btn btn-sm" data-gc-issue="'+c.id+'">Issue &amp; send →</button>'+
+        '<button class="btn btn-line btn-sm" data-gc-open="'+c.id+'">View details</button>'+
+        '<button class="btn btn-danger btn-sm" data-gc-void="'+c.id+'">Void</button>'+
       '</div>'+
     '</div>';
   }).join('');
@@ -1253,7 +1257,7 @@ function viewGiftCards(){
             '<input class="input" data-gc-amount inputmode="decimal" placeholder="50"></div>'+
           '<div class="field" style="margin:0;flex:1;min-width:160px"><label class="nt-lbl">Buyer name <span class="muted">· optional</span></label>'+
             '<input class="input" data-gc-name placeholder="First & last"></div>'+
-          '<button class="btn" data-gc-generate style="width:auto;padding:0 22px">Generate code</button>'+
+          '<button class="btn btn-sm" data-gc-generate style="height:47px;padding:0 22px">Generate code</button>'+
         '</div>'+
         '<div data-gc-result style="margin-top:14px"></div>'+
       '</div>'+
@@ -1317,7 +1321,7 @@ function generateGiftCard(btn){
           '<div class="muted" style="font-size:12.5px;text-transform:uppercase;letter-spacing:1px">Write this on the card</div>'+
           '<div style="font-size:34px;font-weight:700;letter-spacing:4px;color:#B46869;margin:6px 0 4px">'+esc(rec.code)+'</div>'+
           '<div class="muted" style="font-size:13px">'+money(rec.amount)+' · receipt sent to '+esc(email)+'</div>'+
-          '<button class="btn btn-ghost" data-gc-copy="'+esc(rec.code)+'" style="width:auto;margin-top:10px;padding:0 18px">Copy code</button>'+
+          '<button class="btn btn-line btn-sm" data-gc-copy="'+esc(rec.code)+'" style="margin-top:12px">Copy code</button>'+
         '</div>';
       var cp=out.querySelector('[data-gc-copy]');
       if(cp) cp.onclick=function(){ var v=cp.getAttribute('data-gc-copy'); if(navigator.clipboard){ navigator.clipboard.writeText(v).then(function(){ toast('Copied',v,'ok'); }); } };
