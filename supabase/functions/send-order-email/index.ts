@@ -68,6 +68,9 @@ Deno.serve(async (req) => {
   const to = (payload.to ?? "").trim();
   const subject = (payload.subject ?? "").trim();
   const html = payload.html ?? "";
+  // Optional plain-text part. HTML-only mail is a bulk-sender signal to
+  // Gmail; a text alternative nudges classification toward Primary.
+  const text = typeof payload.text === "string" && payload.text.trim() ? payload.text : "";
   if (!to || !subject || !html) {
     return json({ error: "Missing recipient, subject, or body." }, 400);
   }
@@ -79,7 +82,7 @@ Deno.serve(async (req) => {
       Authorization: `Bearer ${RESEND_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ from, to: [to], reply_to: replyTo, subject, html }),
+    body: JSON.stringify({ from, to: [to], reply_to: replyTo, subject, html, ...(text ? { text } : {}) }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
