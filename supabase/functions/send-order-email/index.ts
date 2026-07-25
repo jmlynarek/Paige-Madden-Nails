@@ -9,7 +9,7 @@
 // reply-to set to the Gmail, so customers see the brand and replies land
 // in paigemaddennails@gmail.com.
 //
-// Auth: admin-only (jeremy@idealtraits.com), same gate as buy-shipping-label.
+// Auth: approved admins only (see is_admin() / admin_users), same gate as buy-shipping-label.
 //
 // Secrets (set with `supabase secrets set ...`):
 //   RESEND_API_KEY   re_...  (from https://resend.com)
@@ -22,8 +22,6 @@
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
-
-const ADMIN_EMAIL = "jeremy@idealtraits.com";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -50,7 +48,10 @@ Deno.serve(async (req) => {
     global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
   });
   const { data: { user } } = await asUser.auth.getUser();
-  if (!user || (user.email ?? "").toLowerCase() !== ADMIN_EMAIL) {
+  // Any approved admin (allowlist-driven, see is_admin() / admin_users), not
+  // just a single hardcoded owner. is_admin() reads the caller's JWT.
+  const { data: isAdmin } = await asUser.rpc("is_admin");
+  if (!user || isAdmin !== true) {
     return json({ error: "Not authorized." }, 403);
   }
 

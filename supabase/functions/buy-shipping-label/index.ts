@@ -3,7 +3,7 @@
 // Buys a USPS shipping label via Shippo for one order and writes
 // the tracking number + label PDF back to the order row.
 //
-// Auth: caller must be the signed-in admin (jeremy@idealtraits.com).
+// Auth: caller must be an approved admin (see is_admin() / admin_users).
 //       This function spends money, so it refuses everyone else and
 //       refuses to buy a second label for an order that already has one.
 //
@@ -81,7 +81,10 @@ Deno.serve(async (req) => {
     global: { headers: { Authorization: authHeader } },
   });
   const { data: { user } } = await asUser.auth.getUser();
-  if (!user || (user.email ?? "").toLowerCase() !== ADMIN_EMAIL) {
+  // Any approved admin (allowlist-driven, see is_admin() / admin_users), not
+  // just a single hardcoded owner. is_admin() reads the caller's JWT.
+  const { data: isAdmin } = await asUser.rpc("is_admin");
+  if (!user || isAdmin !== true) {
     return json({ error: "Not authorized." }, 403);
   }
 

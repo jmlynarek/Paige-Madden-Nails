@@ -79,9 +79,19 @@ RLS makes the public site insert-only; see below). Admin email is hardcoded too.
 - `admin.html`: `SUPABASE_URL`, `SUPABASE_KEY`, `ADMIN_EMAIL`.
 - `supabase/functions/*/index.ts`: `ADMIN_EMAIL` gate in both edge functions.
 
-**The admin email is hardcoded in THREE places** — `is_admin()` in the DB,
-`ADMIN_EMAIL` in `admin.html`, and `ADMIN_EMAIL` in the edge function. Changing
-who can administer means changing all three.
+**Admin access is now a table-driven allowlist** (`public.admin_users`, migration
+`0016_admin_users.sql`) — managed from admin's **Users Management** tab. Anyone in
+the table has the *same*, full access (no roles). `is_admin()` passes for an
+`approved` row **OR** the bootstrap owner literal `jeremy@idealtraits.com`, which
+stays wired into `is_admin()` (DB) + `claim_admin_access()` (DB) + `ADMIN_EMAIL`
+in `admin.html` (login seed + owner tag) as a permanent fail-safe so the owner can
+never be locked out. The two gated edge functions (`send-order-email`,
+`buy-shipping-label`) now call the `is_admin()` RPC instead of comparing to a
+literal, so any approved admin can send emails / buy labels. Lifecycle:
+invite → `invited` (Supabase invite email from the `invite-admin` edge fn) →
+invitee sets a password → auto-flips to `approved` on first sign-in via
+`claim_admin_access()`. **Invite email delivery uses Supabase Auth SMTP — point it
+at Resend in the dashboard for reliability (the built-in sender is rate-limited).**
 
 ## Database
 
@@ -95,7 +105,7 @@ Tables (all RLS-enabled): `orders`, `order_photos`, `design_tiers`,
   insert-only, so a plain insert can't return the generated number).
 - **`PM-###`** order numbers come from sequence `order_no_seq` (was 488; live orders now ~497+ after testing).
 - **Pricing / full payment:** checkout collects the **full amount** (not a deposit) = set price **+ `$7` flat shipping** (ship-to-me only) **+ `$10` rush**, as separate line items. **Rush is a production-speed upgrade (Paige makes the set first), decoupled from fulfillment — it applies to pickup AND ship-to-me alike;** shipping's `$7` is the only fulfillment-gated fee. `orders.ship_fee` / `orders.rush_fee` columns store them; `create_order` computes them server-side (`ship_fee` from fulfillment, `rush_fee` from `ship_speed` only — migrations `add_order_fee_line_items` then `rush_fee_applies_to_pickup_too`). Admin `orderValue()` = set price + ship_fee + rush_fee. **Fee amounts ($7/$10) are duplicated in `index.html` and the `create_order` function — keep them in sync** (future: move to an admin Settings table).
-- **`is_admin()`** = `auth.jwt()->>'email' = 'jeremy@idealtraits.com'` (pinned `search_path`).
+- **`is_admin()`** (migration `0016`) = owner literal `jeremy@idealtraits.com` **OR** an `approved` row in `public.admin_users`. Now `SECURITY DEFINER` (it reads `admin_users` and runs inside other tables' RLS, so a definer read avoids recursion/lockout); pinned `search_path=''`. Companion `claim_admin_access()` (definer) approves an invited caller on first sign-in and gates the client. See the Users Management note above.
 - **Storage:** private bucket `inspiration` (customer photos at `{order_id}/{n}.jpg`),
   with an `anon` INSERT policy and an admin SELECT policy.
 - **Realtime:** `public.orders` is in the `supabase_realtime` publication; `admin.html`
@@ -224,5 +234,5 @@ confirmed S/M/L per-finger defaults and the rush-fee migration carried straight 
   carries DMARC. Not worth chasing unless forwards start hitting spam; if so, revisit alignment.
 - **Shippo is on a TEST key** — swap to a live key (dashboard) before real shipments.
 - **Cash App handle** is still the placeholder `$cashtag`.
-- **Admin email hardcoded in 3 places** (`is_admin()`, `admin.html`, edge fns) — blocks multi-admin (P4).
+- **Multi-admin shipped** — `admin_users` allowlist + Users Management tab (migration `0016`, `invite-admin` edge fn). The owner email `jeremy@idealtraits.com` remains hardcoded as a bootstrap fail-safe in `is_admin()`/`claim_admin_access()`/`admin.html`. Open follow-ups: point Supabase Auth SMTP at Resend so invite emails deliver reliably; deleting a user leaves a dormant `auth.users` account (harmless — is_admin() denies them; hard-delete would need a service-role edge action).
 - Anon has over-broad table grants (gated by RLS but worth tightening); Auth leaked-password protection is off.

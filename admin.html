@@ -421,6 +421,11 @@ var SUPABASE_KEY = 'sb_publishable_cwjdd7fSLlGqA7o8qLdLRA_qdk7xKhh';
 var ADMIN_EMAIL  = 'jeremy@idealtraits.com';
 var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+// Captured synchronously before supabase-js consumes the URL hash. An invite
+// or password-reset link lands here with type=invite / type=recovery in the
+// fragment; that means "let this person set a password", not "sign in".
+var pwFlow = /(type=invite|type=recovery)/.test(window.location.hash || '');
+
 /* ───────────────────────── icons ───────────────────────── */
 var I = {
   nail:'<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 21c-1.2-3-1.6-6.5-1.4-10C7.9 6 9.6 3 12 3s4.1 3 4.4 8c.2 3.5-.2 7-1.4 10z" fill="#fff" opacity=".95"/><path d="M9.3 6.2c.7-.6 4.7-.6 5.4 0" stroke="#B46869" stroke-width="1.2" stroke-linecap="round"/></svg>',
@@ -483,7 +488,7 @@ var ALL_STATUSES = ['new','unpaid','in_progress','ready','completed','cancelled'
 var state = {
   user: null, ready: false, loading: true,
   orders: [], tiers: [], shapes: [], payments: [], templates: [],
-  scheduled: [], optouts: [], settings: {}, giftCards: [], waitlist: [],
+  scheduled: [], optouts: [], settings: {}, giftCards: [], waitlist: [], adminUsers: [],
   view: 'dashboard', filter: 'all', q: '',
   range: 30, sidebarOpen: false, notifOpen: false,
   drawerId: null, giftDrawerId: null, photos: {}, ntSel: null,
@@ -577,7 +582,8 @@ function loadAll(){
     sb.from('email_optouts').select('*').order('opted_out_at',{ascending:false}),
     sb.from('app_settings').select('*'),
     sb.from('gift_cards').select('*').order('created_at',{ascending:false}),
-    sb.from('waitlist_leads').select('*').order('created_at',{ascending:true})
+    sb.from('waitlist_leads').select('*').order('created_at',{ascending:true}),
+    sb.from('admin_users').select('*').order('created_at',{ascending:true})
   ]).then(function(res){
     if(res[0].error) throw res[0].error;
     state.orders    = res[0].data || [];
@@ -591,6 +597,7 @@ function loadAll(){
     ((res[7] && res[7].data) || []).forEach(function(r){ state.settings[r.key] = r.value; });
     state.giftCards = (res[8] && res[8].data) || [];
     state.waitlist  = (res[9] && res[9].data) || [];
+    state.adminUsers = (res[10] && res[10].data) || [];
     state.loading = false;
     render();
   }).catch(function(e){
@@ -629,6 +636,11 @@ function subscribeRealtime(){
       if(p.eventType==='INSERT' && p.new){ toast('New waitlist signup', p.new.email||'', 'ok'); }
       refreshWaitlist();
     })
+    .on('postgres_changes', { event:'*', schema:'public', table:'admin_users' }, function(){
+      // Keeps the Users list live — most usefully, an invited teammate flips to
+      // Approved the moment they accept and sign in.
+      refreshAdminUsers();
+    })
     .subscribe();
 }
 
@@ -650,6 +662,13 @@ function refreshScheduled(){
 function refreshWaitlist(){
   sb.from('waitlist_leads').select('*').order('created_at',{ascending:true}).then(function(r){
     if(!r.error){ state.waitlist = r.data || []; render(); } // render() keeps the bell badge live too
+  });
+}
+
+// Re-pull the admin users (cheap; low volume) after any change.
+function refreshAdminUsers(){
+  sb.from('admin_users').select('*').order('created_at',{ascending:true}).then(function(r){
+    if(!r.error){ state.adminUsers = r.data || []; render(); }
   });
 }
 
@@ -1364,6 +1383,123 @@ function generateGiftCard(btn){
     // Optimistic: show the new card immediately (realtime will reconcile).
     state.giftCards.unshift(Object.assign({ status:'active', buyer_email:email, buyer_name:name||null, created_at:new Date().toISOString() }, rec, { amount:rec.amount }));
     render();
+  });
+}
+
+/* ───────────────────────── users management ───────────────────────── */
+// A simple admin allowlist — everyone here has the SAME full access. Invite a
+// teammate by email (they get a link to set their own password); they show as
+// "Invited" until they accept and sign in, then auto-flip to "Active". The
+// bootstrap owner (ADMIN_EMAIL) is seeded server-side and can't be removed.
+
+// Display name for the signed-in admin (their allowlist name, else email local-part).
+function meName(){
+  var me=((state.user&&state.user.email)||'').toLowerCase();
+  var u=(state.adminUsers||[]).find(function(x){return (x.email||'').toLowerCase()===me;});
+  if(u&&u.name) return u.name;
+  var local=(me.split('@')[0]||'Admin');
+  return local.charAt(0).toUpperCase()+local.slice(1);
+}
+
+function auPill(s){
+  var m = s==='approved'
+    ? { label:'Active',  color:'#2BA05A', bg:'#E7F6ED' }
+    : { label:'Invited', color:'#C98A12', bg:'#FBF3E2' };
+  return '<span class="pill" style="background:'+m.bg+';color:'+m.color+'"><span class="pdot" style="background:'+m.color+'"></span>'+m.label+'</span>';
+}
+
+function viewUsers(){
+  var me = ((state.user&&state.user.email)||'').toLowerCase();
+  var users = state.adminUsers || [];
+
+  var invitePanel =
+    '<div class="panel" style="max-width:880px">'+
+      '<div class="panel-h"><div class="panel-t">Invite a teammate'+
+        '<small>They get an email to set their own password. Everyone you add has the same full access. New teammates show as <b>Invited</b> until they accept and sign in — then they flip to <b>Active</b> automatically.</small></div></div>'+
+      '<div class="panel-b">'+
+        '<div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">'+
+          '<div class="field" style="margin:0;flex:1;min-width:220px"><label class="nt-lbl">Email</label>'+
+            '<input class="input" data-au-email type="email" placeholder="teammate@email.com"></div>'+
+          '<div class="field" style="margin:0;flex:1;min-width:160px"><label class="nt-lbl">Name <span class="muted">· optional</span></label>'+
+            '<input class="input" data-au-name placeholder="First &amp; last"></div>'+
+          '<button class="btn btn-sm" data-au-invite style="height:47px;padding:0 22px">Send invite</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+
+  var rows = users.length ? users.map(function(u){
+    var email = (u.email||'').toLowerCase();
+    var isOwner = email === ADMIN_EMAIL;   // bootstrap owner — never removable
+    var isMe = email === me;
+    var acts = '<button class="ico" data-au-edit="'+u.id+'" title="Edit name">'+I.pencil+'</button>'+
+      (isOwner ? '' : '<button class="ico danger" data-au-del="'+u.id+'" title="Remove access">'+I.trash+'</button>');
+    return '<tr>'+
+      '<td data-label="Name">'+avatar(u.name||u.email)+' <span style="vertical-align:middle">'+esc(u.name||'—')+
+        (isMe?' <span class="muted">(you)</span>':'')+(isOwner?' <span class="muted">· owner</span>':'')+'</span></td>'+
+      '<td data-label="Email">'+esc(u.email)+'</td>'+
+      '<td data-label="Status">'+auPill(u.status)+'</td>'+
+      '<td data-label="Added" class="hide-sm muted">'+fmtDay(u.created_at)+'</td>'+
+      '<td class="col-act"><div class="row-actions">'+acts+'</div></td>'+
+    '</tr>';
+  }).join('') : '<tr><td colspan="5"><div class="empty">'+I.users+'<div>No teammates yet. Invite one above.</div></div></td></tr>';
+
+  var tablePanel =
+    '<div class="panel" style="margin-top:16px">'+
+      '<div class="panel-h"><div class="panel-t">People with access'+
+        '<small>'+users.length+' '+(users.length===1?'person':'people')+' can sign in. Removing someone revokes their access immediately.</small></div></div>'+
+      '<div class="panel-b"><div class="table-wrap"><table class="tbl"><thead><tr>'+
+        '<th>Name</th><th>Email</th><th>Status</th><th class="hide-sm">Added</th><th></th>'+
+      '</tr></thead><tbody>'+rows+'</tbody></table></div></div>'+
+    '</div>';
+
+  return '<div class="view">'+invitePanel+tablePanel+'</div>';
+}
+
+// Invite a teammate: the invite-admin edge fn sends the Supabase invite email
+// AND records the 'invited' allowlist row (service-role). Optimistic add here.
+function inviteAdminUser(btn){
+  var emEl=document.querySelector('[data-au-email]'), nmEl=document.querySelector('[data-au-name]');
+  var email=(emEl&&emEl.value||'').trim().toLowerCase();
+  var name=(nmEl&&nmEl.value||'').trim();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toast('Enter a valid email','','err'); if(emEl)emEl.focus(); return; }
+  if((state.adminUsers||[]).some(function(u){return (u.email||'').toLowerCase()===email;})){ toast('That person is already on the list','','err'); return; }
+  btn.disabled=true; var orig=btn.textContent; btn.innerHTML='<span class="spin"></span>';
+  sb.functions.invoke('invite-admin',{ body:{ email:email, name:name||null } }).then(function(r){
+    btn.disabled=false; btn.textContent=orig;
+    var d=(r&&r.data)||{};
+    if(r.error || d.error){ toast('Couldn’t send invite', (d.error)||(r.error&&r.error.message)||'', 'err'); return; }
+    if(emEl)emEl.value=''; if(nmEl)nmEl.value='';
+    toast('Invite sent','→ '+email,'ok');
+    if(!(state.adminUsers||[]).some(function(u){return (u.email||'').toLowerCase()===email;})){
+      state.adminUsers.push({ id:'tmp-'+email, email:email, name:name||null, status:'invited', created_at:new Date().toISOString() });
+    }
+    render();
+    refreshAdminUsers();   // reconcile with the real row
+  }).catch(function(e){ btn.disabled=false; btn.textContent=orig; toast('Couldn’t send invite', String((e&&e.message)||e),'err'); });
+}
+
+function renameAdminUser(id){
+  var u=(state.adminUsers||[]).find(function(x){return x.id===id;});
+  if(!u) return;
+  var name=window.prompt('Name for '+(u.email||'this teammate'), u.name||'');
+  if(name===null) return;
+  name=name.trim();
+  var i=state.adminUsers.indexOf(u); if(i>=0) state.adminUsers[i]=Object.assign({},u,{name:name||null}); render();
+  sb.from('admin_users').update({ name:name||null, updated_at:new Date().toISOString() }).eq('id',id).then(function(r){
+    if(r.error){ toast('Couldn’t save', r.error.message,'err'); refreshAdminUsers(); return; }
+    toast('Saved','','ok');
+  });
+}
+
+function deleteAdminUser(id){
+  var u=(state.adminUsers||[]).find(function(x){return x.id===id;});
+  if(!u) return;
+  if((u.email||'').toLowerCase()===ADMIN_EMAIL){ toast('You can’t remove the owner account','','err'); return; }
+  if(!confirm('Remove '+(u.email||'this teammate')+'? They lose admin access immediately.')) return;
+  state.adminUsers = state.adminUsers.filter(function(x){return x.id!==id;}); render();
+  sb.from('admin_users').delete().eq('id',id).then(function(r){
+    if(r.error){ toast('Couldn’t remove', r.error.message,'err'); refreshAdminUsers(); return; }
+    toast('Access removed', u.email||'', 'ok');
   });
 }
 
@@ -2272,6 +2408,7 @@ function render(){
     {k:'giftcards', label:'Gift Cards', icon:I.gift, count:giftPending},
     {k:'marketing', label:'Marketing', icon:I.spark},
     {k:'notifications', label:'Notifications', icon:I.bell},
+    {k:'users', label:'Users Management', icon:I.users},
     {k:'settings', label:'Settings', icon:I.cog}
   ];
   var navHtml = nav.map(function(n){
@@ -2279,7 +2416,7 @@ function render(){
       (n.count?'<span class="nav-count">'+n.count+'</span>':'')+'</button>';
   }).join('');
 
-  var titles = { dashboard:['Dashboard','Your studio at a glance'], orders:['Orders','Manage every custom request'], customers:['Customers',''], giftcards:['Gift Cards','Generate & track gift codes'], marketing:['Marketing','Reminder emails & repeat customers'], notifications:['Notifications','The wording of every automatic email'], settings:['Settings',''] };
+  var titles = { dashboard:['Dashboard','Your studio at a glance'], orders:['Orders','Manage every custom request'], customers:['Customers',''], giftcards:['Gift Cards','Generate & track gift codes'], marketing:['Marketing','Reminder emails & repeat customers'], notifications:['Notifications','The wording of every automatic email'], users:['Users Management','Who can sign in to this admin'], settings:['Settings',''] };
   var t = titles[state.view]||['',''];
 
   var content = state.view==='dashboard'?viewDashboard()
@@ -2288,6 +2425,7 @@ function render(){
     : state.view==='giftcards'?viewGiftCards()
     : state.view==='marketing'?viewMarketing()
     : state.view==='notifications'?viewNotifications()
+    : state.view==='users'?viewUsers()
     : viewSettings();
 
   $('#root').innerHTML =
@@ -2295,8 +2433,8 @@ function render(){
       '<aside class="sidebar'+(state.sidebarOpen?' open':'')+'" id="sidebar">'+
         '<div class="brand"><img class="brand-mark" src="logo.jpeg" alt="Paige Madden Nails" /><div><div class="brand-name">Paige Madden</div><div class="brand-sub">Nails · Admin</div></div></div>'+
         '<div class="nav-label">Main</div>'+navHtml+
-        '<div class="sidebar-foot"><div class="me">'+avatar(state.user.email)+
-          '<div style="min-width:0"><div class="me-name">Paige</div><div class="me-mail">'+esc(state.user.email)+'</div></div>'+
+        '<div class="sidebar-foot"><div class="me">'+avatar(meName())+
+          '<div style="min-width:0"><div class="me-name">'+esc(meName())+'</div><div class="me-mail">'+esc(state.user.email)+'</div></div>'+
           '<button class="me-out" id="signout" title="Sign out">'+I.out+'</button></div></div>'+
       '</aside>'+
       '<div class="main">'+
@@ -2356,6 +2494,10 @@ function wire(){
   document.querySelectorAll('[data-gc-redeem]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); redeemGiftCard(b.getAttribute('data-gc-redeem')); }; });
   document.querySelectorAll('[data-gc-void]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); voidGiftCard(b.getAttribute('data-gc-void')); }; });
   document.querySelectorAll('[data-gc-open]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); openGiftCard(b.getAttribute('data-gc-open')); }; });
+  document.querySelectorAll('[data-au-invite]').forEach(function(b){ b.onclick=function(){ inviteAdminUser(b); }; });
+  document.querySelectorAll('[data-au-edit]').forEach(function(b){ b.onclick=function(){ renameAdminUser(b.getAttribute('data-au-edit')); }; });
+  document.querySelectorAll('[data-au-del]').forEach(function(b){ b.onclick=function(){ deleteAdminUser(b.getAttribute('data-au-del')); }; });
+  document.querySelectorAll('[data-au-email],[data-au-name]').forEach(function(inp){ inp.onkeydown=function(e){ if(e.key==='Enter'){ var b=$('[data-au-invite]'); if(b) inviteAdminUser(b); } }; });
 
   var bell=$('#bell'); if(bell) bell.onclick=function(e){ e.stopPropagation(); state.notifOpen=!state.notifOpen; render(); };
   var burger=$('#burger'); if(burger) burger.onclick=function(e){ e.stopPropagation(); state.sidebarOpen=!state.sidebarOpen; var s=$('#sidebar'); if(s)s.classList.toggle('open',state.sidebarOpen); };
@@ -2371,22 +2513,63 @@ document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ if(state
 /* ───────────────────────── boot ───────────────────────── */
 function start(session){
   if(session && session.user){
-    if((session.user.email||'').toLowerCase() !== ADMIN_EMAIL){
-      sb.auth.signOut().then(function(){ renderAuth('That account isn’t authorised for this admin.','err'); });
-      return;
-    }
-    state.user = session.user;
-    loadAll();
-    subscribeRealtime();
+    // Arrived via an invite / password-reset link → let them set a password first.
+    if(pwFlow){ state.user = null; renderSetPassword(); return; }
+    // Access gate: claim_admin_access() approves an invited teammate on their
+    // first sign-in and returns whether this account may administer at all.
+    // (The bootstrap owner always passes; anyone not on the allowlist is signed out.)
+    sb.rpc('claim_admin_access').then(function(r){
+      if(r.error || r.data !== true){
+        sb.auth.signOut().then(function(){ renderAuth('That account isn’t authorised for this admin.','err'); });
+        return;
+      }
+      state.user = session.user;
+      loadAll();
+      subscribeRealtime();
+    });
   } else {
     state.user = null;
     renderAuth();
   }
 }
 
+// Set-password screen shown when someone opens an invite / reset link. Once the
+// password is saved we re-run start(), which approves them and loads the admin.
+function renderSetPassword(msg, kind){
+  var root=$('#root');
+  root.innerHTML =
+    '<div class="auth"><div class="auth-card">'+
+      '<img class="auth-mark" src="logo.jpeg" alt="Paige Madden Nails" />'+
+      '<div class="auth-script">Paige Madden</div>'+
+      '<div class="auth-sub">Orders Admin</div>'+
+      '<p class="auth-hint">Welcome! Set a password to finish setting up your account.</p>'+
+      '<div class="field"><label>New password</label><input class="input" id="pPass" type="password" autocomplete="new-password" placeholder="At least 8 characters"></div>'+
+      '<div class="field"><label>Confirm password</label><input class="input" id="pPass2" type="password" autocomplete="new-password" placeholder="Re-enter password"></div>'+
+      '<button class="btn" id="pSave">Set password &amp; continue</button>'+
+      '<div class="auth-msg '+(kind||'')+'" id="pMsg">'+(msg||'')+'</div>'+
+    '</div></div>';
+  var btn=$('#pSave'), p1=$('#pPass'), p2=$('#pPass2');
+  function submit(){
+    var a=p1.value, b=p2.value;
+    if((a||'').length<8){ $('#pMsg').className='auth-msg err'; $('#pMsg').textContent='Use at least 8 characters.'; return; }
+    if(a!==b){ $('#pMsg').className='auth-msg err'; $('#pMsg').textContent='Passwords don’t match.'; return; }
+    btn.disabled=true; btn.innerHTML='<span class="spin"></span>';
+    sb.auth.updateUser({ password:a }).then(function(r){
+      if(r.error){ btn.disabled=false; btn.textContent='Set password & continue'; $('#pMsg').className='auth-msg err'; $('#pMsg').textContent=r.error.message; return; }
+      pwFlow=false;
+      try{ history.replaceState(null,'',window.location.pathname+window.location.search); }catch(e){}
+      sb.auth.getSession().then(function(s){ start(s.data.session); });
+    });
+  }
+  p1.addEventListener('keydown', function(e){ if(e.key==='Enter') p2.focus(); });
+  p2.addEventListener('keydown', function(e){ if(e.key==='Enter') submit(); });
+  btn.onclick=submit;
+}
+
 sb.auth.getSession().then(function(r){ start(r.data.session); });
 sb.auth.onAuthStateChange(function(evt, session){
   if(evt==='SIGNED_OUT'){ state.user=null; authStep='email'; renderAuth('Signed out.'); return; }
+  if(evt==='PASSWORD_RECOVERY'){ pwFlow=true; state.user=null; if(session) renderSetPassword(); return; }
   if((evt==='SIGNED_IN'||evt==='INITIAL_SESSION'||evt==='TOKEN_REFRESHED') && session && !state.user){ start(session); }
 });
 </script>
