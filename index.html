@@ -616,6 +616,12 @@
   .rb-paytile__handle { font-size: 12px; color: rgba(95,70,63,0.55); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
   .rb-paytile__act { font-size: 13px; font-weight: 600; color: var(--rose); flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; }
   .rb-paytile.copied .rb-paytile__act { color: #2BA05A; }
+  /* Card checkout tile — the one tile that charges in-flow, so it gets the
+     blush accent; the P2P tiles below it stay plain white. */
+  .rb-paytile--card { background: #FBEDEC; border: 1.5px solid var(--rose-30); }
+  .rb-paytile--card .rb-paytile__handle { color: rgba(95,70,63,0.62); }
+  .rb-paytile--card.busy { pointer-events: none; }
+  .rb-paytile .btn__spin { border-color: rgba(180,104,105,0.3); border-top-color: var(--rose); }
   .rb-done__foot { text-align: center; font-size: 13px; color: rgba(95,70,63,0.6); margin-top: 14px; }
   .rb-restart {
     border: none; background: none; padding: 12px; margin: 4px auto 8px; display: block;
@@ -706,8 +712,13 @@
     zelle: '<svg class="rb-paytile__logo" viewBox="0 0 46 46" xmlns="http://www.w3.org/2000/svg"><rect width="46" height="46" rx="12" fill="#6A1BD4"/><text x="23" y="32" text-anchor="middle" font-family="Hanken Grotesk, system-ui, sans-serif" font-size="25" font-weight="800" font-style="italic" fill="#fff">Z</text></svg>',
     cashapp: '<svg class="rb-paytile__logo" viewBox="0 0 46 46" xmlns="http://www.w3.org/2000/svg"><rect width="46" height="46" rx="12" fill="#00D54B"/><text x="23" y="32" text-anchor="middle" font-family="Hanken Grotesk, system-ui, sans-serif" font-size="26" font-weight="800" fill="#fff">$</text></svg>',
     applepay: '<svg class="rb-paytile__logo" viewBox="0 0 46 46" xmlns="http://www.w3.org/2000/svg"><rect width="46" height="46" rx="12" fill="#000"/><g transform="translate(11,10.5) scale(0.98)"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" fill="#fff"/></g></svg>',
+    card: '<svg class="rb-paytile__logo" viewBox="0 0 46 46" xmlns="http://www.w3.org/2000/svg"><rect width="46" height="46" rx="12" fill="#B46869"/><g transform="translate(9,13)"><rect x="0" y="0" width="28" height="20" rx="4" fill="none" stroke="#fff" stroke-width="2.2"/><rect x="0" y="4.6" width="28" height="4.6" fill="#fff"/><rect x="4" y="13.4" width="9" height="2.6" rx="1.3" fill="#fff"/></g></svg>',
   };
   var PAY_BRAND = {
+    // 'card' is the Stripe-hosted checkout (cards + Apple Pay + Cash App Pay);
+    // the tile only renders on order confirmations (needs the order id), never
+    // in the gift flow, and is toggled from admin → Integrations.
+    card: { prefix: '', strip: /^/, mode: 'stripe' },
     venmo: { prefix: '@', strip: /^@/, mode: 'link', url: function (h, code, amount) {
         return 'https://venmo.com/?txn=pay&audience=private&recipients=' + encodeURIComponent(h) +
           (amount ? '&amount=' + encodeURIComponent(amount) : '') + '&note=' + encodeURIComponent(code || ''); } },
@@ -773,6 +784,27 @@
   // "open" so the site fails safe if the RPC is slow/unavailable.
   var orderStatus = { paused: false, headline: '', message: '', wait: '', joined: false };
   var joiningWaitlist = false;
+
+  // ── Stripe Checkout return trip ──
+  // Stripe sends the customer back to /?paid=1&code=PM-### (or ?canceled=1).
+  // The money itself is confirmed by the stripe-webhook edge function; these
+  // params only pick which confirmation screen to show. `paid` sticks on
+  // lastOrder (persisted) so a later reload keeps the paid screen instead of
+  // re-offering the payment tiles; the no-lastOrder fallback (cleared storage,
+  // different browser) still shows a generic "payment received" with the code.
+  var stripeReturnPaid = false, stripeReturnCode = '';
+  (function () {
+    var q = new URLSearchParams(location.search);
+    if (q.get('paid') !== '1' && q.get('canceled') !== '1') return;
+    if (q.get('paid') === '1') {
+      stripeReturnCode = q.get('code') || '';
+      if (lastOrder) { lastOrder.paid = true; }
+      else { stripeReturnPaid = true; }
+      step = 'submitted';
+    }
+    // ?canceled=1 just lands back on the (restored) submitted screen.
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+  })();
 
   function orderLabel(no) { return 'PM-' + no; }
   function syncTier() { data.tier = data.simpleColors ? 'classic' : 'custom'; }
@@ -1616,12 +1648,37 @@
   // ════════════════════════════════════════ SUBMITTED / payment ════════
   function SubmittedScreen() {
     var app = el('div', 'rb-app');
-    var code = (lastOrder && lastOrder.order_no != null) ? orderLabel(lastOrder.order_no) : null;
+    var code = (lastOrder && lastOrder.order_no != null) ? orderLabel(lastOrder.order_no) : (stripeReturnCode || null);
     var total = amountDue();
     var paidInFull = total === 0 && giftCredit() > 0;
     var amountParam = total ? String(total) : '';
 
-    var tiles = buildPayTiles(code, amountParam);
+    // Came back from Stripe with the payment made (or reloaded after) — the
+    // webhook marks the money server-side; this is just the matching screen.
+    var cardPaid = !!(lastOrder && lastOrder.paid) || stripeReturnPaid;
+    if (cardPaid) {
+      app.innerHTML =
+        '<div class="rb-done">' +
+          '<div class="rb-done__top">' +
+            '<div class="rb-seal rb-pop" style="animation:pop .35s ease both">' + Icon.checkBig + '</div>' +
+            '<h2 class="rb-done__title">Payment <span class="script">received!</span></h2>' +
+            '<p class="rb-done__sub">You’re all set: your payment is verified and your set is in the queue.</p>' +
+          '</div>' +
+          (lastOrder
+            ? '<div class="rb-total">' +
+                '<div class="rb-total__label">Total paid</div>' +
+                '<div class="rb-total__amt">' + esc(money(total)) + '</div>' +
+                (code ? '<div class="rb-total__note" style="margin-top:8px">Order <b>' + esc(code) + '</b> · a receipt is on its way to your email.</div>' : '') +
+              '</div>'
+            : (code ? '<div class="rb-total"><div class="rb-total__label">Order</div><div class="rb-total__amt">' + esc(code) + '</div><div class="rb-total__note" style="margin-top:8px">A receipt is on its way to your email.</div></div>' : '')) +
+          '<div class="rb-done__foot">Paige texts you within 24 hours to confirm your design <span style="color:var(--rose)">' + Icon.heart + '</span></div>' +
+          '<button class="rb-restart" type="button" data-restart>Start another order</button>' +
+        '</div>';
+      app.querySelector('[data-restart]').onclick = resetOrder;
+      return app;
+    }
+
+    var tiles = buildPayTiles(code, amountParam, lastOrder && lastOrder.id);
 
     app.innerHTML =
       '<div class="rb-done">' +
@@ -1635,7 +1692,7 @@
         '<div class="rb-total">' +
           '<div class="rb-total__label">Total due now</div>' +
           '<div class="rb-total__amt">' + esc(money(total)) + '</div>' +
-          (code ? ''
+          (paidInFull ? ''
             : '<div class="rb-total__note" style="margin-top:12px">Your set starts once the <b>full amount</b> is received and verified.</div>') +
         '</div>' +
         (!paidInFull && code ?
@@ -1643,7 +1700,7 @@
             '<div class="rb-codebox__req">Don’t skip this</div>' +
             '<div class="rb-codebox__label">Add this code to your payment note</div>' +
             '<button class="rb-codebox__code" type="button" data-copy="' + esc(code) + '"><span class="rb-code__t">' + esc(code) + '</span><span class="rb-code__ico">' + Icon.copy + '</span></button>' +
-            '<div class="rb-codebox__why">It’s the <b>only way</b> Paige can match your payment to your order.</div>' +
+            '<div class="rb-codebox__why">It’s the <b>only way</b> Paige can match your payment to your order. Paying by card? Skip it, cards match automatically.</div>' +
           '</div>'
           : '') +
         (paidInFull
@@ -1656,19 +1713,29 @@
       '</div>';
 
     wirePayCopy(app);
+    wireStripePay(app);
     app.querySelector('[data-restart]').onclick = resetOrder;
     return app;
   }
 
   // Shared payment-tile builder + copy wiring — used by the order confirmation
   // (SubmittedScreen) and the gift-purchase confirmation (GiftDoneScreen).
-  function buildPayTiles(code, amountParam) {
+  // orderId is only passed by SubmittedScreen: the card tile pays a specific
+  // ORDER through Stripe, so it never renders in the gift flow (gift purchases
+  // stay P2P + manual issue) or when the DB save failed (no id to charge).
+  function buildPayTiles(code, amountParam, orderId) {
     return PAY_METHODS.map(function (m) {
       var brand = PAY_BRAND[m.id];
       var raw = m.handle.trim();
       var clean = raw.replace(brand.strip, '');
       var display = brand.prefix + clean;
       var logo = PayLogo[m.id] || '';
+      if (brand.mode === 'stripe') {
+        if (!orderId || !amountParam) return '';
+        return '<button class="rb-paytile rb-paytile--card" type="button" data-stripe-pay="' + esc(orderId) + '">' + logo +
+          '<div class="rb-paytile__body"><div class="rb-paytile__name">' + esc(m.label) + '</div><div class="rb-paytile__handle">Card · Apple Pay · Cash App · verifies instantly</div></div>' +
+          '<span class="rb-paytile__act"><span class="rb-paytile__act-txt">Pay ' + esc(money(Number(amountParam))) + '</span> ' + Icon.extern + '</span></button>';
+      }
       if (brand.mode === 'link') {
         var href = brand.url(clean, code || '', amountParam);
         return '<a class="rb-paytile" href="' + esc(href) + '" target="_blank" rel="noopener">' + logo +
@@ -1679,6 +1746,33 @@
         '<div class="rb-paytile__body"><div class="rb-paytile__name">' + esc(m.label) + '</div><div class="rb-paytile__handle">' + esc(display) + '</div></div>' +
         '<span class="rb-paytile__act"><span class="rb-paytile__act-txt">Copy</span>' + Icon.copy + '</span></button>';
     }).join('');
+  }
+  // The card tile: ask create-checkout-session for a hosted Stripe page and
+  // hand the browser over. The AMOUNT is decided server-side from the order
+  // row; the id is just which order to pay. Errors leave the P2P tiles usable.
+  function wireStripePay(app) {
+    var b = app.querySelector('[data-stripe-pay]');
+    if (!b || !sb) return;
+    b.onclick = function () {
+      if (b.classList.contains('busy')) return;
+      b.classList.add('busy');
+      var act = b.querySelector('.rb-paytile__act');
+      var orig = act.innerHTML;
+      act.innerHTML = '<span class="btn__spin" aria-hidden="true"></span>';
+      sb.functions.invoke('create-checkout-session', { body: { order_id: b.getAttribute('data-stripe-pay') } })
+        .then(function (r) {
+          var url = r && r.data && r.data.url;
+          if (r.error || !url) throw (r.error || new Error('No checkout URL returned'));
+          window.location.href = url;
+        })
+        .catch(function (e) {
+          if (window.console) console.error('Card checkout failed:', e);
+          b.classList.remove('busy');
+          act.innerHTML = orig;
+          var h = b.querySelector('.rb-paytile__handle');
+          if (h) h.innerHTML = '<span style="color:var(--rose);font-weight:600">Couldn’t start card checkout. Try again, or pay below.</span>';
+        });
+    };
   }
   function wirePayCopy(app) {
     var copyBtn = app.querySelector('[data-copy]');

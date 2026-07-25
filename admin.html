@@ -209,6 +209,22 @@
   .money { font-weight: 700; font-variant-numeric: tabular-nums; }
   .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 20px; white-space: nowrap; }
   .pill .pdot { width: 6px; height: 6px; border-radius: 50%; }
+
+  /* Integrations: guided setup steps (the Stripe card's "Set Up Stripe" walkthrough) */
+  .sg-step { display: flex; gap: 12px; padding: 14px 0 12px; border-top: 1px solid var(--hair); }
+  .sg-step:first-of-type { border-top: none; padding-top: 6px; }
+  .sg-num { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--line); color: var(--ink-2); font-size: 12.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; background: var(--surface); }
+  .sg-num svg { width: 13px; height: 13px; }
+  .sg-step.done .sg-num { background: #E5F4EA; border-color: #BFE3CC; color: #2BA05A; }
+  .sg-body { flex: 1; min-width: 0; }
+  .sg-t { font-size: 13.5px; font-weight: 700; color: var(--ink); }
+  .sg-d { font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; margin-top: 3px; }
+  .sg-d b { color: var(--ink-2); }
+  .sg-d code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; background: var(--surface-2); border: 1px solid var(--hair); border-radius: 6px; padding: 1px 5px; color: var(--ink-2); }
+  .sg-d a, .sg-link { color: var(--rose); font-weight: 600; text-decoration: none; }
+  .sg-d a:hover, .sg-link:hover { color: var(--rose-deep); text-decoration: underline; }
+  .sg-copy { display: flex; align-items: center; gap: 8px; margin-top: 8px; background: var(--surface-2); border: 1px dashed var(--line); border-radius: 10px; padding: 7px 8px 7px 11px; }
+  .sg-copy code { flex: 1; min-width: 0; font-size: 11.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
   .chip svg { width: 14px; height: 14px; opacity: .7; }
   .row-actions { display: flex; gap: 4px; justify-content: flex-end; }
@@ -980,6 +996,44 @@ function shippoBadge(v){
   return '<span class="pill" style="background:#F4EFEA;color:#8A7A6A"><span class="pdot" style="background:#B7A896"></span>No key set — using the server’s saved key</span>';
 }
 
+/* ── Stripe (card payments) ──
+   Same card pattern as Shippo, plus a guided "Set Up Stripe" walkthrough so a
+   brand-new user can go from no account to a working test payment without
+   help. Values live in app_settings (stripe_enabled / stripe_secret_key /
+   stripe_webhook_secret, migration 0018); the two edge functions
+   (create-checkout-session, stripe-webhook) read them with env fallback. */
+var STRIPE_LOGO = '<svg viewBox="0 0 46 46" xmlns="http://www.w3.org/2000/svg" style="display:block;width:100%;height:100%"><rect width="46" height="46" rx="12" fill="#635BFF"/><text x="23" y="32" text-anchor="middle" font-family="Hanken Grotesk, system-ui, sans-serif" font-size="27" font-weight="800" fill="#fff">S</text></svg>';
+var STRIPE_WEBHOOK_URL = SUPABASE_URL + '/functions/v1/stripe-webhook';
+
+// Status pill driven by the key prefix, same idea as shippoBadge: at a glance,
+// is this test money or real money?
+function stripeBadge(v){
+  v = (v||'').trim();
+  if(/^[sr]k_test_/.test(v)) return '<span class="pill" style="background:#FBF3E4;color:#9A7B2E"><span class="pdot" style="background:#C79A3A"></span>Test mode · cards aren’t really charged</span>';
+  if(/^[sr]k_live_/.test(v)) return '<span class="pill" style="background:#EAF3EC;color:#4B7C56"><span class="pdot" style="background:#4B7C56"></span>Live · real card payments</span>';
+  if(v) return '<span class="pill" style="background:#F3EEF7;color:#6B5B8A"><span class="pdot" style="background:#8A76B0"></span>Custom key</span>';
+  return '<span class="pill" style="background:#F4EFEA;color:#8A7A6A"><span class="pdot" style="background:#B7A896"></span>Not connected yet</span>';
+}
+
+// Re-paint the walkthrough's numbered circles from the LIVE inputs + toggle,
+// so each step checks itself off as Paige pastes values (before saving).
+function paintStripeSteps(){
+  var host = document.querySelector('[data-stripe-setup]'); if(!host) return;
+  var keyEl = document.querySelector('[data-stripe-key]');
+  var whEl  = document.querySelector('[data-stripe-whsec]');
+  var tog   = document.querySelector('[data-stripe-toggle]');
+  var key = keyEl ? keyEl.value.trim() : '';
+  var wh  = whEl ? whEl.value.trim() : '';
+  var on  = tog ? tog.classList.contains('on') : false;
+  var done = { 1: !!key, 2: !!key, 3: !!wh, 4: !!(on && key && wh) };
+  host.querySelectorAll('.sg-step').forEach(function(st){
+    var n = st.getAttribute('data-sg'), d = !!done[n];
+    st.classList.toggle('done', d);
+    var num = st.querySelector('.sg-num');
+    if(num) num.innerHTML = d ? I.check : n;
+  });
+}
+
 function viewIntegrations(){
   var on = String(state.settings.shippo_enabled) !== 'false';
   var key = state.settings.shippo_api_key || '';
@@ -1021,15 +1075,69 @@ function viewIntegrations(){
       '</div>'+
     '</div>';
 
+  // ---- Stripe card payments ----
+  var sOn  = String(state.settings.stripe_enabled) === 'true';
+  var sKey = state.settings.stripe_secret_key || '';
+  var sWh  = state.settings.stripe_webhook_secret || '';
+  var sConnected = sOn && !!sKey.trim() && !!sWh.trim();   // fully set up + saved
+
+  var sgStep = function(n, done, title, inner){
+    return '<div class="sg-step'+(done?' done':'')+'" data-sg="'+n+'">'+
+      '<span class="sg-num">'+(done?I.check:n)+'</span>'+
+      '<div class="sg-body"><div class="sg-t">'+title+'</div>'+inner+'</div>'+
+    '</div>';
+  };
+  var stripeSetup =
+    '<div data-stripe-setup style="display:'+(sConnected?'none':'block')+';margin-top:6px">'+
+      (sConnected ? '' :
+        '<div class="panel-t" style="font-size:14px;margin:6px 0 2px">Set up Stripe in 4 quick steps</div>'+
+        '<p class="muted" style="font-size:12.5px;margin:0 0 4px">Free to set up, about 10 minutes. You’ll paste two values back here as you go, and each step checks itself off.</p>')+
+      sgStep(1, !!sKey.trim(), 'Create your free Stripe account',
+        '<div class="sg-d">Sign up at <a href="https://dashboard.stripe.com/register" target="_blank" rel="noopener">dashboard.stripe.com/register</a> with <b>paigemaddennails@gmail.com</b> so it lives with the other business accounts. Choose the United States, name the business “Paige Madden Nails”, and you’re in. Stripe may ask to verify details before real payouts; that can happen later.</div>')+
+      sgStep(2, !!sKey.trim(), 'Paste your secret key',
+        '<div class="sg-d">In Stripe, open <a href="https://dashboard.stripe.com/test/apikeys" target="_blank" rel="noopener">Developers · API keys</a>, reveal the <b>Secret key</b> (starts with <code>sk_test_</code>) and paste it here:</div>'+
+        '<input class="input" data-stripe-key value="'+esc(sKey)+'" placeholder="sk_test_…" autocomplete="off" autocapitalize="off" spellcheck="false" style="margin-top:9px">')+
+      sgStep(3, !!sWh.trim(), 'Connect the webhook',
+        '<div class="sg-d">The webhook is how Stripe tells this site a payment landed, so orders can mark themselves paid. In <a href="https://dashboard.stripe.com/test/webhooks/create" target="_blank" rel="noopener">Developers · Webhooks · Add destination</a>, paste this endpoint URL:</div>'+
+        '<div class="sg-copy"><code>'+esc(STRIPE_WEBHOOK_URL)+'</code><button class="btn-chip" type="button" data-sg-copy="'+esc(STRIPE_WEBHOOK_URL)+'">Copy</button></div>'+
+        '<div class="sg-d" style="margin-top:8px">Select the single event <b>checkout.session.completed</b> and add it. Then copy the endpoint’s <b>Signing secret</b> (starts with <code>whsec_</code>) and paste it here:</div>'+
+        '<input class="input" data-stripe-whsec value="'+esc(sWh)+'" placeholder="whsec_…" autocomplete="off" autocapitalize="off" spellcheck="false" style="margin-top:9px">')+
+      sgStep(4, sConnected, 'Turn it on and test',
+        '<div class="sg-d">Flip the switch at the top of this card and hit <b>Save</b>. Then place a test order on the site: a “Pay by card” tile appears on the order screen. Pay with card <code>4242 4242 4242 4242</code>, any future date, any CVC. The order flips to <b>Collected · card</b> here on its own and the customer gets the Payment-verified email.</div>'+
+        '<div class="sg-d" style="margin-top:8px"><b>Ready for real money?</b> Repeat steps 2 and 3 from the live dashboard (<a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener">live API keys</a> · <a href="https://dashboard.stripe.com/webhooks/create" target="_blank" rel="noopener">live webhook</a>). Live keys start with <code>sk_live_</code>, and the badge above turns green.</div>')+
+      '<div style="margin-top:14px"><button class="btn" data-integrations-save>Save</button></div>'+
+    '</div>';
+
+  var stripeCard =
+    '<div class="panel" style="max-width:680px;margin-top:16px">'+
+      '<div class="panel-h" style="align-items:flex-start">'+
+        '<span style="flex:none;width:40px;height:40px;border-radius:11px;overflow:hidden;box-shadow:var(--shadow-sm)">'+STRIPE_LOGO+'</span>'+
+        '<div class="panel-t">Payments · Stripe'+
+          '<small>Customers pay by <b>card, Apple Pay, or Cash App Pay</b> on a secure Stripe page, and the payment verifies itself: the order flips to “Collected” and the Payment-verified email sends automatically. No payment-note matching. The Venmo/Zelle handles in Settings keep working exactly as they do now.</small></div>'+
+        '<button class="switch'+(sOn?' on':'')+'" data-stripe-toggle role="switch" aria-checked="'+(sOn?'true':'false')+'" style="margin-left:auto"><span class="switch-dot"></span></button>'+
+      '</div>'+
+      '<div class="panel-b">'+
+        '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">'+
+          '<span data-stripe-badge>'+stripeBadge(sKey)+'</span>'+
+          (sConnected ? '<a class="sg-link" href="https://dashboard.stripe.com" target="_blank" rel="noopener" style="font-size:12.5px">Open Stripe dashboard</a>' : '')+
+          '<button class="btn-chip" type="button" data-stripe-steps style="margin-left:auto">'+(sConnected?'Show setup steps':'Hide setup steps')+'</button>'+
+        '</div>'+
+        stripeSetup+
+      '</div>'+
+    '</div>';
+
   return '<div class="view">'+
     shippoCard+
-    '<div class="panel" style="max-width:680px;margin-top:16px"><div class="panel-b" style="padding:18px"><div class="panel-t" style="font-size:14px;margin-bottom:4px">More integrations</div><p class="muted" style="font-size:13.5px">Email (Resend) and order alerts run on the server. As you add other shipping providers, they’ll show up here as their own cards.</p></div></div>'+
+    stripeCard+
+    '<div class="panel" style="max-width:680px;margin-top:16px"><div class="panel-b" style="padding:18px"><div class="panel-t" style="font-size:14px;margin-bottom:4px">More integrations</div><p class="muted" style="font-size:13.5px">Email (Resend) and order alerts run on the server. Shipping and card payments live in the cards above; new providers get their own card here.</p></div></div>'+
   '</div>';
 }
 
 function saveIntegrations(btn){
   var tog = document.querySelector('[data-shippo-toggle]');
   var enabled = tog ? tog.classList.contains('on') : true;
+  var sTog = document.querySelector('[data-stripe-toggle]');
+  var stripeOn = sTog ? sTog.classList.contains('on') : false;
   var v = function(sel){ var el=document.querySelector(sel); return el ? el.value.trim() : ''; };
   var vals = {
     shippo_enabled:    enabled ? 'true' : 'false',
@@ -1042,17 +1150,28 @@ function saveIntegrations(btn){
     ship_from_zip:     v('[data-shipfrom-zip]'),
     ship_from_country: (v('[data-shipfrom-country]')||'US').toUpperCase(),
     ship_from_phone:   v('[data-shipfrom-phone]'),
-    ship_from_email:   v('[data-shipfrom-email]')
+    ship_from_email:   v('[data-shipfrom-email]'),
+    stripe_enabled:        stripeOn ? 'true' : 'false',
+    stripe_secret_key:     v('[data-stripe-key]'),
+    stripe_webhook_secret: v('[data-stripe-whsec]')
   };
+  // The public "Pay by card" tile follows the toggle, but only once a key is
+  // pasted: on + no key would render a tile whose checkout call can only fail.
+  var cardOn = stripeOn && !!vals.stripe_secret_key;
   btn.disabled=true; var orig=btn.textContent; btn.innerHTML='<span class="spin"></span>';
   Promise.all(Object.keys(vals).map(function(k){
     return sb.from('app_settings').update({value:vals[k]}).eq('key',k);
-  })).then(function(rs){
+  }).concat([
+    sb.from('payment_methods').update({ enabled: cardOn, updated_at: new Date().toISOString() }).eq('id','card')
+  ])).then(function(rs){
     btn.disabled=false; btn.textContent=orig;
     var err=rs.filter(function(r){return r.error;})[0];
     if(err){ toast('Couldn’t save', err.error.message,'err'); return; }
     Object.keys(vals).forEach(function(k){ state.settings[k]=vals[k]; });
-    toast('Integrations saved', enabled?'Shipping is on':'Shipping is off','ok');
+    var pm = (state.payments||[]).find(function(p){ return p.id==='card'; });
+    if(pm) pm.enabled = cardOn;
+    toast('Integrations saved',
+      (enabled?'Shipping on':'Shipping off')+' · '+(cardOn?'Card payments on':'Card payments off'),'ok');
     render();
   });
 }
@@ -2791,8 +2910,13 @@ function renderDrawer(){
         (o.notes?'<div class="notes-box" style="margin-top:10px">'+esc(o.notes)+'</div>':'') });
   } else {
     var collected = !!o.payment_collected, nothingDue = due<=0;
-    var payBadge = nothingDue ? accBadge('Nothing due','ok',true) : (collected ? accBadge('Collected','ok',true) : accBadge('Not collected','warn'));
-    var payToggle = nothingDue ? '' : (collected
+    // Card payments arrive via the Stripe webhook, already verified — no
+    // manual buttons, just the receipt of how and when the money landed.
+    var viaStripe = collected && o.paid_via==='stripe';
+    var payBadge = nothingDue ? accBadge('Nothing due','ok',true) : (collected ? accBadge(viaStripe?'Collected · card':'Collected','ok',true) : accBadge('Not collected','warn'));
+    var payToggle = nothingDue ? '' : (viaStripe
+      ? '<div style="margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;gap:8px"><span class="chip" style="color:#2BA05A">'+I.check+'Paid by card via Stripe</span>'+(o.paid_at?'<span class="muted" style="font-size:12.5px">'+fmtDate(o.paid_at)+'</span>':'')+'</div>'
+      : collected
       ? '<div style="margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px">'+(o.paid_at?'<span class="muted" style="font-size:12.5px">Collected '+fmtDate(o.paid_at)+'</span>':'<span class="muted" style="font-size:12.5px">Payment collected.</span>')+'<button class="btn-chip" data-pay-collected="'+id+'" data-to="0">Mark not collected</button></div>'
       : '<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">'+
           '<button class="btn btn-pay" data-pay-collected="'+id+'" data-to="1" style="width:auto;flex:1;min-width:190px;display:inline-flex;align-items:center;justify-content:center;gap:6px">'+I.dollar+'Mark payment collected</button>'+
@@ -3174,6 +3298,25 @@ function wire(){
   document.querySelectorAll('[data-shippo-toggle]').forEach(function(b){ b.onclick=function(){ var on=!b.classList.contains('on'); b.classList.toggle('on',on); b.setAttribute('aria-checked',on?'true':'false'); var f=document.querySelector('[data-shippo-fields]'); if(f) f.style.display=on?'':'none'; }; });
   document.querySelectorAll('[data-shippo-key]').forEach(function(inp){ inp.oninput=function(){ var badge=document.querySelector('[data-shippo-badge]'); if(badge) badge.innerHTML=shippoBadge(inp.value); }; });
   document.querySelectorAll('[data-integrations-save]').forEach(function(b){ b.onclick=function(){ saveIntegrations(b); }; });
+  // Stripe card: toggle re-paints step 4; both key inputs live-update the
+  // badge + step check-offs; the chip shows/hides the walkthrough.
+  document.querySelectorAll('[data-stripe-toggle]').forEach(function(b){ b.onclick=function(){ var on=!b.classList.contains('on'); b.classList.toggle('on',on); b.setAttribute('aria-checked',on?'true':'false'); paintStripeSteps(); }; });
+  document.querySelectorAll('[data-stripe-key], [data-stripe-whsec]').forEach(function(inp){ inp.oninput=function(){
+    var badge=document.querySelector('[data-stripe-badge]'), key=document.querySelector('[data-stripe-key]');
+    if(badge) badge.innerHTML=stripeBadge(key?key.value:'');
+    paintStripeSteps();
+  }; });
+  document.querySelectorAll('[data-stripe-steps]').forEach(function(b){ b.onclick=function(){
+    var s=document.querySelector('[data-stripe-setup]'); if(!s) return;
+    var show = s.style.display==='none';
+    s.style.display = show?'block':'none';
+    b.textContent = show?'Hide setup steps':'Show setup steps';
+  }; });
+  document.querySelectorAll('[data-sg-copy]').forEach(function(b){ b.onclick=function(){
+    var val=b.getAttribute('data-sg-copy');
+    var done=function(){ b.textContent='Copied'; setTimeout(function(){ b.textContent='Copy'; },1400); };
+    if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(val).then(done,done); }
+  }; });
   document.querySelectorAll('[data-lead-copy]').forEach(function(b){ b.onclick=function(){ copyLeadEmail(b.getAttribute('data-lead-copy')); }; });
   document.querySelectorAll('[data-lead-notify]').forEach(function(b){ b.onclick=function(){ markLeadNotified(b.getAttribute('data-lead-notify')); }; });
   document.querySelectorAll('[data-lead-remove]').forEach(function(b){ b.onclick=function(){ removeLead(b.getAttribute('data-lead-remove')); }; });
