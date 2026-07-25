@@ -176,7 +176,9 @@
   .panel-b { padding: 6px 18px 18px; }
 
   .legend { display: flex; flex-direction: column; gap: 9px; padding: 4px 4px 0; }
-  .legend-row { display: flex; align-items: center; gap: 10px; font-size: 13.5px; }
+  .legend-row { display: flex; align-items: center; gap: 10px; font-size: 13.5px; border-radius: 8px; padding: 2px 6px; }
+  .legend-row[data-status-jump] { cursor: pointer; transition: background .12s; }
+  .legend-row[data-status-jump]:hover { background: var(--surface-2); }
   .legend-row .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
   .legend-row .lg-name { color: var(--ink-2); font-weight: 600; }
   .legend-row .lg-val { margin-left: auto; font-weight: 700; }
@@ -748,7 +750,8 @@ function barChart(days){
   series.forEach(function(s,i){
     var h=(H-pad*2)*(s.n/max), x=pad+i*(bw+gap), y=H-pad-h;
     var hot=s.n>0;
-    bars+='<rect x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(h,hot?3:0).toFixed(1)+'" rx="'+Math.min(4,bw/2).toFixed(1)+'" fill="url(#bg1)"><title>'+s.d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+': '+s.n+' order'+(s.n===1?'':'s')+' · '+money(s.rev)+'</title></rect>';
+    var tipTxt = s.d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+' — '+s.n+' order'+(s.n===1?'':'s')+'<small>'+money(s.rev)+' in orders</small>';
+    bars+='<rect class="cbar" data-tip="'+tipTxt+'" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(h,hot?3:0).toFixed(1)+'" rx="'+Math.min(4,bw/2).toFixed(1)+'" fill="url(#bg1)"/>';
     var showLbl = days<=14 || i%Math.ceil(days/8)===0;
     if(showLbl) labels+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(H+13)+'" text-anchor="middle" font-size="9.5" fill="rgba(95,70,63,0.5)">'+s.d.getDate()+'</text>';
   });
@@ -762,7 +765,8 @@ function donut(parts, total){
   parts.forEach(function(p){
     if(p.v<=0) return;
     var len=C*(p.v/(total||1));
-    segs+='<circle cx="70" cy="70" r="'+R+'" fill="none" stroke="'+p.color+'" stroke-width="18" stroke-dasharray="'+len.toFixed(2)+' '+(C-len).toFixed(2)+'" stroke-dashoffset="'+(-off).toFixed(2)+'" transform="rotate(-90 70 70)" stroke-linecap="butt"><title>'+p.name+': '+p.v+'</title></circle>';
+    var pct = total? Math.round(p.v/total*100) : 0;
+    segs+='<circle class="cbar" data-tip="'+p.name+' — '+p.v+' order'+(p.v===1?'':'s')+'<small>'+pct+'% of all orders'+(p.k?' · click to view':'')+'</small>"'+(p.k?' data-status-jump="'+p.k+'" style="cursor:pointer"':'')+' cx="70" cy="70" r="'+R+'" fill="none" stroke="'+p.color+'" stroke-width="18" stroke-dasharray="'+len.toFixed(2)+' '+(C-len).toFixed(2)+'" stroke-dashoffset="'+(-off).toFixed(2)+'" transform="rotate(-90 70 70)" stroke-linecap="butt"/>';
     off+=len;
   });
   if(!total) segs='<circle cx="70" cy="70" r="'+R+'" fill="none" stroke="#EDE5DE" stroke-width="18"/>';
@@ -783,8 +787,10 @@ function viewDashboard(){
   var prev=state.orders.filter(function(o){var a=now-new Date(o.created_at);return a>=d7&&a<2*d7;}).length;
   var tr = prev===0 ? (cur>0?100:0) : Math.round((cur-prev)/prev*100);
 
-  var kpi = function(ic, icbg, iccol, label, val, sub){
-    return '<div class="kpi"><div class="kpi-top"><span class="kpi-ic" style="background:'+icbg+';color:'+iccol+'">'+ic+'</span>'+label+'</div>'+
+  // Clickable KPI cards: hover explains the metric, clicking jumps to the
+  // matching Orders filter (data-status-jump, wired globally).
+  var kpi = function(ic, icbg, iccol, label, val, sub, tip, jump){
+    return '<div class="kpi'+(jump?' click':'')+'"'+(jump?' data-status-jump="'+jump+'"':'')+(tip?' title="'+tip+'"':'')+'><div class="kpi-top"><span class="kpi-ic" style="background:'+icbg+';color:'+iccol+'">'+ic+'</span>'+label+'</div>'+
       '<div class="kpi-val">'+val+'</div><div class="kpi-sub">'+sub+'</div></div>';
   };
   // Needs-attention = new orders to review + orders already past "New" whose
@@ -793,16 +799,20 @@ function viewDashboard(){
   var awaiting = state.orders.filter(function(o){ return ['new','cancelled'].indexOf(o.status)<0 && !o.gift_shipment_id && !orderPaid(o); }).length;
   var attn = c.new + awaiting;
   var kpis = '<div class="kpis">'+
-    kpi(I.cash,'#E5F4EA','#2BA05A','Revenue (completed)', money(revenue), c.completed+' completed order'+(c.completed===1?'':'s'))+
-    kpi(I.spark,'#FBF1DC','#C98A12','Open pipeline', money(pipeline), (c.new+c.in_progress+c.ready)+' active')+
-    kpi(I.cart,'#EAF1FC','#3B7DD8','Total orders', c.all, '<span class="trend '+(tr>=0?'up':'down')+'">'+(tr>=0?'▲':'▼')+' '+Math.abs(tr)+'%</span> last 7 days')+
-    kpi(I.bell,'#FBE9EA','#B46869','Needs attention', attn, attn?(c.new+' new'+(awaiting?' · '+awaiting+' awaiting payment':''))+' to handle':'All caught up')+
+    kpi(I.cash,'#E5F4EA','#2BA05A','Revenue (completed)', money(revenue), c.completed+' completed order'+(c.completed===1?'':'s'),
+      'Total value of completed orders — click to see them', 'completed')+
+    kpi(I.spark,'#FBF1DC','#C98A12','Open pipeline', money(pipeline), (c.new+c.in_progress+c.ready)+' active',
+      'Value of orders not yet completed (new, in progress, ready) — click for in-progress', 'in_progress')+
+    kpi(I.cart,'#EAF1FC','#3B7DD8','Total orders', c.all, '<span class="trend '+(tr>=0?'up':'down')+'">'+(tr>=0?'▲':'▼')+' '+Math.abs(tr)+'%</span> last 7 days',
+      'All orders ever, with the last-7-days trend vs the prior 7 — click to see all', 'all')+
+    kpi(I.bell,'#FBE9EA','#B46869','Needs attention', attn, attn?(c.new+' new'+(awaiting?' · '+awaiting+' awaiting payment':''))+' to handle':'All caught up',
+      'New orders to review plus older orders still awaiting payment — click for new', 'new')+
   '</div>';
 
-  var parts = ALL_STATUSES.map(function(k){ return {name:STATUS[k].label, v:c[k], color:STATUS[k].color}; });
+  var parts = ALL_STATUSES.map(function(k){ return {k:k, name:STATUS[k].label, v:c[k], color:STATUS[k].color}; });
   var legend = parts.map(function(p){
     var pct = c.all? Math.round(p.v/c.all*100):0;
-    return '<div class="legend-row"><span class="dot" style="background:'+p.color+'"></span><span class="lg-name">'+p.name+'</span><span class="lg-val">'+p.v+'</span><span class="lg-pct">'+pct+'%</span></div>';
+    return '<div class="legend-row" data-status-jump="'+p.k+'" title="Click to view '+p.name+' orders"><span class="dot" style="background:'+p.color+'"></span><span class="lg-name">'+p.name+'</span><span class="lg-val">'+p.v+'</span><span class="lg-pct">'+pct+'%</span></div>';
   }).join('');
 
   var mid = '<div class="grid-2">'+
@@ -810,6 +820,7 @@ function viewDashboard(){
       '<div class="panel-tools"><div class="seg">'+
         '<button data-range="7" class="'+(state.range===7?'on':'')+'">7d</button>'+
         '<button data-range="30" class="'+(state.range===30?'on':'')+'">30d</button>'+
+        '<button data-range="90" class="'+(state.range===90?'on':'')+'">90d</button>'+
       '</div></div></div>'+
       '<div class="panel-b">'+barChart(state.range)+'</div></div>'+
     '<div class="panel"><div class="panel-h"><div class="panel-t">By status</div></div>'+
@@ -844,8 +855,8 @@ function viewDashboard(){
   var gcSold = gc.filter(function(c){ return c.status!=='void'; });
   var gcRedeemed = gc.filter(function(c){ return c.status==='redeemed'; });
   var gcActive = gc.filter(function(c){ return c.status==='active'; });
-  var gcStat = function(label, val, sub, col){
-    return '<div style="flex:1;min-width:130px"><div class="muted" style="font-size:12px;font-weight:600">'+label+'</div>'+
+  var gcStat = function(label, val, sub, col, tip){
+    return '<div style="flex:1;min-width:130px"'+(tip?' title="'+tip+'"':'')+'><div class="muted" style="font-size:12px;font-weight:600">'+label+'</div>'+
       '<div style="font-size:24px;font-weight:800;letter-spacing:-.02em;margin-top:4px;color:'+(col||'var(--ink)')+'">'+val+'</div>'+
       '<div class="muted" style="font-size:12px;margin-top:3px">'+sub+'</div></div>';
   };
@@ -854,9 +865,9 @@ function viewDashboard(){
       '<div class="panel-tools"><button data-goto="giftcards" style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:6px 12px;font-size:12.5px;font-weight:600;color:var(--rose)">Manage</button></div></div>'+
     '<div class="panel-b" style="display:flex;gap:22px;flex-wrap:wrap;padding-top:10px">'+
       (gc.length ?
-        gcStat('Sold', money(gcSum(gcSold)), gcSold.length+' card'+(gcSold.length===1?'':'s'))+
-        gcStat('Redeemed', money(gcSum(gcRedeemed)), gcRedeemed.length+' applied to orders', '#0E7E5B')+
-        gcStat('Outstanding', money(gcSum(gcActive)), gcActive.length+' not yet used', '#C98A12')
+        gcStat('Sold', money(gcSum(gcSold)), gcSold.length+' card'+(gcSold.length===1?'':'s'), null, 'All gift cards ever sold (excluding voided)')+
+        gcStat('Redeemed', money(gcSum(gcRedeemed)), gcRedeemed.length+' applied to orders', '#0E7E5B', 'Gift value already spent on orders')+
+        gcStat('Outstanding', money(gcSum(gcActive)), gcActive.length+' not yet used', '#C98A12', 'Active cards not yet redeemed — nails you still owe')
         : '<div class="muted" style="font-size:13px">No gift cards yet. Generate one from the Gift Cards tab when you sell one.</div>')+
     '</div></div>';
 
@@ -883,12 +894,12 @@ function viewDashboard(){
     '<div class="panel-b" style="padding-top:10px">'+
       (cTotal ?
         '<div style="display:flex;gap:22px;flex-wrap:wrap">'+
-          gcStat('Customers', cTotal, cRepeat.length+' repeat')+
-          gcStat('Avg customer value', money(cLtvSum/cTotal), money(cLtvSum)+' collected all-time')+
-          gcStat('Repeat rate', Math.round(cRepeat.length/cTotal*100)+'%', 'of customers reorder')+
-          gcStat('Repeat revenue', (cLtvSum?Math.round(cRepeatRev/cLtvSum*100):0)+'%', 'from returning customers', '#0E7E5B')+
-          gcStat('Outstanding', money(cOwed), cOwed>0?'placed, not collected':'all collected', cOwed>0?'#C77A3B':'#0E7E5B')+
-          gcStat('Due for reorder', cDue, cDue?'quiet lately':'all engaged', cDue?'#C98A12':'var(--ink)')+
+          gcStat('Customers', cTotal, cRepeat.length+' repeat', null, 'Everyone with at least one completed order')+
+          gcStat('Avg customer value', money(cLtvSum/cTotal), money(cLtvSum)+' collected all-time', null, 'Collected revenue ÷ customers')+
+          gcStat('Repeat rate', Math.round(cRepeat.length/cTotal*100)+'%', 'of customers reorder', null, 'Share of customers with 2+ orders')+
+          gcStat('Repeat revenue', (cLtvSum?Math.round(cRepeatRev/cLtvSum*100):0)+'%', 'from returning customers', '#0E7E5B', 'Share of collected revenue from customers who ordered 2+ times')+
+          gcStat('Outstanding', money(cOwed), cOwed>0?'placed, not collected':'all collected', cOwed>0?'#C77A3B':'#0E7E5B', 'Money on real orders whose payment isn’t marked collected yet')+
+          gcStat('Due for reorder', cDue, cDue?'quiet lately':'all engaged', cDue?'#C98A12':'var(--ink)', 'Reachable customers quiet past the reminder window')+
         '</div>'+
         (cTop.length?'<div class="dr-sec-t" style="margin:16px 0 8px">Top customers by lifetime value</div><div class="nt-rows">'+topMini+'</div>':'')
         : '<div class="muted" style="font-size:13px">No customers yet — someone becomes a customer when their first order is completed.</div>')+
@@ -3130,6 +3141,7 @@ function wire(){
   document.querySelectorAll('[data-cust-seg]').forEach(function(b){ b.onclick=function(){ state.custSeg=b.getAttribute('data-cust-seg'); var fromKpi=b.classList.contains('kpi'); render(); if(fromKpi){ var lp=$('#custList'); if(lp) lp.scrollIntoView({behavior:'smooth', block:'start'}); } }; });
   document.querySelectorAll('[data-cust-sort]').forEach(function(b){ b.onclick=function(){ state.custSort=b.getAttribute('data-cust-sort'); render(); }; });
   document.querySelectorAll('[data-cust-range]').forEach(function(b){ b.onclick=function(){ state.custRange=Number(b.getAttribute('data-cust-range')); render(); }; });
+  document.querySelectorAll('[data-status-jump]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); state.view='orders'; state.filter=b.getAttribute('data-status-jump'); render(); window.scrollTo(0,0); }; });
   document.querySelectorAll('[data-cust-jump]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); state.view='customers'; state.custSel=b.getAttribute('data-cust-jump'); render(); window.scrollTo(0,0); }; });
   document.querySelectorAll('[data-cust-note-save]').forEach(function(b){ b.onclick=function(){ saveCustomerNote(b); }; });
   var cs=$('#custSearch'); if(cs) cs.oninput=function(){ state.custQ=cs.value; render(); var n=$('#custSearch'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } };
