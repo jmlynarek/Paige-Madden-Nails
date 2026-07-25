@@ -2282,7 +2282,7 @@ function wire(){
   document.querySelectorAll('[data-gc-void]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); voidGiftCard(b.getAttribute('data-gc-void')); }; });
   document.querySelectorAll('[data-gc-open]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); openGiftCard(b.getAttribute('data-gc-open')); }; });
 
-  var bell=$('#bell'); if(bell) bell.onclick=function(e){ e.stopPropagation(); state.notifOpen=!state.notifOpen; renderNotif(); };
+  var bell=$('#bell'); if(bell) bell.onclick=function(e){ e.stopPropagation(); state.notifOpen=!state.notifOpen; render(); };
   var burger=$('#burger'); if(burger) burger.onclick=function(e){ e.stopPropagation(); state.sidebarOpen=!state.sidebarOpen; var s=$('#sidebar'); if(s)s.classList.toggle('open',state.sidebarOpen); };
   var so=$('#signout'); if(so) so.onclick=function(){ sb.auth.signOut(); };
 
