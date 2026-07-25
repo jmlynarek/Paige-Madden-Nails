@@ -88,6 +88,13 @@
   .btn svg, .btn-line svg { width: 17px; height: 17px; flex: none; }
   .btn-ghost { background: transparent; color: var(--ink-2); box-shadow: none; font-weight: 600; }
   .btn-ghost:hover { transform: none; box-shadow: none; color: var(--rose); }
+  /* small pill button for secondary drawer actions — matches the badge/pill language */
+  .btn-chip { width: auto; flex: none; padding: 7px 13px; font-size: 12.5px; font-weight: 700; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); border: 1px solid var(--line); box-shadow: none; }
+  .btn-chip:hover { background: var(--line); color: var(--ink); transform: none; box-shadow: none; }
+  .btn-chip.warn { color: #C77A3B; background: #FBF4EA; border-color: #EFD9C2; }
+  .btn-chip.warn:hover { background: #F6E7D4; color: #C77A3B; }
+  .btn-chip.danger { color: #C9534A; background: #FCEDEB; border-color: #F1CDC8; }
+  .btn-chip.danger:hover { background: #FADFDB; color: #C9534A; }
   .auth-msg { font-size: 13px; margin-top: 12px; min-height: 18px; }
   .auth-msg.err { color: #C9534A; }
   .auth-msg.ok { color: #2BA05A; }
@@ -1937,16 +1944,12 @@ function renderDrawer(){
       '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">'+statusPill('unpaid')+'<span class="muted" style="font-size:12.5px">Waiting on payment — reminder sent.</span></div>'+
       '<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">'+
         '<button class="btn" data-status="in_progress" style="width:auto;display:inline-flex;padding:8px 14px;font-size:13px">Payment received → In Progress</button>'+
-        '<button class="btn-ghost" data-unpaid-email="'+id+'" style="width:auto;display:inline;padding:8px 6px;font-size:12.5px">Resend reminder</button>'+
-        '<button class="btn-ghost" data-status="cancelled" style="width:auto;display:inline;padding:8px 6px;font-size:12.5px;color:#C9534A">Cancel order</button>'+
+        '<button class="btn-chip warn" data-unpaid-email="'+id+'">Send reminder</button>'+
       '</div>'
     :
     '<div class="stepper">'+steps+'</div>'+
-    (o.status==='cancelled'?'<div style="margin-top:10px;display:flex;flex-wrap:wrap;align-items:center;gap:8px">'+statusPill('cancelled')+' <button class="btn-ghost" data-status="new" style="width:auto;display:inline;padding:0 6px;font-size:12.5px">Reopen</button><button class="btn-ghost" data-cancel-email="'+id+'" style="width:auto;display:inline;padding:0 6px;font-size:12.5px">Send cancellation email</button></div>':
-      '<div style="margin-top:10px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px">'+
-        (o.status!=='completed'?'<button class="btn-ghost" data-status="unpaid" style="width:auto;display:inline;padding:4px 6px;font-size:12.5px;color:#C77A3B">Mark unpaid</button>':'')+
-        '<button class="btn-ghost" data-status="cancelled" style="width:auto;display:inline;padding:4px 6px;font-size:12.5px;color:#C9534A">Cancel order</button>'+
-      '</div>')) });
+    (o.status==='cancelled'?'<div style="margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;gap:8px">'+statusPill('cancelled')+'<button class="btn-chip" data-status="new">Reopen</button><button class="btn-chip" data-cancel-email="'+id+'">Send cancellation email</button></div>':''
+    )) });
   if(isShip){
     sections.push({ id:'sec-ship', icon:I.pin, label:'Shipping', open:false, sub:shipAddrSub, html:shipAddrHtml });
     sections.push({ id:'sec-label', icon:I.tag, label:'Shipping label', open:false, badge:shipLabelBadge, sub:shipLabelSub, html:shipLabelHtml });
@@ -1985,8 +1988,11 @@ function renderDrawer(){
     var collected = !!o.payment_collected, nothingDue = due<=0;
     var payBadge = nothingDue ? accBadge('Nothing due','ok',true) : (collected ? accBadge('Collected','ok',true) : accBadge('Not collected','warn'));
     var payToggle = nothingDue ? '' : (collected
-      ? '<div style="margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px">'+(o.paid_at?'<span class="muted" style="font-size:12.5px">Collected '+fmtDate(o.paid_at)+'</span>':'<span class="muted" style="font-size:12.5px">Payment collected.</span>')+'<button class="btn-line" data-pay-collected="'+id+'" data-to="0" style="width:auto;flex:none;padding:8px 14px;font-size:13px">Mark not collected</button></div>'
-      : '<button class="btn" data-pay-collected="'+id+'" data-to="1" style="margin-top:12px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px">'+I.check+'Mark payment collected</button>');
+      ? '<div style="margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px">'+(o.paid_at?'<span class="muted" style="font-size:12.5px">Collected '+fmtDate(o.paid_at)+'</span>':'<span class="muted" style="font-size:12.5px">Payment collected.</span>')+'<button class="btn-chip" data-pay-collected="'+id+'" data-to="0">Mark not collected</button></div>'
+      : '<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">'+
+          '<button class="btn" data-pay-collected="'+id+'" data-to="1" style="width:auto;flex:1;min-width:190px;display:inline-flex;align-items:center;justify-content:center;gap:6px">'+I.check+'Mark payment collected</button>'+
+          (o.email?'<button class="btn-chip warn" data-unpaid-email="'+id+'">Send reminder</button>':'')+
+        '</div>');
     sections.push({ id:'sec-pay', icon:I.cart, label:'Payment', open:false, badge:payBadge,
       sub: gift>0 ? (due>0 ? money(due)+' due · '+money(gift)+' prepaid' : '🎁 Prepaid — nothing due') : money(orderValue(o))+' to collect', html:
       '<div class="dr-card">'+
@@ -2028,7 +2034,7 @@ function renderDrawer(){
       '<div class="dr-body">'+navHtml+bodyHtml+'</div>'+
       '<div class="dr-foot">'+
         '<button class="btn btn-line" data-close>Close</button>'+
-        '<button class="btn btn-danger" data-del="'+o.id+'" title="Delete order" aria-label="Delete order">'+I.trash+'Delete</button>'+
+        (o.status!=='cancelled'?'<button class="btn btn-danger" data-cancel-order="'+o.id+'" title="Cancel order" aria-label="Cancel order">'+I.trash+'Cancel order</button>':'')+
       '</div>'+
     '</aside>';
 
@@ -2051,6 +2057,7 @@ function renderDrawer(){
   host.querySelectorAll('[data-unpaid-email]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); resendUnpaidEmail(b.getAttribute('data-unpaid-email')); }; });
   host.querySelectorAll('[data-pay-collected]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); setPaymentCollected(b.getAttribute('data-pay-collected'), b.getAttribute('data-to')==='1'); }; });
   host.querySelectorAll('[data-del]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); delOrder(b.getAttribute('data-del')); }; });
+  host.querySelectorAll('[data-cancel-order]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); cancelOrder(b.getAttribute('data-cancel-order')); }; });
   var buyBtn = $('#buyLabel');
   if(buyBtn){ buyBtn.onclick = function(){ buyLabel(id); }; }
   var toShip = $('#toShip');
@@ -2142,6 +2149,15 @@ function setStatus(id, status){
   // (see sendCancelEmail); skip re-sends when the status didn't change (dedupe).
   if(o && changed && status!=='cancelled') notifyCustomer(Object.assign({}, o, patch), status);
 }
+// Soft-cancel: keeps the order (status='cancelled', reversible via Reopen) and
+// never auto-emails. The everyday "this order fell through" action; hard delete
+// lives only on the orders-list row.
+function cancelOrder(id){
+  var o = state.orders.find(function(x){return x.id===id;});
+  if(o && o.status==='cancelled') return;
+  if(!confirm('Cancel this order for '+(o?o.customer_name:'this customer')+'? You can reopen it later.')) return;
+  setStatus(id, 'cancelled');
+}
 // Manually send the cancellation email (never auto-fired — Paige sends it
 // deliberately, alongside issuing the refund).
 function sendCancelEmail(id){
@@ -2157,7 +2173,7 @@ function resendUnpaidEmail(id){
   var o = state.orders.find(function(x){return x.id===id;});
   if(!o) return;
   if(!o.email){ toast('No email on file', 'This order has no email address.', 'err'); return; }
-  if(!confirm('Re-send the payment reminder to '+o.email+'?')) return;
+  if(!confirm('Send the payment reminder to '+o.email+'?')) return;
   notifyCustomer(o, 'unpaid');
 }
 function markSeen(ids){
