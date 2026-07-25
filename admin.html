@@ -271,6 +271,7 @@
   .kv { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--hair); font-size: 13.5px; }
   .kv:last-child { border-bottom: 0; }
   .kv .k { color: var(--ink-soft); width: 92px; flex: none; font-weight: 600; }
+  .kv .k svg { width: 17px; height: 17px; display: block; }
   .kv .v { font-weight: 600; color: var(--ink); }
   .kv .v a { color: var(--rose); text-decoration: none; }
   .sizes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
@@ -351,6 +352,8 @@
   .nt-row-chev svg { width: 18px; height: 18px; }
   .nt-back { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 0; color: var(--rose); font-weight: 600; font-size: 13.5px; cursor: pointer; padding: 4px 0; margin-bottom: 12px; }
   .nt-back svg { width: 18px; height: 18px; transform: rotate(90deg); }
+  /* customer detail header — a larger avatar, everything else reuses the kit */
+  .cust-hero .avatar { width: 52px; height: 52px; font-size: 18px; }
 
   /* ===================== NOTIFICATIONS ===================== */
   .pop { position: absolute; top: 52px; right: 0; width: 360px; max-width: 90vw; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-pop); z-index: 60; overflow: hidden; transform-origin: top right; }
@@ -441,6 +444,7 @@ var I = {
   cash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 9.5v0M18 14.5v0"/></svg>',
   spark:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 3.5 3L20 7"/><path d="M20 11V7h-4"/></svg>',
   box:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8l9 5 9-5Z"/><path d="M3 8v8l9 5 9-5V8M12 13v8"/></svg>',
+  plug:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6"/><path d="M7 8h10v3a5 5 0 0 1-10 0V8Z"/><path d="M12 16v6"/></svg>',
   clock:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   gift:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12v8a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-8"/><rect x="2.5" y="7.5" width="19" height="4.5" rx="1"/><path d="M12 7.5V21"/><path d="M12 7.5S10.5 3.5 8 3.5a2.2 2.2 0 0 0 0 4.4c2.5 0 4-.4 4-.4ZM12 7.5S13.5 3.5 16 3.5a2.2 2.2 0 0 1 0 4.4c-2.5 0-4-.4-4-.4Z"/></svg>',
   check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
@@ -458,7 +462,8 @@ var I = {
   palette:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.6 1.7-1.6H16a5 5 0 0 0 5-5c0-3.9-4-7.3-9-7.3Z"/><circle cx="7.5" cy="11.5" r="1"/><circle cx="9.8" cy="7.4" r="1"/><circle cx="14.2" cy="7.4" r="1"/><circle cx="16.6" cy="11" r="1"/></svg>',
   image:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.5"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="m4 18 5-5 4 4 3-3 4 4"/></svg>',
   note:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z"/><path d="M14 3v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/></svg>',
-  user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg>'
+  user:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg>',
+  copy:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>'
 };
 
 /* ───────────────────────── status meta ───────────────────────── */
@@ -492,6 +497,9 @@ var state = {
   view: 'dashboard', filter: 'all', q: '',
   range: 30, sidebarOpen: false, notifOpen: false,
   drawerId: null, giftDrawerId: null, photos: {}, ntSel: null,
+  // Customers tab (lightweight CRM): selected customer key, segment chip,
+  // tab-local search text, sort mode, and saved per-customer notes (key → text).
+  custSel: null, custSeg: 'all', custQ: '', custSort: 'recent', custNotes: {},
   // Unsaved pickup→shipping address, kept in state so re-renders (photo load,
   // realtime echoes) don't wipe what the admin typed. Keyed to the order id.
   shipDraft: null
@@ -583,7 +591,8 @@ function loadAll(){
     sb.from('app_settings').select('*'),
     sb.from('gift_cards').select('*').order('created_at',{ascending:false}),
     sb.from('waitlist_leads').select('*').order('created_at',{ascending:true}),
-    sb.from('admin_users').select('*').order('created_at',{ascending:true})
+    sb.from('admin_users').select('*').order('created_at',{ascending:true}),
+    sb.from('customer_notes').select('*')
   ]).then(function(res){
     if(res[0].error) throw res[0].error;
     state.orders    = res[0].data || [];
@@ -598,6 +607,8 @@ function loadAll(){
     state.giftCards = (res[8] && res[8].data) || [];
     state.waitlist  = (res[9] && res[9].data) || [];
     state.adminUsers = (res[10] && res[10].data) || [];
+    state.custNotes = {};
+    ((res[11] && res[11].data) || []).forEach(function(r){ state.custNotes[r.key] = r.notes || ''; });
     state.loading = false;
     render();
   }).catch(function(e){
@@ -762,7 +773,7 @@ function viewDashboard(){
     kpi(I.cash,'#E5F4EA','#2BA05A','Revenue (completed)', money(revenue), c.completed+' completed order'+(c.completed===1?'':'s'))+
     kpi(I.spark,'#FBF1DC','#C98A12','Open pipeline', money(pipeline), (c.new+c.in_progress+c.ready)+' active')+
     kpi(I.cart,'#EAF1FC','#3B7DD8','Total orders', c.all, '<span class="trend '+(tr>=0?'up':'down')+'">'+(tr>=0?'▲':'▼')+' '+Math.abs(tr)+'%</span> last 7 days')+
-    kpi(I.bell,'#FBE9EA','#B46869','Needs attention', attn, attn?(c.new+' new'+(c.unpaid?' · '+c.unpaid+' unpaid':''))+' to handle':'All caught up ✨')+
+    kpi(I.bell,'#FBE9EA','#B46869','Needs attention', attn, attn?(c.new+' new'+(c.unpaid?' · '+c.unpaid+' unpaid':''))+' to handle':'All caught up')+
   '</div>';
 
   var parts = ALL_STATUSES.map(function(k){ return {name:STATUS[k].label, v:c[k], color:STATUS[k].color}; });
@@ -826,13 +837,45 @@ function viewDashboard(){
         : '<div class="muted" style="font-size:13px">No gift cards yet. Generate one from the Gift Cards tab when you sell one.</div>')+
     '</div></div>';
 
+  // customers — headline repeat-business numbers; the depth lives in the tab.
+  // "Avg customer value" = all-time completed revenue ÷ distinct customers;
+  // "Repeat revenue" = share of that revenue from people who ordered 2+ times.
+  var cm = buildCustomers(), cl = cm.list;
+  var cTotal = cl.length;
+  var cLtvSum = cl.reduce(function(s,x){return s+x.ltv;},0);
+  var cRepeat = cl.filter(function(x){return x.n>=2;});
+  var cRepeatRev = cRepeat.reduce(function(s,x){return s+x.ltv;},0);
+  var cDue = cl.filter(function(x){return x.due;}).length;
+  var cTop = cl.slice().sort(function(a,b){return b.ltv-a.ltv;}).slice(0,3);
+  var topMini = cTop.map(function(x){
+    return '<button class="nt-row" style="padding:9px 12px" data-cust-jump="'+esc(x.key)+'">'+avatar(x.name)+
+      '<span class="nt-row-main"><span class="nt-row-t" style="font-size:13.5px">'+esc(x.name)+'</span><span class="nt-row-sub">'+x.n+' order'+(x.n===1?'':'s')+'</span></span>'+
+      '<span class="money">'+money(x.ltv)+'</span>'+
+      '<span class="nt-row-chev">'+I.chev+'</span></button>';
+  }).join('');
+  var custPanel = '<div class="panel" style="margin-bottom:16px">'+
+    '<div class="panel-h"><div class="panel-t">Customers<small>Repeat business &amp; customer value</small></div>'+
+      '<div class="panel-tools"><button data-goto="customers" style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:6px 12px;font-size:12.5px;font-weight:600;color:var(--rose)">View all</button></div></div>'+
+    '<div class="panel-b" style="padding-top:10px">'+
+      (cTotal ?
+        '<div style="display:flex;gap:22px;flex-wrap:wrap">'+
+          gcStat('Customers', cTotal, cRepeat.length+' repeat')+
+          gcStat('Avg customer value', money(cLtvSum/cTotal), money(cLtvSum)+' all-time')+
+          gcStat('Repeat rate', Math.round(cRepeat.length/cTotal*100)+'%', 'of customers reorder')+
+          gcStat('Repeat revenue', (cLtvSum?Math.round(cRepeatRev/cLtvSum*100):0)+'%', 'from returning customers', '#0E7E5B')+
+          gcStat('Due for reorder', cDue, cDue?'quiet lately':'all engaged', cDue?'#C98A12':'var(--ink)')+
+        '</div>'+
+        (cTop.length?'<div class="dr-sec-t" style="margin:16px 0 8px">Top customers by lifetime value</div><div class="nt-rows">'+topMini+'</div>':'')
+        : '<div class="muted" style="font-size:13px">No customers yet — someone becomes a customer when their first order is completed.</div>')+
+    '</div></div>';
+
   var bottom = '<div class="grid-2">'+
     '<div class="panel"><div class="panel-h"><div class="panel-t">Recent orders</div><div class="panel-tools"><button class="seg" style="border:0;background:transparent;padding:0"><button data-goto="orders" style="background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:6px 12px;font-size:12.5px;font-weight:600;color:var(--rose)">View all</button></button></div></div>'+
       '<div class="panel-b" style="padding:0 0 4px">'+(recent.length?'<table class="tbl">'+recentRows+'</table>':'<div class="empty">No orders yet.</div>')+'</div></div>'+
     '<div class="panel"><div class="panel-h"><div class="panel-t">By design tier</div></div><div class="panel-b">'+tierRows+'</div></div>'+
   '</div>';
 
-  return '<div class="view">'+kpis+mid+giftPanel+bottom+'</div>';
+  return '<div class="view">'+kpis+mid+custPanel+giftPanel+bottom+'</div>';
 }
 
 function viewOrders(){
@@ -852,12 +895,12 @@ function viewOrders(){
       ? '<span class="chip" style="color:#0E9E8E" title="Label purchased">'+I.tag+'Labeled</span>'
       : '<span class="chip">'+(ship?I.truck:I.bag)+(ship?'Ship':'Pickup')+'</span>';
     var designCell = o.gift_shipment_id
-      ? '<span class="chip" style="color:#B46869">🎁 Gift card · mail out</span>'
+      ? '<span class="chip" style="color:#B46869">'+I.gift+'Gift card · mail out</span>'
       : '<span class="chip" style="color:var(--ink-2)">'+I.palette+esc(o.nail_shape||'—')+'<span class="muted">· '+esc((state.tiers.find(function(x){return x.id===o.design_tier;})||{}).name||o.design_tier)+'</span></span>';
     return '<tr data-open="'+o.id+'">'+
       '<td data-label="Order"><span class="oid">'+(o.admin_seen?'':'<span class="unseen-dot"></span>')+shortId(o)+'</span>'+
-        (o.gift_shipment_id?' <span class="chip" style="color:#B46869" title="Gift card to mail out">🎁 Gift card</span>':'')+
-        (o.gift_card_id?' <span class="chip" style="color:#B46869" title="Paid with a gift card">🎁 Prepaid</span>':'')+'</td>'+
+        (o.gift_shipment_id?' <span class="chip" style="color:#B46869" title="Gift card to mail out">'+I.gift+'Gift card</span>':'')+
+        (o.gift_card_id?' <span class="chip" style="color:#B46869" title="Paid with a gift card">'+I.gift+'Prepaid</span>':'')+'</td>'+
       '<td data-label="Date" class="muted hide-sm">'+fmtDate(o.created_at)+'</td>'+
       '<td data-label="Customer"><div class="cust">'+avatar(o.customer_name)+'<div><div class="cust-name">'+esc(o.customer_name)+'</div><div class="muted" style="font-size:11.5px">'+esc(o.email||o.phone||'')+'</div></div></div></td>'+
       '<td data-label="Design" class="hide-sm">'+designCell+'</td>'+
@@ -874,10 +917,6 @@ function viewOrders(){
     '</tr></thead><tbody>'+body+'</tbody></table></div></div>';
 }
 
-function viewSimple(title, text){
-  return '<div class="view"><div class="panel"><div class="panel-b" style="padding:40px"><div class="panel-t" style="font-size:18px;margin-bottom:8px">'+title+'</div><p class="muted" style="font-size:14px;max-width:520px;line-height:1.6">'+text+'</p></div></div></div>';
-}
-
 /* ───────────────────────── settings ───────────────────────── */
 // Brand logos (inline SVG) + per-method placeholder/help shown in Settings.
 var PAY_BRAND = {
@@ -887,6 +926,93 @@ var PAY_BRAND = {
   applepay: { logo:'<svg viewBox="0 0 46 46"><rect width="46" height="46" rx="12" fill="#000"/><g transform="translate(11,10.5)"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" fill="#fff"/></g></svg>', placeholder:'phone or email', help:'The phone or email for Apple Pay. Customers copy it to send in Messages.' }
 };
 var PAY_ORDER = ['venmo','zelle','cashapp','applepay'];
+
+// Little status pill under the Shippo key, driven by the key prefix so Paige
+// can see at a glance whether she's on a test key (SAMPLE labels) or live.
+function shippoBadge(v){
+  v = (v||'').trim();
+  if(/^shippo_test_/.test(v)) return '<span class="pill" style="background:#FBF3E4;color:#9A7B2E"><span class="pdot" style="background:#C79A3A"></span>Test key · labels print “SAMPLE”</span>';
+  if(/^shippo_live_/.test(v)) return '<span class="pill" style="background:#EAF3EC;color:#4B7C56"><span class="pdot" style="background:#4B7C56"></span>Live key · buys real postage</span>';
+  if(v) return '<span class="pill" style="background:#F3EEF7;color:#6B5B8A"><span class="pdot" style="background:#8A76B0"></span>Custom key</span>';
+  return '<span class="pill" style="background:#F4EFEA;color:#8A7A6A"><span class="pdot" style="background:#B7A896"></span>No key set — using the server’s saved key</span>';
+}
+
+function viewIntegrations(){
+  var on = String(state.settings.shippo_enabled) !== 'false';
+  var key = state.settings.shippo_api_key || '';
+  var g = function(k, d){ return state.settings[k] || (d||''); };
+  var shippoCard =
+    '<div class="panel" style="max-width:680px">'+
+      '<div class="panel-h"><div class="panel-t">Shipping · Shippo'+
+        '<small>Your Shippo API key buys the USPS label for every ship-to-me order. Paste a key from your Shippo dashboard — a <b>shippo_test_…</b> key prints “SAMPLE” labels, a <b>shippo_live_…</b> key buys real postage. The return address below prints as the sender. Leave the key blank to keep using the key already saved on the server.</small></div>'+
+        '<button class="switch'+(on?' on':'')+'" data-shippo-toggle role="switch" aria-checked="'+(on?'true':'false')+'"><span class="switch-dot"></span></button>'+
+      '</div>'+
+      '<div class="panel-b">'+
+        '<div data-shippo-fields'+(on?'':' style="display:none"')+'>'+
+          '<div class="nt-lbl">Shippo API key</div>'+
+          '<input class="input" data-shippo-key value="'+esc(key)+'" placeholder="shippo_test_… or shippo_live_…" autocomplete="off" autocapitalize="off" spellcheck="false">'+
+          '<div style="margin-top:8px" data-shippo-badge>'+shippoBadge(key)+'</div>'+
+          '<div style="margin-top:18px;border-top:1px solid var(--line,#EEE3DA);padding-top:14px">'+
+            '<div class="panel-t" style="font-size:14px;margin-bottom:2px">Return address</div>'+
+            '<p class="muted" style="font-size:13px;margin:0 0 12px">Printed as the sender on every label; Shippo requires it (including a phone) to buy postage.</p>'+
+            '<div class="nt-lbl">Name / business</div>'+
+            '<input class="input" data-shipfrom-name value="'+esc(g('ship_from_name'))+'" placeholder="Paige Madden Nails">'+
+            '<div class="nt-lbl" style="margin-top:10px">Street address</div>'+
+            '<input class="input" data-shipfrom-street1 value="'+esc(g('ship_from_street1'))+'" placeholder="540 Northshore Ct">'+
+            '<div class="nt-lbl" style="margin-top:10px">Apt / unit (optional)</div>'+
+            '<input class="input" data-shipfrom-street2 value="'+esc(g('ship_from_street2'))+'" placeholder="">'+
+            '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">'+
+              '<div style="flex:2;min-width:150px"><div class="nt-lbl">City</div><input class="input" data-shipfrom-city value="'+esc(g('ship_from_city'))+'" placeholder="Lake Orion"></div>'+
+              '<div style="flex:1;min-width:70px"><div class="nt-lbl">State</div><input class="input" data-shipfrom-state value="'+esc(g('ship_from_state'))+'" placeholder="MI" maxlength="2" style="text-transform:uppercase"></div>'+
+              '<div style="flex:1;min-width:90px"><div class="nt-lbl">ZIP</div><input class="input" data-shipfrom-zip value="'+esc(g('ship_from_zip'))+'" placeholder="48362" inputmode="numeric"></div>'+
+            '</div>'+
+            '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">'+
+              '<div style="flex:1;min-width:90px"><div class="nt-lbl">Country</div><input class="input" data-shipfrom-country value="'+esc(g('ship_from_country','US'))+'" placeholder="US" maxlength="2" style="text-transform:uppercase"></div>'+
+              '<div style="flex:2;min-width:150px"><div class="nt-lbl">Return phone</div><input class="input" data-shipfrom-phone value="'+esc(g('ship_from_phone'))+'" placeholder="(248) 555-0100" inputmode="tel"></div>'+
+            '</div>'+
+            '<div class="nt-lbl" style="margin-top:10px">Return email (not printed on the label)</div>'+
+            '<input class="input" data-shipfrom-email value="'+esc(g('ship_from_email'))+'" placeholder="paigemaddennails@gmail.com" autocomplete="off" autocapitalize="off" spellcheck="false">'+
+          '</div>'+
+          '<div style="margin-top:16px"><button class="btn" data-integrations-save>Save</button></div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+
+  return '<div class="view">'+
+    shippoCard+
+    '<div class="panel" style="max-width:680px;margin-top:16px"><div class="panel-b" style="padding:18px"><div class="panel-t" style="font-size:14px;margin-bottom:4px">More integrations</div><p class="muted" style="font-size:13.5px">Email (Resend) and order alerts run on the server. As you add other shipping providers, they’ll show up here as their own cards.</p></div></div>'+
+  '</div>';
+}
+
+function saveIntegrations(btn){
+  var tog = document.querySelector('[data-shippo-toggle]');
+  var enabled = tog ? tog.classList.contains('on') : true;
+  var v = function(sel){ var el=document.querySelector(sel); return el ? el.value.trim() : ''; };
+  var vals = {
+    shippo_enabled:    enabled ? 'true' : 'false',
+    shippo_api_key:    v('[data-shippo-key]'),
+    ship_from_name:    v('[data-shipfrom-name]'),
+    ship_from_street1: v('[data-shipfrom-street1]'),
+    ship_from_street2: v('[data-shipfrom-street2]'),
+    ship_from_city:    v('[data-shipfrom-city]'),
+    ship_from_state:   v('[data-shipfrom-state]').toUpperCase(),
+    ship_from_zip:     v('[data-shipfrom-zip]'),
+    ship_from_country: (v('[data-shipfrom-country]')||'US').toUpperCase(),
+    ship_from_phone:   v('[data-shipfrom-phone]'),
+    ship_from_email:   v('[data-shipfrom-email]')
+  };
+  btn.disabled=true; var orig=btn.textContent; btn.innerHTML='<span class="spin"></span>';
+  Promise.all(Object.keys(vals).map(function(k){
+    return sb.from('app_settings').update({value:vals[k]}).eq('key',k);
+  })).then(function(rs){
+    btn.disabled=false; btn.textContent=orig;
+    var err=rs.filter(function(r){return r.error;})[0];
+    if(err){ toast('Couldn’t save', err.error.message,'err'); return; }
+    Object.keys(vals).forEach(function(k){ state.settings[k]=vals[k]; });
+    toast('Integrations saved', enabled?'Shipping is on':'Shipping is off','ok');
+    render();
+  });
+}
 
 function viewSettings(){
   var methods = PAY_ORDER.map(function(id){
@@ -1906,6 +2032,332 @@ function copyLeadEmail(email){
   }catch(e){ toast('Copy this', email,'ok'); }
 }
 
+/* ───────────────────────── customers (lightweight CRM) ───────────────────────── */
+// Customers are DERIVED from orders — no customers table. A person "becomes a
+// customer" when an order of theirs reaches Completed. Identity is a normalized
+// key so the same person's orders group together across visits.
+//
+// Known limitation (self-heals): a legacy order with only a phone and a later
+// order with an email land under two keys — both name and email have been
+// required at checkout since 2026-07-25, so new orders always carry an email.
+function custKey(o){
+  var e = String(o.email||'').trim().toLowerCase();
+  if(e) return 'e:'+e;
+  var d = String(o.phone||'').replace(/\D/g,'');
+  if(d.length===11 && d.charAt(0)==='1') d = d.slice(1);
+  if(d) return 'p:'+d;
+  return 'n:'+String(o.customer_name||'').trim().toLowerCase();
+}
+// completed_at is stamped by a DB trigger, but old completed rows may predate it.
+function doneAt(o){ return new Date(o.completed_at || o.created_at).getTime(); }
+// Most common value across orders; ties go to the most recent (arr is newest-first).
+function custMode(arr, field){
+  var counts={}, best=null, bestN=0;
+  arr.forEach(function(o){ var v=o[field]; if(!v) return; counts[v]=(counts[v]||0)+1; if(counts[v]>bestN){ bestN=counts[v]; best=v; } });
+  return best;
+}
+// Most recent non-empty value of a field across a newest-first order list.
+function custField(orders, f){ for(var i=0;i<orders.length;i++){ var v=String(orders[i][f]||'').trim(); if(v) return v; } return ''; }
+
+function buildCustomers(){
+  var byKey = {};
+  state.orders.forEach(function(o){
+    if(o.source==='sample') return;   // Paige's test orders aren't customers
+    if(o.gift_shipment_id) return;    // $0 "mail the gift card" task rows
+    var k = custKey(o);
+    var c = byKey[k]; if(!c){ c = byKey[k] = { key:k, orders:[], completed:[] }; }
+    c.orders.push(o);
+    if(o.status==='completed') c.completed.push(o);
+  });
+  var reengageDays = parseInt(state.settings.reengage_delay_days,10) || 30;
+  var list = [];
+  Object.keys(byKey).forEach(function(k){
+    var c = byKey[k];
+    // "Completed ⇒ customer": mid-pipeline or cancelled-only people stay in Orders.
+    if(!c.completed.length){ delete byKey[k]; return; }
+    c.orders.sort(function(a,b){ return new Date(b.created_at)-new Date(a.created_at); });
+    c.completed.sort(function(a,b){ return doneAt(b)-doneAt(a); });
+    var latest = c.orders[0];
+    c.name  = latest.customer_name || '—';
+    c.email = custField(c.orders,'email');
+    c.phone = custField(c.orders,'phone');
+    c.n     = c.completed.length;
+    // Gross LTV: full order value (set + ship + rush), matching the Dashboard's
+    // "Revenue (completed)" KPI. Gift-card cash is tracked as its own stream.
+    c.ltv   = c.completed.reduce(function(s,o){ return s+orderValue(o); },0);
+    c.aov   = c.n ? c.ltv/c.n : 0;
+    c.firstAt = doneAt(c.completed[c.completed.length-1]);
+    c.lastAt  = doneAt(c.completed[0]);
+    c.daysSince = Math.max(0, Math.floor((Date.now()-c.lastAt)/864e5));
+    c.avgGapDays = c.n>1 ? Math.round((c.lastAt-c.firstAt)/864e5/(c.n-1)) : null;
+    c.hasOpen = c.orders.some(function(o){ return ['new','unpaid','in_progress','ready'].indexOf(o.status)>=0; });
+    c.optedOut = c.email ? isOptedOut(c.email) : false;
+    // Due = quiet past the reminder window AND actually reachable by the nudge
+    // system (has an email, not opted out) AND not already mid-order.
+    c.due = !!c.email && !c.optedOut && !c.hasOpen && c.daysSince >= reengageDays;
+    c.favShape = custMode(c.completed,'nail_shape');
+    c.favTier  = custMode(c.completed,'design_tier');
+    c.fulfil   = custMode(c.completed,'fulfillment');
+    c.latest   = latest;
+    list.push(c);
+  });
+  return { list:list, byKey:byKey };
+}
+
+var CUST_PILL = {
+  repeat: { label:'Repeat',          color:'#7C5CDA', bg:'#EDEAFB' },
+  due:    { label:'Due for reorder', color:'#C98A12', bg:'#FBF1DC' },
+  fresh:  { label:'New',             color:'#3B7DD8', bg:'#EAF1FC' },
+  unsub:  { label:'Unsubscribed',    color:'#8A7F87', bg:'#F0ECEF' }
+};
+function custPill(k){ var m=CUST_PILL[k]; return '<span class="pill" style="background:'+m.bg+';color:'+m.color+'"><span class="pdot" style="background:'+m.color+'"></span>'+m.label+'</span>'; }
+function custPills(c){
+  var p = c.n>=2 ? custPill('repeat') : custPill('fresh');
+  if(c.due) p += ' '+custPill('due');
+  if(c.optedOut) p += ' '+custPill('unsub');
+  if(c.hasOpen) p += ' <span class="chip" style="color:#0E9E8E" title="Has an order in progress">'+I.cart+'Active order</span>';
+  return p;
+}
+
+// Paired bars per calendar month: customers whose FIRST completed order landed
+// that month (new) vs customers completing an order whose first was earlier
+// (returning). Modeled on barChart()'s hand-rolled SVG.
+function custMonthChart(list){
+  var months=[], now=new Date();
+  for(var i=5;i>=0;i--){ var d=new Date(now.getFullYear(), now.getMonth()-i, 1); months.push({y:d.getFullYear(), m:d.getMonth(), label:d.toLocaleDateString('en-US',{month:'short'}), nw:0, ret:0}); }
+  function slot(t){ var x=new Date(t); for(var j=0;j<months.length;j++){ if(months[j].y===x.getFullYear()&&months[j].m===x.getMonth()) return months[j]; } return null; }
+  list.forEach(function(c){
+    var f=slot(c.firstAt); if(f) f.nw++;
+    var seen={};
+    c.completed.forEach(function(o){
+      var t=doneAt(o), x=new Date(t);
+      if(c.firstAt >= new Date(x.getFullYear(), x.getMonth(), 1).getTime()) return; // first order was this month → not returning
+      var k=x.getFullYear()+'-'+x.getMonth(); if(seen[k]) return; seen[k]=1;
+      var m=slot(t); if(m) m.ret++;
+    });
+  });
+  var max=1; months.forEach(function(m){ max=Math.max(max, m.nw, m.ret); });
+  var W=640, H=180, pad=8, gw=(W-pad*2)/months.length, bw=Math.min(34,(gw-18)/2);
+  var bars='', labels='', gl='';
+  for(var g=1;g<=3;g++){ var gy=pad+(H-pad*2)*(g/4); gl+='<line x1="0" y1="'+gy.toFixed(1)+'" x2="'+W+'" y2="'+gy.toFixed(1)+'" stroke="rgba(95,70,63,0.07)" stroke-width="1"/>'; }
+  months.forEach(function(m,idx){
+    var cx=pad+idx*gw+gw/2;
+    var h1=(H-pad*2)*(m.nw/max), h2=(H-pad*2)*(m.ret/max);
+    bars+='<rect x="'+(cx-bw-2).toFixed(1)+'" y="'+(H-pad-Math.max(h1,m.nw?3:0)).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(h1,m.nw?3:0).toFixed(1)+'" rx="4" fill="url(#bgc1)"><title>'+m.label+': '+m.nw+' new customer'+(m.nw===1?'':'s')+'</title></rect>';
+    bars+='<rect x="'+(cx+2).toFixed(1)+'" y="'+(H-pad-Math.max(h2,m.ret?3:0)).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+Math.max(h2,m.ret?3:0).toFixed(1)+'" rx="4" fill="#E8B6BA"><title>'+m.label+': '+m.ret+' returning</title></rect>';
+    labels+='<text x="'+cx.toFixed(1)+'" y="'+(H+13)+'" text-anchor="middle" font-size="9.5" fill="rgba(95,70,63,0.5)">'+m.label+'</text>';
+  });
+  return '<svg viewBox="0 0 '+W+' '+(H+18)+'" width="100%" preserveAspectRatio="none" style="display:block">'+
+    '<defs><linearGradient id="bgc1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#DC8289"/><stop offset="1" stop-color="#B46869"/></linearGradient></defs>'+
+    gl+bars+labels+'</svg>';
+}
+
+function viewCustomers(){
+  var model = buildCustomers(), list = model.list;
+  if(state.custSel){
+    var sel = model.byKey[state.custSel];
+    if(sel) return viewCustomerDetail(sel);
+    state.custSel = null;   // customer vanished (order deleted) → back to the list
+  }
+  var total = list.length;
+  var totalLtv = list.reduce(function(s,c){return s+c.ltv;},0);
+  var repeat = list.filter(function(c){return c.n>=2;});
+  var due = list.filter(function(c){return c.due;});
+  var reengageDays = parseInt(state.settings.reengage_delay_days,10) || 30;
+  var now = new Date();
+  var newThisMonth = list.filter(function(c){ var d=new Date(c.firstAt); return d.getFullYear()===now.getFullYear() && d.getMonth()===now.getMonth(); }).length;
+
+  var kpi = function(ic, icbg, iccol, label, val, sub){
+    return '<div class="kpi"><div class="kpi-top"><span class="kpi-ic" style="background:'+icbg+';color:'+iccol+'">'+ic+'</span>'+label+'</div>'+
+      '<div class="kpi-val">'+val+'</div><div class="kpi-sub">'+sub+'</div></div>';
+  };
+  var kpis = '<div class="kpis">'+
+    kpi(I.users,'#EAF1FC','#3B7DD8','Customers', total, newThisMonth?('+'+newThisMonth+' new this month'):'People with a completed order')+
+    kpi(I.spark,'#EDEAFB','#7C5CDA','Repeat rate', (total?Math.round(repeat.length/total*100):0)+'%', repeat.length+' ordered again')+
+    kpi(I.cash,'#E5F4EA','#2BA05A','Avg lifetime value', money(total?totalLtv/total:0), money(totalLtv)+' all-time revenue')+
+    kpi(I.bell,'#FBF1DC','#C98A12','Due for reorder', due.length, due.length?('quiet '+reengageDays+'+ days'):'All engaged')+
+  '</div>';
+
+  var top = list.slice().sort(function(a,b){return b.ltv-a.ltv;}).slice(0,5);
+  var top3Ltv = top.slice(0,3).reduce(function(s,c){return s+c.ltv;},0);
+  var conc = totalLtv ? Math.round(top3Ltv/totalLtv*100) : 0;
+  var topRows = top.length ? top.map(function(c){
+    return '<button class="nt-row" data-cust-open="'+esc(c.key)+'">'+avatar(c.name)+
+      '<span class="nt-row-main"><span class="nt-row-t">'+esc(c.name)+'</span><span class="nt-row-sub">'+c.n+' order'+(c.n===1?'':'s')+' · avg '+money(c.aov)+'</span></span>'+
+      '<span class="money">'+money(c.ltv)+'</span>'+
+      '<span class="nt-row-chev">'+I.chev+'</span></button>';
+  }).join('') : '<div class="muted" style="font-size:13px">No customers yet.</div>';
+
+  var legendDot = function(col,label){ return '<span class="chip"><span style="width:9px;height:9px;border-radius:50%;background:'+col+';display:inline-block"></span>'+label+'</span>'; };
+  var mid = '<div class="grid-2">'+
+    '<div class="panel"><div class="panel-h"><div class="panel-t">New vs returning<small>Customers completing orders · last 6 months</small></div>'+
+      '<div class="panel-tools" style="align-items:center;gap:12px">'+legendDot('var(--rose)','New')+legendDot('#E8B6BA','Returning')+'</div></div>'+
+      '<div class="panel-b">'+custMonthChart(list)+'</div></div>'+
+    '<div class="panel"><div class="panel-h"><div class="panel-t">Top customers<small>'+(conc?('Top 3 = '+conc+'% of all-time revenue'):'By lifetime value')+'</small></div></div>'+
+      '<div class="panel-b"><div class="nt-rows">'+topRows+'</div></div></div>'+
+  '</div>';
+
+  var segs = [{k:'all',label:'All',n:total},{k:'repeat',label:'Repeat',n:repeat.length},{k:'due',label:'Due for reorder',n:due.length}];
+  var tabs = segs.map(function(t){
+    return '<button class="tab '+(state.custSeg===t.k?'on':'')+'" data-cust-seg="'+t.k+'">'+t.label+'<span class="tnum">'+t.n+'</span></button>';
+  }).join('');
+
+  var q = state.custQ.trim().toLowerCase();
+  var rows = list.filter(function(c){
+    if(state.custSeg==='repeat' && c.n<2) return false;
+    if(state.custSeg==='due' && !c.due) return false;
+    if(!q) return true;
+    return c.name.toLowerCase().indexOf(q)>=0 || (c.email||'').toLowerCase().indexOf(q)>=0 || (c.phone||'').indexOf(q)>=0;
+  });
+  rows.sort(state.custSort==='spend' ? function(a,b){return b.ltv-a.ltv;}
+    : state.custSort==='count' ? function(a,b){return (b.n-a.n)||(b.ltv-a.ltv);}
+    : function(a,b){return b.lastAt-a.lastAt;});
+
+  var body = rows.length ? rows.map(function(c){
+    return '<tr data-cust-open="'+esc(c.key)+'">'+
+      '<td data-label="Customer"><div class="cust">'+avatar(c.name)+'<div><div class="cust-name">'+esc(c.name)+'</div><div class="muted" style="font-size:11.5px">'+esc(c.email||c.phone||'')+'</div></div></div></td>'+
+      '<td data-label="Last ordered">'+fmtDay(c.lastAt)+' <span class="muted hide-sm" style="font-size:11.5px">· '+(c.daysSince===0?'today':c.daysSince+'d ago')+'</span></td>'+
+      '<td data-label="Orders">'+c.n+'</td>'+
+      '<td data-label="Lifetime value"><span class="money">'+money(c.ltv)+'</span></td>'+
+      '<td data-label="Avg order" class="hide-sm"><span class="money">'+money(c.aov)+'</span></td>'+
+      '<td data-label="Status">'+custPills(c)+'</td>'+
+    '</tr>';
+  }).join('') : '<tr><td colspan="6"><div class="empty">'+I.users+'<div>'+(total?'No customers match this view.':'No customers yet — someone appears here once their first order is completed.')+'</div></div></td></tr>';
+
+  var sortSeg = '<div class="seg">'+
+    '<button data-cust-sort="recent" class="'+(state.custSort==='recent'?'on':'')+'">Recent</button>'+
+    '<button data-cust-sort="spend" class="'+(state.custSort==='spend'?'on':'')+'">Top spend</button>'+
+    '<button data-cust-sort="count" class="'+(state.custSort==='count'?'on':'')+'">Most orders</button>'+
+  '</div>';
+
+  var listPanel = '<div class="panel">'+
+    '<div class="panel-h" style="flex-wrap:wrap"><div class="panel-t">All customers<small>'+total+' total · a completed order makes a customer</small></div>'+
+      '<div class="panel-tools" style="align-items:center;flex-wrap:wrap">'+
+        '<div class="search">'+I.search+'<input id="custSearch" placeholder="Search customers…" value="'+esc(state.custQ)+'" style="width:190px"></div>'+
+        sortSeg+
+      '</div></div>'+
+    '<div class="panel-b"><div class="tabs" style="margin-bottom:10px">'+tabs+'</div>'+
+      '<div class="table-wrap"><table class="tbl"><thead><tr>'+
+        '<th>Customer</th><th>Last ordered</th><th>Orders</th><th>Lifetime value</th><th class="hide-sm">Avg order</th><th>Status</th>'+
+      '</tr></thead><tbody>'+body+'</tbody></table></div></div>'+
+  '</div>';
+
+  return '<div class="view">'+kpis+mid+listPanel+'</div>';
+}
+
+function viewCustomerDetail(c){
+  var kpi = function(ic, icbg, iccol, label, val, sub){
+    return '<div class="kpi"><div class="kpi-top"><span class="kpi-ic" style="background:'+icbg+';color:'+iccol+'">'+ic+'</span>'+label+'</div>'+
+      '<div class="kpi-val">'+val+'</div><div class="kpi-sub">'+sub+'</div></div>';
+  };
+  var gapSub = c.avgGapDays!=null ? ('orders every ~'+c.avgGapDays+' days') : 'one order so far';
+  var kpis = '<div class="kpis">'+
+    kpi(I.cash,'#E5F4EA','#2BA05A','Lifetime value', money(c.ltv), money(c.aov)+' avg per order')+
+    kpi(I.cart,'#EAF1FC','#3B7DD8','Completed orders', c.n, gapSub)+
+    kpi(I.clock,'#EDEAFB','#7C5CDA','Last ordered', ago(c.lastAt), fmtDay(c.lastAt))+
+    kpi(I.user,'#FBE9EA','#B46869','Customer since', fmtDay(c.firstAt), c.daysSince+' days since last order')+
+  '</div>';
+
+  // ---- contact card ----
+  var contact = '';
+  if(c.email) contact += '<div class="kv"><span class="k">'+I.mail+'</span><span class="v" style="min-width:0;overflow:hidden;text-overflow:ellipsis"><a href="mailto:'+esc(c.email)+'">'+esc(c.email)+'</a></span><button class="ico" style="margin-left:auto" data-lead-copy="'+esc(c.email)+'" title="Copy email">'+I.copy+'</button></div>';
+  if(c.phone) contact += '<div class="kv"><span class="k">'+I.phone+'</span><span class="v"><a href="tel:'+esc(c.phone)+'">'+esc(c.phone)+'</a></span><button class="ico" style="margin-left:auto" data-lead-copy="'+esc(c.phone)+'" title="Copy phone">'+I.copy+'</button></div>';
+  var addrO = null;
+  for(var i=0;i<c.orders.length;i++){ if(c.orders[i].address_line1){ addrO=c.orders[i]; break; } }
+  if(addrO){
+    var addr=[addrO.address_line1, addrO.address_line2, [addrO.city, addrO.region, addrO.postal_code].filter(Boolean).join(', ')].filter(Boolean).join(', ');
+    contact += '<div class="kv"><span class="k">'+I.pin+'</span><span class="v">'+esc(addr)+'</span></div>';
+  }
+  if(c.fulfil) contact += '<div class="kv"><span class="k">'+(c.fulfil==='shipping'?I.truck:I.bag)+'</span><span class="v">Usually '+(c.fulfil==='shipping'?'ships':'picks up')+'</span></div>';
+  if(c.favShape || c.favTier){
+    var tierName = (state.tiers.find(function(x){return x.id===c.favTier;})||{}).name || c.favTier || '';
+    contact += '<div class="kv"><span class="k">'+I.palette+'</span><span class="v">Usually orders '+esc(c.favShape||'—')+(tierName?' · '+esc(tierName):'')+'</span></div>';
+  }
+
+  // ---- sizes on file (latest completed order that has them) ----
+  var so=null; for(i=0;i<c.completed.length;i++){ if(c.completed[i].sizes){ so=c.completed[i]; break; } }
+  var sizesHtml = so
+    ? '<div class="sizes">'+['Thumb','Index','Middle','Ring','Pinky'].map(function(f){ var s=so.sizes||{}; return '<div class="size"><div class="fn">'+f+'</div><div class="sv">'+esc(s[f]!=null&&s[f]!==''?s[f]:'–')+'</div></div>'; }).join('')+'</div>'
+    : '<div class="muted" style="font-size:13px">No sizes on file yet.</div>';
+
+  // ---- marketing (reminder email status for this person) ----
+  var mk = '';
+  if(!c.email){
+    mk = '<div class="muted" style="font-size:13.5px;padding:10px 0">No email on file — reminder emails can’t reach this customer.</div>';
+  } else {
+    var ids={}; c.orders.forEach(function(o){ ids[o.id]=1; });
+    var nextSend = state.scheduled.find(function(s){ return ids[s.order_id] && (s.status==='pending'||s.status==='scheduled'); });
+    mk = '<div class="kv"><span class="k">Reminders</span><span class="v">'+
+        (c.optedOut ? custPill('unsub') : '<span class="pill" style="background:#E5F4EA;color:#2BA05A"><span class="pdot" style="background:#2BA05A"></span>Subscribed</span>')+
+      '</span><span style="margin-left:auto">'+
+        (c.optedOut
+          ? '<button class="btn-chip" data-resub="'+esc(c.email)+'">Resubscribe</button>'
+          : '<button class="btn-chip" data-unsub="'+esc(c.email)+'">Unsubscribe</button>')+
+      '</span></div>';
+    if(nextSend){
+      mk += '<div class="kv"><span class="k">Next nudge</span><span class="v">'+(nextSend.scheduled_for?fmtDay(nextSend.scheduled_for):'After the set is finished')+'</span><span style="margin-left:auto">'+sendPill(nextSend.status)+'</span></div>';
+    }
+    if(c.due){
+      var reengageDays = parseInt(state.settings.reengage_delay_days,10) || 30;
+      mk += '<div class="muted" style="font-size:12.5px;padding:9px 0 3px">Quiet for '+c.daysSince+' days — past the '+reengageDays+'-day reminder window.</div>';
+    }
+  }
+
+  // ---- notes (the one stored piece of customer data) ----
+  var note = state.custNotes[c.key] || '';
+  var notesPanel = '<div class="panel" style="margin-bottom:16px">'+
+    '<div class="panel-h"><div class="panel-t">Notes<small>Only you see this — preferences, payment quirks, anything worth remembering.</small></div></div>'+
+    '<div class="panel-b"><textarea class="input nt-area" data-cust-note rows="3" placeholder="e.g. Prefers almond, always pays Venmo, ordered a gift for her sister…">'+esc(note)+'</textarea>'+
+    '<div style="margin-top:10px"><button class="btn btn-sm" data-cust-note-save="'+esc(c.key)+'">Save note</button></div></div></div>';
+
+  // ---- order history (all their orders; cancelled greyed; tap → order drawer) ----
+  var histRows = c.orders.map(function(o){
+    var tierName2 = (state.tiers.find(function(x){return x.id===o.design_tier;})||{}).name || o.design_tier || '—';
+    return '<tr data-open="'+o.id+'"'+(o.status==='cancelled'?' style="opacity:.55"':'')+'>'+
+      '<td data-label="Order"><span class="oid">'+shortId(o)+'</span>'+(o.gift_card_id?' <span class="chip" style="color:#B46869" title="Paid with a gift card">'+I.gift+'</span>':'')+'</td>'+
+      '<td data-label="Date" class="muted">'+fmtDay(o.completed_at||o.created_at)+'</td>'+
+      '<td data-label="Design" class="hide-sm"><span class="chip" style="color:var(--ink-2)">'+I.palette+esc(o.nail_shape||'—')+'<span class="muted">· '+esc(tierName2)+'</span></span></td>'+
+      '<td data-label="Total"><span class="money">'+money(orderValue(o))+'</span></td>'+
+      '<td data-label="Status">'+statusPill(o.status)+'</td>'+
+    '</tr>';
+  }).join('');
+
+  var head = '<div class="cust-hero" style="display:flex;align-items:center;gap:14px;margin-bottom:16px;flex-wrap:wrap">'+
+    avatar(c.name)+
+    '<div><div style="font-family:var(--serif);font-size:24px;font-weight:600;line-height:1.1">'+esc(c.name)+'</div>'+
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:7px">'+custPills(c)+'</div></div></div>';
+
+  return '<div class="view">'+
+    '<button class="nt-back" data-cust-back>'+I.chev+'All customers</button>'+
+    head + kpis +
+    '<div class="grid-2">'+
+      '<div class="panel"><div class="panel-h"><div class="panel-t">Contact</div></div>'+
+        '<div class="panel-b"><div class="dr-card">'+contact+'</div>'+
+        '<div style="margin-top:14px"><div class="dr-sec-t">Sizes on file</div>'+sizesHtml+'</div></div></div>'+
+      '<div class="panel"><div class="panel-h"><div class="panel-t">Marketing<small>Reminder emails for this customer</small></div></div>'+
+        '<div class="panel-b"><div class="dr-card">'+mk+'</div></div></div>'+
+    '</div>'+
+    notesPanel+
+    '<div class="panel"><div class="panel-h"><div class="panel-t">Order history<small>'+c.orders.length+' order'+(c.orders.length===1?'':'s')+' · tap one to open it</small></div></div>'+
+      '<div class="panel-b" style="padding:0 0 4px"><table class="tbl"><thead><tr>'+
+        '<th>Order</th><th>Date</th><th class="hide-sm">Design</th><th>Total</th><th>Status</th>'+
+      '</tr></thead><tbody>'+histRows+'</tbody></table></div></div>'+
+  '</div>';
+}
+
+function saveCustomerNote(btn){
+  var key = btn.getAttribute('data-cust-note-save');
+  var ta = document.querySelector('[data-cust-note]');
+  var notes = ta ? ta.value.trim() : '';
+  btn.disabled = true; var orig = btn.textContent; btn.innerHTML = '<span class="spin"></span>';
+  sb.from('customer_notes').upsert({ key:key, notes:notes, updated_at:new Date().toISOString() }, { onConflict:'key' }).then(function(r){
+    btn.disabled = false; btn.textContent = orig;
+    if(r.error){ toast('Couldn’t save note', r.error.message, 'err'); return; }
+    state.custNotes[key] = notes;
+    toast('Note saved', '', 'ok');
+  });
+}
+
 /* ───────────────────────── drawer ───────────────────────── */
 function openOrder(id){
   state.drawerId = id;
@@ -2180,9 +2632,9 @@ function renderDrawer(){
           (o.email?'<button class="btn btn-line" data-unpaid-email="'+id+'" style="width:auto;flex:none;display:inline-flex;align-items:center;justify-content:center;gap:6px">'+I.mail+'Send reminder email</button>':'')+
         '</div>');
     sections.push({ id:'sec-pay', icon:I.cart, label:'Payment', open:false, badge:payBadge,
-      sub: gift>0 ? (due>0 ? money(due)+' due · '+money(gift)+' prepaid' : '🎁 Prepaid — nothing due') : money(orderValue(o))+' to collect', html:
+      sub: gift>0 ? (due>0 ? money(due)+' due · '+money(gift)+' prepaid' : 'Prepaid — nothing due') : money(orderValue(o))+' to collect', html:
       '<div class="dr-card">'+
-        (o.gift_card_id?'<div class="kv"><span class="k"><span class="chip" style="color:#B46869">🎁 Prepaid</span></span><span class="v muted">gift card</span></div>':'')+
+        (o.gift_card_id?'<div class="kv"><span class="k"><span class="chip" style="color:#B46869">'+I.gift+'Prepaid</span></span><span class="v muted">gift card</span></div>':'')+
         '<div class="kv"><span class="k">Set price</span><span class="v">'+money(orderSetPrice(o))+'</span></div>'+
         (Number(o.ship_fee)>0?'<div class="kv"><span class="k">Shipping</span><span class="v">'+money(o.ship_fee)+'</span></div>':'')+
         (Number(o.rush_fee)>0?'<div class="kv"><span class="k">Rush</span><span class="v">'+money(o.rush_fee)+'</span></div>':'')+
@@ -2455,6 +2907,7 @@ function render(){
     {k:'marketing', label:'Marketing', icon:I.spark},
     {k:'notifications', label:'Notifications', icon:I.bell},
     {k:'users', label:'Users Management', icon:I.users},
+    {k:'integrations', label:'Integrations', icon:I.plug},
     {k:'settings', label:'Settings', icon:I.cog}
   ];
   var navHtml = nav.map(function(n){
@@ -2462,16 +2915,17 @@ function render(){
       (n.count?'<span class="nav-count">'+n.count+'</span>':'')+'</button>';
   }).join('');
 
-  var titles = { dashboard:['Dashboard','Your studio at a glance'], orders:['Orders','Manage every custom request'], customers:['Customers',''], giftcards:['Gift Cards','Generate & track gift codes'], marketing:['Marketing','Reminder emails & repeat customers'], notifications:['Notifications','The wording of every automatic email'], users:['Users Management','Who can sign in to this admin'], settings:['Settings',''] };
+  var titles = { dashboard:['Dashboard','Your studio at a glance'], orders:['Orders','Manage every custom request'], customers:['Customers','Every customer, their orders & lifetime value'], giftcards:['Gift Cards','Generate & track gift codes'], marketing:['Marketing','Reminder emails & repeat customers'], notifications:['Notifications','The wording of every automatic email'], users:['Users Management','Who can sign in to this admin'], integrations:['Integrations','API keys & shipping setup'], settings:['Settings',''] };
   var t = titles[state.view]||['',''];
 
   var content = state.view==='dashboard'?viewDashboard()
     : state.view==='orders'?viewOrders()
-    : state.view==='customers'?viewSimple('Customers','Every order is grouped by customer here in a future update. For now, open any order to see full contact details and reach out by email or phone.')
+    : state.view==='customers'?viewCustomers()
     : state.view==='giftcards'?viewGiftCards()
     : state.view==='marketing'?viewMarketing()
     : state.view==='notifications'?viewNotifications()
     : state.view==='users'?viewUsers()
+    : state.view==='integrations'?viewIntegrations()
     : viewSettings();
 
   $('#root').innerHTML =
@@ -2504,9 +2958,16 @@ function render(){
 
 /* ───────────────────────── event wiring ───────────────────────── */
 function wire(){
-  document.querySelectorAll('[data-goto]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); state.view=b.getAttribute('data-goto'); state.sidebarOpen=false; state.notifOpen=false; state.ntSel=null; render(); window.scrollTo(0,0); }; });
+  document.querySelectorAll('[data-goto]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); state.view=b.getAttribute('data-goto'); state.sidebarOpen=false; state.notifOpen=false; state.ntSel=null; state.custSel=null; render(); window.scrollTo(0,0); }; });
   document.querySelectorAll('[data-nt-open]').forEach(function(b){ b.onclick=function(){ state.ntSel=b.getAttribute('data-nt-open'); render(); window.scrollTo(0,0); }; });
   document.querySelectorAll('[data-nt-back]').forEach(function(b){ b.onclick=function(){ state.ntSel=null; render(); window.scrollTo(0,0); }; });
+  document.querySelectorAll('[data-cust-open]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); state.custSel=b.getAttribute('data-cust-open'); render(); window.scrollTo(0,0); }; });
+  document.querySelectorAll('[data-cust-back]').forEach(function(b){ b.onclick=function(){ state.custSel=null; render(); window.scrollTo(0,0); }; });
+  document.querySelectorAll('[data-cust-seg]').forEach(function(b){ b.onclick=function(){ state.custSeg=b.getAttribute('data-cust-seg'); render(); }; });
+  document.querySelectorAll('[data-cust-sort]').forEach(function(b){ b.onclick=function(){ state.custSort=b.getAttribute('data-cust-sort'); render(); }; });
+  document.querySelectorAll('[data-cust-jump]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); state.view='customers'; state.custSel=b.getAttribute('data-cust-jump'); render(); window.scrollTo(0,0); }; });
+  document.querySelectorAll('[data-cust-note-save]').forEach(function(b){ b.onclick=function(){ saveCustomerNote(b); }; });
+  var cs=$('#custSearch'); if(cs) cs.oninput=function(){ state.custQ=cs.value; render(); var n=$('#custSearch'); if(n){ n.focus(); n.setSelectionRange(n.value.length,n.value.length); } };
   document.querySelectorAll('[data-filter]').forEach(function(b){ b.onclick=function(){ state.filter=b.getAttribute('data-filter'); render(); }; });
   document.querySelectorAll('[data-range]').forEach(function(b){ b.onclick=function(){ state.range=Number(b.getAttribute('data-range')); render(); }; });
   document.querySelectorAll('[data-open]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); state.notifOpen=false; openOrder(b.getAttribute('data-open')); }; });
@@ -2532,6 +2993,9 @@ function wire(){
   document.querySelectorAll('[data-reengage-save]').forEach(function(b){ b.onclick=function(){ saveReengageSettings(b); }; });
   document.querySelectorAll('[data-orders-pause-toggle]').forEach(function(b){ b.onclick=function(){ var on=!b.classList.contains('on'); b.classList.toggle('on',on); b.setAttribute('aria-checked',on?'true':'false'); }; });
   document.querySelectorAll('[data-orders-pause-save]').forEach(function(b){ b.onclick=function(){ saveOrderPauseSettings(b); }; });
+  document.querySelectorAll('[data-shippo-toggle]').forEach(function(b){ b.onclick=function(){ var on=!b.classList.contains('on'); b.classList.toggle('on',on); b.setAttribute('aria-checked',on?'true':'false'); var f=document.querySelector('[data-shippo-fields]'); if(f) f.style.display=on?'':'none'; }; });
+  document.querySelectorAll('[data-shippo-key]').forEach(function(inp){ inp.oninput=function(){ var badge=document.querySelector('[data-shippo-badge]'); if(badge) badge.innerHTML=shippoBadge(inp.value); }; });
+  document.querySelectorAll('[data-integrations-save]').forEach(function(b){ b.onclick=function(){ saveIntegrations(b); }; });
   document.querySelectorAll('[data-lead-copy]').forEach(function(b){ b.onclick=function(){ copyLeadEmail(b.getAttribute('data-lead-copy')); }; });
   document.querySelectorAll('[data-lead-notify]').forEach(function(b){ b.onclick=function(){ markLeadNotified(b.getAttribute('data-lead-notify')); }; });
   document.querySelectorAll('[data-lead-remove]').forEach(function(b){ b.onclick=function(){ removeLead(b.getAttribute('data-lead-remove')); }; });
@@ -2554,7 +3018,7 @@ function wire(){
 
 // close popovers on outside click / escape
 document.addEventListener('click', function(){ if(state.notifOpen){ state.notifOpen=false; renderNotif(); } });
-document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ if(state.drawerId||state.giftDrawerId){closeDrawer();} else if(state.notifOpen){state.notifOpen=false;renderNotif();} else if(state.sidebarOpen){state.sidebarOpen=false;var s=$('#sidebar');if(s)s.classList.remove('open');} } });
+document.addEventListener('keydown', function(e){ if(e.key==='Escape'){ if(state.drawerId||state.giftDrawerId){closeDrawer();} else if(state.view==='customers'&&state.custSel){state.custSel=null;render();} else if(state.notifOpen){state.notifOpen=false;renderNotif();} else if(state.sidebarOpen){state.sidebarOpen=false;var s=$('#sidebar');if(s)s.classList.remove('open');} } });
 
 /* ───────────────────────── boot ───────────────────────── */
 function start(session){
