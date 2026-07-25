@@ -1687,6 +1687,26 @@
     });
   }
 
+  // Gift-flow "Start over" — mirrors confirmReset/resetOrder for the gift wizard.
+  function hasGiftProgress() {
+    return !!(giftData.amountChosen || giftData.deliveryDone ||
+      giftData.recipName || giftData.buyerName || giftData.message);
+  }
+  function resetGift() {
+    giftData = blankGift(); step = 'welcome'; sending = false;
+    persist();
+    render();
+  }
+  function confirmGiftReset() {
+    if (!hasGiftProgress()) { resetGift(); return; }
+    confirmModal({
+      title: 'Start over?',
+      msg: 'This clears the gift amount and delivery details you’ve added and takes you back to the start.',
+      confirmLabel: 'Start over',
+      onConfirm: resetGift
+    });
+  }
+
   // On-brand confirm dialog (replaces the native confirm() — that gray
   // "site says…" box looks broken on the boutique site). Lives on document.body
   // so a render() that clears #root doesn't wipe it.
@@ -1751,21 +1771,25 @@
   function GiftScreen(animateActive) {
     var app = el('div', 'rb-app');
 
-    // Header — same brand + a live total pill.
+    // Header — identical to the order flow: logo + "Start over" on the left,
+    // a live total pill on the right.
     var head = el('div', 'rb-head');
     head.innerHTML =
-      '<div class="rb-brand"><img class="rb-brand__logo" src="logo.jpeg" alt="" /><span class="rb-brand__name">Paige Madden</span></div>' +
+      '<div class="rb-head__left">' +
+        '<img class="rb-brand__logo" src="logo.jpeg" alt="Paige Madden Nails" />' +
+        '<button class="rb-startover" type="button" data-restart aria-label="Start over — clear this gift">' +
+          Icon.restart + '<span>Start over</span>' +
+        '</button>' +
+      '</div>' +
       '<div class="rb-pill" data-pill>' + Icon.cart + '<span data-gpill></span></div>';
     app.appendChild(head);
+    head.querySelector('[data-restart]').onclick = confirmGiftReset;
     curPill = head.querySelector('[data-gpill]');
 
     // Scroll body — the three collapsing sections.
     var scroll = el('div', 'rb-scroll');
     curScroll = scroll; curActiveCard = null;
     buildGiftSections(scroll, animateActive);
-    var back = el('button', 'rb-restart'); back.type = 'button'; back.textContent = '← Back to start';
-    back.onclick = function () { step = 'welcome'; render(); };
-    scroll.appendChild(back);
     scroll.appendChild(el('div', 'rb-tail'));
     app.appendChild(scroll);
 
