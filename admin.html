@@ -220,7 +220,10 @@
   .drawer.show { transform: translateX(0); }
   .dr-head { display: flex; align-items: flex-start; gap: 12px; padding: 20px 22px 16px; padding-top: calc(20px + var(--safe-top)); border-bottom: 1px solid var(--line); background: var(--surface); }
   .dr-head .avatar { width: 44px; height: 44px; font-size: 15px; }
-  .dr-title { font-size: 17px; font-weight: 800; }
+  .dr-head-main { min-width: 0; flex: 1; }
+  /* Order number is the hero of the header — Paige reconciles payments by PM-### */
+  .dr-ordno { font-size: 30px; font-weight: 800; letter-spacing: .5px; color: var(--rose); line-height: 1.04; }
+  .dr-title { font-size: 15px; font-weight: 700; color: var(--ink-2); margin-top: 1px; }
   .dr-meta { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
   .dr-x { margin-left: auto; }
   .dr-body { overflow-y: auto; padding: 0 22px calc(26px + var(--safe-bottom)); flex: 1; }
@@ -1946,7 +1949,7 @@ function renderDrawer(){
       '</div>')) });
   if(isShip){
     sections.push({ id:'sec-ship', icon:I.pin, label:'Shipping', open:false, sub:shipAddrSub, html:shipAddrHtml });
-    sections.push({ id:'sec-label', icon:I.tag, label:'Shipping label', open:true, badge:shipLabelBadge, sub:shipLabelSub, html:shipLabelHtml });
+    sections.push({ id:'sec-label', icon:I.tag, label:'Shipping label', open:false, badge:shipLabelBadge, sub:shipLabelSub, html:shipLabelHtml });
   } else {
     // Pickup order — but let the admin switch it to shipping (customer changed
     // their mind). Collecting an address flips fulfillment='shipping', which
@@ -1973,7 +1976,7 @@ function renderDrawer(){
   var due = Math.max(0, orderValue(o) - gift);
   if(isGift){
     // A shipment of an already-paid gift card — nothing to collect.
-    sections.push({ id:'sec-gift', icon:I.gift, label:'Gift card', open:true, sub:'Mail the card',
+    sections.push({ id:'sec-gift', icon:I.gift, label:'Gift card', open:false, sub:'Mail the card',
       html:'<div class="dr-card"><div class="kv"><span class="k">Task</span><span class="v">Write the code on a card &amp; mail it</span></div>'+
         '<div class="kv"><span class="k">Mail to</span><span class="v">'+esc(o.ship_to_name||o.customer_name||'recipient')+'</span></div>'+
         '<div class="kv"><span class="k">Paid</span><span class="v" style="color:#0E7E5B">Already paid — nothing to collect</span></div></div>'+
@@ -1982,9 +1985,9 @@ function renderDrawer(){
     var collected = !!o.payment_collected, nothingDue = due<=0;
     var payBadge = nothingDue ? accBadge('Nothing due','ok',true) : (collected ? accBadge('Collected','ok',true) : accBadge('Not collected','warn'));
     var payToggle = nothingDue ? '' : (collected
-      ? '<div style="margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;gap:10px">'+(o.paid_at?'<span class="muted" style="font-size:12.5px">Collected '+fmtDate(o.paid_at)+'</span>':'<span class="muted" style="font-size:12.5px">Payment collected.</span>')+'<button class="btn-ghost" data-pay-collected="'+id+'" data-to="0" style="width:auto;display:inline;padding:4px 6px;font-size:12.5px">Mark not collected</button></div>'
+      ? '<div style="margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px">'+(o.paid_at?'<span class="muted" style="font-size:12.5px">Collected '+fmtDate(o.paid_at)+'</span>':'<span class="muted" style="font-size:12.5px">Payment collected.</span>')+'<button class="btn-line" data-pay-collected="'+id+'" data-to="0" style="width:auto;flex:none;padding:8px 14px;font-size:13px">Mark not collected</button></div>'
       : '<button class="btn" data-pay-collected="'+id+'" data-to="1" style="margin-top:12px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px">'+I.check+'Mark payment collected</button>');
-    sections.push({ id:'sec-pay', icon:I.cart, label:'Payment', open:true, badge:payBadge,
+    sections.push({ id:'sec-pay', icon:I.cart, label:'Payment', open:false, badge:payBadge,
       sub: gift>0 ? (due>0 ? money(due)+' due · '+money(gift)+' prepaid' : '🎁 Prepaid — nothing due') : money(orderValue(o))+' to collect', html:
       '<div class="dr-card">'+
         (o.gift_card_id?'<div class="kv"><span class="k"><span class="chip" style="color:#B46869">🎁 Prepaid</span></span><span class="v muted">gift card</span></div>':'')+
@@ -1994,7 +1997,7 @@ function renderDrawer(){
         (gift>0?'<div class="kv"><span class="k">Gift credit</span><span class="v" style="color:#0E7E5B">− '+money(gift)+'</span></div>':'')+
         '<div class="kv"><span class="k"><b>'+(gift>0?'Still to collect':'Total to collect')+'</b></span><span class="v"><b>'+money(due)+'</b></span></div>'+
       '</div>'+payToggle });
-    sections.push({ id:'sec-design', icon:I.palette, label:'Design', open:!isShip, sub:esc((o.nail_shape||'—')+' · '+tierName), html:
+    sections.push({ id:'sec-design', icon:I.palette, label:'Design', open:false, sub:esc((o.nail_shape||'—')+' · '+tierName), html:
       '<div class="dr-card"><div class="kv"><span class="k">Shape</span><span class="v">'+esc(o.nail_shape||'—')+'</span></div><div class="kv"><span class="k">Tier</span><span class="v">'+esc(tierName)+'</span></div></div>'+
       '<div style="margin-top:12px"><div class="dr-sec-t" style="margin-bottom:8px">Sizes</div><div class="sizes">'+sizeCells+'</div></div>' });
   }
@@ -2019,7 +2022,7 @@ function renderDrawer(){
     '<div class="scrim show" data-close></div>'+
     '<aside class="drawer show">'+
       '<div class="dr-head">'+avatar(o.customer_name)+
-        '<div><div class="dr-title">'+esc(o.customer_name)+'</div><div class="dr-meta">'+shortId(o)+' · '+fmtDate(o.created_at)+(o.source==='sample'?' · <b style="color:var(--rose)">sample</b>':'')+'</div></div>'+
+        '<div class="dr-head-main"><div class="dr-ordno">'+shortId(o)+'</div><div class="dr-title">'+esc(o.customer_name)+'</div><div class="dr-meta">'+fmtDate(o.created_at)+(o.source==='sample'?' · <b style="color:var(--rose)">sample</b>':'')+'</div></div>'+
         '<button class="icon-btn dr-x" data-close>'+I.x+'</button>'+
       '</div>'+
       '<div class="dr-body">'+navHtml+bodyHtml+'</div>'+
