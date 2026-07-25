@@ -170,20 +170,26 @@ default nail sizes are recorded in Claude memory.
 
 **"Receipt Builder" redesign (2026-07-23, LIVE — supersedes the step wizard below):**
 `index.html` was rebuilt from the Claude Design handoff (`docs/design_handoff_order_flow_redesign/`)
-into a **single-scroll page**. Flow: Welcome → one scrolling page with four in-place sections
-(**Shape → Sizes → Inspo → Delivery & payment**) → confirmation/payment. Completed sections
+into a **single-scroll page**. Flow: Welcome → one scrolling page with five in-place sections
+(**Info → Shape → Sizes → Inspo → Delivery & payment**) → confirmation/payment. Completed sections
 collapse to editable "receipt rows"; the active one is an editor card; not-yet-reached ones are
 dashed placeholders. A fixed header carries the logo + a live **total pill**; a fixed footer CTA
 runs a per-section state machine. **Pricing is deterministic — NO AI:** the "no nail art / 1–2
 solid colors" toggle → Classic **$40**, otherwise Custom **$50** (a photo is required either way).
-State lives in one `data` object with `active` (1–4) + completion flags; the screen re-renders on
+State lives in one `data` object with `active` (1–5) + completion flags; the screen re-renders on
 section transitions and updates in place (footer/pill/summary) on same-section edits so typing
-never loses focus. See [[receipt-builder-pricing]].
+never loses focus. See [[receipt-builder-pricing]]. **The section count/numbers are hardcoded in
+several coupled places — `nextIncomplete`, `buildSections`, `computeFooter`, `cardHead` ("N of 5"),
+`paintPill` (total shows on the last section), the `receiptRow` kind→number map, and `reorder.html`'s
+handoff blob + `STORAGE_KEY` — so adding/reordering a section means re-numbering all of them and
+bumping `STORAGE_KEY` (currently `pmn-order-v3`) so stale carts don't mis-map.** See [[info-section-added]].
 
 *Deliberately dropped from the design vs. the prior wizard (flag to Jeremy — easy to restore):*
-(1) **email field** — delivery collects name + phone only, so the customer no longer gets the
-`send-order-confirmation` "order received" email (the fire-and-forget call is kept but has no
-address to send to); (2) the **inspo-link** field — a photo is now required, not "photo OR link";
+(1) ~~**email field**~~ — **RESTORED. The email field was re-added and the "order received"
+email works end-to-end** (`data.email` → `create_order` `p_email` → `send-order-confirmation`
+reads it from the order row → Resend; the `new` template is enabled). As of **2026-07-25** contact
+capture is its own **Info** step 1 (name/phone/email, required) — see [[info-section-added]]. *Do not
+trust older claims that this email is broken.* (2) the **inspo-link** field — a photo is now required, not "photo OR link";
 (3) the separate **Instagram gallery** screen (welcome keeps small IG/TikTok chips); (4) the
 desktop **brand-rail** two-pane (now a centered ~480px column). **Preserved & verified:** Supabase
 `create_order` RPC, photo upload, FormSubmit alert, **gift cards** (`check_gift_card`, compact
