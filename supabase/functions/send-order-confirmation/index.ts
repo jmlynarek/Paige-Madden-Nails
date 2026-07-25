@@ -49,12 +49,42 @@ function esc(s: unknown): string {
 // visual sync if either is restyled.
 const SITE_URL = "https://paigemadden.app";
 
+function money(n: unknown): string {
+  const v = Number(n || 0);
+  return "$" + v.toLocaleString("en-US", {
+    minimumFractionDigits: v % 1 ? 2 : 0,
+    maximumFractionDigits: 2,
+  });
+}
+
+type OrderRow = {
+  order_no?: number | null;
+  customer_name?: string | null;
+  public_token?: string | null;
+  quoted_price?: number | null;
+  tier_price?: number | null;
+  ship_fee?: number | null;
+  rush_fee?: number | null;
+  gift_credit?: number | null;
+};
+
 function renderEmailHtml(
   tpl: { heading?: string; body?: string },
-  order: { order_no?: number | null; customer_name?: string | null; public_token?: string | null },
+  order: OrderRow,
 ): string {
   const heading = esc(tpl.heading || "");
-  const bodyHtml = esc(tpl.body || "").replace(/\n/g, "<br>");
+  // Placeholder substitution — mirror of admin.html renderEmailHtml() so the
+  // Notifications-tab live preview and the real send agree. {{total}} = set
+  // price + shipping + rush, net of any gift credit (same math as orderValue).
+  const setPrice = Number(order.quoted_price != null ? order.quoted_price : (order.tier_price ?? 0));
+  const total = Math.max(0, setPrice + Number(order.ship_fee || 0) + Number(order.rush_fee || 0) - Number(order.gift_credit || 0));
+  const bodyRaw = (tpl.body || "")
+    .replace(/\{\{\s*reorder_link\s*\}\}/g, "")
+    .replace(/\{\{\s*total\s*\}\}/g, money(total))
+    .replace(/\{\{\s*order_no\s*\}\}/g, order.order_no != null ? "PM-" + order.order_no : "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  const bodyHtml = esc(bodyRaw).replace(/\n/g, "<br>");
   const orderNo = order.order_no != null ? "Order PM-" + order.order_no : "";
   const name = esc(order.customer_name || "there");
   // A permanent, login-free link to view this order and start a new one
@@ -113,7 +143,7 @@ Deno.serve(async (req) => {
 
   const { data: order, error: orderErr } = await admin
     .from("orders")
-    .select("id, order_no, customer_name, email, public_token")
+    .select("id, order_no, customer_name, email, public_token, quoted_price, tier_price, ship_fee, rush_fee, gift_credit")
     .eq("id", orderId)
     .maybeSingle();
   if (orderErr) return json({ error: "Could not load the order." }, 500);
