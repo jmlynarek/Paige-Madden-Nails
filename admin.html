@@ -1016,7 +1016,7 @@ function savePayment(id, btn){
 var NT_HINT = {
   new:             'Sent the moment an order comes in.',
   unpaid:          'Sent when you mark an order Unpaid — a gentle nudge that payment hasn’t arrived, so the set hasn’t been started. Includes the amount due and order number.',
-  in_progress:     'Sent when you start painting the set. Off by default.',
+  in_progress:     'Sent when you move an order to In Progress. Off by default — when you’re caught up it would land minutes after the Payment verified email. Turn it on when you’re backlogged, so customers who paid a while ago hear the moment their set is actually started.',
   ready:           'Sent to pickup customers when their set is ready to grab. Delivery orders skip this.',
   completed:       'Sent when an order is done — pickup: a thank-you; delivery: shipped, with the tracking link.',
   cancelled:       'Not sent automatically — use “Send cancellation email” on the order when you cancel.'
@@ -1609,9 +1609,11 @@ function redeemGiftCard(id){
 // Friendly, plain-English names + one-line descriptions for each template. The three
 // groups drive both the list and the detail header.
 var NT_GROUPS = [
-  { title:'Order updates', hint:'One email per order status.', items:[
+  { title:'Order updates', hint:'The emails an order sends as it moves along.', items:[
     {s:'new',         name:'Order received'},
     {s:'unpaid',      name:'Payment reminder'},
+    {s:'payment_verified', name:'Payment verified', pill:'Payment verified',
+      hint:'Sent when you tap “Mark payment collected” on an order. Confirms the money arrived and the set is officially in the queue (no promises about when you start).'},
     {s:'in_progress', name:'Set started'},
     {s:'ready',       name:'Ready for pickup'},
     {s:'completed',   name:'Completed / shipped'},
@@ -2300,8 +2302,16 @@ function updateOrder(id, patch, okMsg){
   });
 }
 // Toggle the standalone "money arrived" flag (separate from the status flow).
+// Flipping it ON also emails the customer ("Payment verified" template) — the
+// follow-through on the order-received email's "I'll confirm your payment".
+// Only a real not-collected → collected flip sends, and never once the order
+// is completed/cancelled (backfilling the flag for bookkeeping shouldn't email
+// "you're in the queue" after "your set shipped").
 function setPaymentCollected(id, val){
+  var o = state.orders.find(function(x){return x.id===id;});
+  var flipped = !!val && !!o && !o.payment_collected;
   updateOrder(id, { payment_collected: val, paid_at: val ? new Date().toISOString() : null }, val ? 'Payment marked collected' : 'Marked not collected');
+  if(flipped && o.status!=='completed' && o.status!=='cancelled') notifyCustomer(o, 'payment_verified');
 }
 function setStatus(id, status){
   var patch = { status: status };
