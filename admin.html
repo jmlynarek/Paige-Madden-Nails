@@ -1991,7 +1991,7 @@ function renderDrawer(){
       ? '<div style="margin-top:12px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px">'+(o.paid_at?'<span class="muted" style="font-size:12.5px">Collected '+fmtDate(o.paid_at)+'</span>':'<span class="muted" style="font-size:12.5px">Payment collected.</span>')+'<button class="btn-chip" data-pay-collected="'+id+'" data-to="0">Mark not collected</button></div>'
       : '<div style="margin-top:12px;display:flex;flex-wrap:wrap;gap:8px">'+
           '<button class="btn" data-pay-collected="'+id+'" data-to="1" style="width:auto;flex:1;min-width:190px;display:inline-flex;align-items:center;justify-content:center;gap:6px">'+I.check+'Mark payment collected</button>'+
-          (o.email?'<button class="btn-chip warn" data-unpaid-email="'+id+'">Send reminder</button>':'')+
+          (o.email?'<button class="btn btn-line" data-unpaid-email="'+id+'" style="width:auto;flex:none;display:inline-flex;align-items:center;justify-content:center;gap:6px">'+I.mail+'Send reminder email</button>':'')+
         '</div>');
     sections.push({ id:'sec-pay', icon:I.cart, label:'Payment', open:false, badge:payBadge,
       sub: gift>0 ? (due>0 ? money(due)+' due · '+money(gift)+' prepaid' : '🎁 Prepaid — nothing due') : money(orderValue(o))+' to collect', html:
