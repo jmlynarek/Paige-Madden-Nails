@@ -793,16 +793,22 @@
   // re-offering the payment tiles; the no-lastOrder fallback (cleared storage,
   // different browser) still shows a generic "payment received" with the code.
   var stripeReturnPaid = false, stripeReturnCode = '';
+  var giftReturnPaid = false, giftReturnRef = '';
   (function () {
     var q = new URLSearchParams(location.search);
-    if (q.get('paid') !== '1' && q.get('canceled') !== '1') return;
+    if (q.get('paid') !== '1' && q.get('giftpaid') !== '1' && q.get('canceled') !== '1') return;
     if (q.get('paid') === '1') {
       stripeReturnCode = q.get('code') || '';
       if (lastOrder) { lastOrder.paid = true; }
       else { stripeReturnPaid = true; }
       step = 'submitted';
+    } else if (q.get('giftpaid') === '1') {
+      giftReturnRef = q.get('ref') || '';
+      if (lastGift) { lastGift.paid = true; }
+      else { giftReturnPaid = true; }
+      step = 'giftdone';
     }
-    // ?canceled=1 just lands back on the (restored) submitted screen.
+    // ?canceled=1 just lands back on the (restored) confirmation screen.
     try { history.replaceState(null, '', location.pathname); } catch (e) {}
   })();
 
@@ -1720,10 +1726,10 @@
 
   // Shared payment-tile builder + copy wiring — used by the order confirmation
   // (SubmittedScreen) and the gift-purchase confirmation (GiftDoneScreen).
-  // orderId is only passed by SubmittedScreen: the card tile pays a specific
-  // ORDER through Stripe, so it never renders in the gift flow (gift purchases
-  // stay P2P + manual issue) or when the DB save failed (no id to charge).
-  function buildPayTiles(code, amountParam, orderId) {
+  // The card tile pays a specific thing through Stripe, so it needs either an
+  // order id (SubmittedScreen) or a PMG-### gift ref (GiftDoneScreen); with
+  // neither (e.g. the DB save failed) it simply doesn't render.
+  function buildPayTiles(code, amountParam, orderId, giftRef) {
     return PAY_METHODS.map(function (m) {
       var brand = PAY_BRAND[m.id];
       var raw = m.handle.trim();
@@ -1731,8 +1737,11 @@
       var display = brand.prefix + clean;
       var logo = PayLogo[m.id] || '';
       if (brand.mode === 'stripe') {
-        if (!orderId || !amountParam) return '';
-        return '<button class="rb-paytile rb-paytile--card" type="button" data-stripe-pay="' + esc(orderId) + '">' + logo +
+        if (!amountParam || (!orderId && !giftRef)) return '';
+        var payAttr = orderId
+          ? 'data-stripe-pay="' + esc(orderId) + '"'
+          : 'data-stripe-gift="' + esc(giftRef) + '"';
+        return '<button class="rb-paytile rb-paytile--card" type="button" ' + payAttr + '>' + logo +
           '<div class="rb-paytile__body"><div class="rb-paytile__name">' + esc(m.label) + '</div><div class="rb-paytile__handle">Card · Apple Pay · Cash App · verifies instantly</div></div>' +
           '<span class="rb-paytile__act"><span class="rb-paytile__act-txt">Pay ' + esc(money(Number(amountParam))) + '</span> ' + Icon.extern + '</span></button>';
       }
@@ -1751,7 +1760,7 @@
   // hand the browser over. The AMOUNT is decided server-side from the order
   // row; the id is just which order to pay. Errors leave the P2P tiles usable.
   function wireStripePay(app) {
-    var b = app.querySelector('[data-stripe-pay]');
+    var b = app.querySelector('[data-stripe-pay], [data-stripe-gift]');
     if (!b || !sb) return;
     b.onclick = function () {
       if (b.classList.contains('busy')) return;
@@ -1759,7 +1768,10 @@
       var act = b.querySelector('.rb-paytile__act');
       var orig = act.innerHTML;
       act.innerHTML = '<span class="btn__spin" aria-hidden="true"></span>';
-      sb.functions.invoke('create-checkout-session', { body: { order_id: b.getAttribute('data-stripe-pay') } })
+      var body = b.hasAttribute('data-stripe-pay')
+        ? { order_id: b.getAttribute('data-stripe-pay') }
+        : { gift_ref: b.getAttribute('data-stripe-gift') };
+      sb.functions.invoke('create-checkout-session', { body: body })
         .then(function (r) {
           var url = r && r.data && r.data.url;
           if (r.error || !url) throw (r.error || new Error('No checkout URL returned'));
@@ -2151,12 +2163,42 @@
 
   function GiftDoneScreen() {
     var g = lastGift || {};
-    if (!g.gift_ref) { step = 'gift'; return GiftScreen(); }
+    var giftPaid = !!(lastGift && lastGift.paid) || giftReturnPaid;
+    if (!g.gift_ref && !giftPaid) { step = 'gift'; return GiftScreen(); }
     var app = el('div', 'rb-app');
     var total = (Number(g.amount) || 0) + (Number(g.ship_fee) || 0);
-    var code = g.gift_ref;
+    var code = g.gift_ref || giftReturnRef;
     var amountParam = total ? String(total) : '';
-    var tiles = buildPayTiles(code, amountParam);
+
+    function restart() {
+      lastGift = null; giftData = blankGift(); step = 'welcome'; persist(); render();
+    }
+
+    // Back from Stripe with the gift paid (or reloaded after). The webhook
+    // marked the money server-side; Paige still issues and sends the gift.
+    if (giftPaid) {
+      app.innerHTML =
+        '<div class="rb-done">' +
+          '<div class="rb-done__top">' +
+            '<div class="rb-seal rb-pop" style="animation:pop .35s ease both">' + Icon.checkBig + '</div>' +
+            '<h2 class="rb-done__title">Payment <span class="script">received!</span></h2>' +
+            '<p class="rb-done__sub">You’re all set: Paige is preparing the gift and will send it shortly.</p>' +
+          '</div>' +
+          (lastGift
+            ? '<div class="rb-total">' +
+                '<div class="rb-total__label">Total paid</div>' +
+                '<div class="rb-total__amt">' + esc(money(total)) + '</div>' +
+                (code ? '<div class="rb-total__note" style="margin-top:8px">Gift <b>' + esc(code) + '</b> · you’ll get a receipt by email once it’s on its way.</div>' : '') +
+              '</div>'
+            : (code ? '<div class="rb-total"><div class="rb-total__label">Gift</div><div class="rb-total__amt">' + esc(code) + '</div><div class="rb-total__note" style="margin-top:8px">You’ll get a receipt by email once it’s on its way.</div></div>' : '')) +
+          '<div class="rb-done__foot">Gift cards never expire <span style="color:var(--rose)">' + Icon.heart + '</span></div>' +
+          '<button class="rb-restart" type="button" data-restart>Back to start</button>' +
+        '</div>';
+      app.querySelector('[data-restart]').onclick = restart;
+      return app;
+    }
+
+    var tiles = buildPayTiles(code, amountParam, null, g.gift_ref);
     var breakdown = (Number(g.ship_fee) > 0)
       ? money(Number(g.amount) || 0) + ' gift + ' + money(Number(g.ship_fee) || 0) + ' shipping' : '';
 
@@ -2175,7 +2217,7 @@
           '<div class="rb-codebox__req">Don’t skip this</div>' +
           '<div class="rb-codebox__label">Add this code to your payment note</div>' +
           '<button class="rb-codebox__code" type="button" data-copy="' + esc(code) + '"><span class="rb-code__t">' + esc(code) + '</span><span class="rb-code__ico">' + Icon.copy + '</span></button>' +
-          '<div class="rb-codebox__why">It’s the <b>only way</b> Paige can match your payment to your gift.</div>' +
+          '<div class="rb-codebox__why">It’s the <b>only way</b> Paige can match your payment to your gift. Paying by card? Skip it, cards match automatically.</div>' +
         '</div>' +
         (PAY_METHODS.length
           ? '<div class="rb-pays">' + tiles + '</div>'
@@ -2185,9 +2227,8 @@
       '</div>';
 
     wirePayCopy(app);
-    app.querySelector('[data-restart]').onclick = function () {
-      lastGift = null; giftData = blankGift(); step = 'welcome'; persist(); render();
-    };
+    wireStripePay(app);
+    app.querySelector('[data-restart]').onclick = restart;
     return app;
   }
 

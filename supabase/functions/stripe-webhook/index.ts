@@ -5,12 +5,17 @@
 // back to the site (a redirect can be faked; a signed webhook cannot).
 //
 // On checkout.session.completed / checkout.session.async_payment_succeeded
-// with payment_status='paid':
-//   payment_collected = true, paid_at = now, paid_via = 'stripe'
-// then sends the customer the "Payment verified" email: the same email
-// admin.html's setPaymentCollected() sends on a manual flip, with the same
-// guards (only a real not-collected -> collected flip, and never once the
-// order is completed/cancelled).
+// with payment_status='paid', keyed by the session's metadata:
+//   metadata.order_id (an order): payment_collected = true, paid_at,
+//     paid_via = 'stripe', then the "Payment verified" email: the same
+//     email admin.html's setPaymentCollected() sends on a manual flip,
+//     with the same guards (only a real not-collected -> collected flip,
+//     and never once the order is completed/cancelled).
+//   metadata.gift_id (a "Send a gift" purchase): stamps paid_at /
+//     paid_via = 'stripe' on the gift_cards row but leaves it 'pending'.
+//     Deliberately NO email and NO issue here: Paige's "Issue & send" in
+//     admin stays the single action that releases the code, emails the
+//     recipient/buyer, and spawns the physical card's shipment order.
 //
 // AUTH: public webhook (no Supabase JWT), so deploy with verify_jwt=false.
 // It authenticates the caller itself by verifying Stripe's signature
@@ -231,6 +236,32 @@ Deno.serve(async (req) => {
   }
   const session: any = event?.data?.object ?? {};
   if (session.payment_status !== "paid") return new Response("ok", { status: 200 });
+
+  // ---- gift purchase: mark the money as arrived, nothing else ----
+  const giftId = session?.metadata?.gift_id;
+  if (giftId) {
+    const { data: gift, error: gLoadErr } = await db
+      .from("gift_cards")
+      .select("id, purchase_ref, status, paid_at")
+      .eq("id", giftId)
+      .maybeSingle();
+    if (gLoadErr) return new Response("Gift lookup failed", { status: 500 }); // retryable
+    if (!gift) {
+      console.error("Stripe webhook for unknown gift", giftId, session.id);
+      return new Response("ok", { status: 200 });
+    }
+    if (gift.paid_at) return new Response("ok", { status: 200 }); // retry no-op
+    const { error: gUpdErr } = await db.from("gift_cards").update({
+      paid_at: new Date().toISOString(),
+      paid_via: "stripe",
+      stripe_session_id: session.id ?? null,
+    }).eq("id", gift.id);
+    if (gUpdErr) {
+      console.error("Failed to mark gift paid", gift.id, gUpdErr.message);
+      return new Response("Update failed", { status: 500 }); // let Stripe retry
+    }
+    return new Response("ok", { status: 200 });
+  }
 
   const orderId = session?.metadata?.order_id;
   if (!orderId) return new Response("ok", { status: 200 });

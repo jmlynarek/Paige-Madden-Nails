@@ -676,6 +676,11 @@ function subscribeRealtime(){
         var g=p.new, total=Number(g.amount||0)+Number(g.ship_fee||0);
         toast('New gift purchase — '+(g.purchase_ref||''), money(total)+' · awaiting payment', 'ok');
       }
+      // ...and when the Stripe webhook stamps a pending gift as paid by card.
+      if(p.eventType==='UPDATE' && p.new && p.new.status==='pending' && p.new.paid_via==='stripe' && p.new.paid_at && !(p.old && p.old.paid_at)){
+        var pg=p.new, ptotal=Number(pg.amount||0)+Number(pg.ship_fee||0);
+        toast('Gift paid by card · '+(pg.purchase_ref||''), money(ptotal)+' collected · ready to issue', 'ok');
+      }
       refreshGiftCards();
     })
     .on('postgres_changes', { event:'*', schema:'public', table:'waitlist_leads' }, function(p){
@@ -1357,16 +1362,16 @@ function sampleOrderFor(status){
   return o;
 }
 
-// The single source of truth for the branded email — used by both the
-// Settings live preview and (later) the real send.
-function renderEmailHtml(tpl, order){
+// One placeholder pass shared by the HTML body, the plain-text part, the
+// heading and the subject line. {{code}} only ever lands in the recipient
+// email; {{total}} is the amount still owed (set price + fees, net of any
+// gift credit). A {{from}} in the subject reads person-to-person, which
+// helps Gmail file the email under Primary instead of Promotions.
+function fillEmailPlaceholders(str, order){
   order = order || {};
-  var heading = esc(tpl.heading || '');
   var amtStr = order.gift_amount!=null ? money(order.gift_amount) : '$50';
-  // Gift-email placeholders ({{code}} only ever lands in the recipient email).
-  // Amount still owed on the order (set price + fees, net of any gift credit).
   var totalStr = money(Math.max(0, orderValue(order) - Number(order.gift_credit || 0)));
-  var bodyRaw = (tpl.body || '')
+  return (str || '')
     .replace(/\{\{\s*reorder_link\s*\}\}/g,'')
     .replace(/\{\{\s*amount\s*\}\}/g, amtStr)
     .replace(/\{\{\s*total\s*\}\}/g, totalStr)
@@ -1377,6 +1382,32 @@ function renderEmailHtml(tpl, order){
     .replace(/\{\{\s*message\s*\}\}/g, order.gift_message || '')
     .replace(/\n{3,}/g, '\n\n')   // collapse gaps left by an empty {{message}}
     .trim();
+}
+
+// Plain-text mirror of the branded email, sent alongside the HTML on every
+// send. HTML-only mail is a bulk-sender signal to Gmail; the text part costs
+// nothing and nudges classification toward Primary.
+function renderEmailText(tpl, order){
+  order = order || {};
+  var parts = ['Hi '+(order.customer_name || 'there')+','];
+  var body = fillEmailPlaceholders(tpl.body || '', order);
+  if(body) parts.push(body);
+  if(tpl.status==='gift_recipient' && order.gift_code){
+    parts.push('Your gift code: '+order.gift_code+'\nUse it at https://paigemadden.app');
+  }
+  if(tpl.status==='completed' && order.tracking_url){
+    parts.push('Track your package: '+order.tracking_url+(order.tracking_number ? '\nTracking: '+order.tracking_number : ''));
+  }
+  parts.push('With love, Paige');
+  return parts.join('\n\n');
+}
+
+// The single source of truth for the branded email — used by both the
+// Settings live preview and (later) the real send.
+function renderEmailHtml(tpl, order){
+  order = order || {};
+  var heading = esc(fillEmailPlaceholders(tpl.heading || '', order));
+  var bodyRaw = fillEmailPlaceholders(tpl.body || '', order);
   var bodyHtml = esc(bodyRaw).replace(/\n/g, '<br>');
   var orderNo = order.order_no!=null ? 'Order PM-'+order.order_no : '';
   var name = esc(order.customer_name || 'there');
@@ -1395,6 +1426,22 @@ function renderEmailHtml(tpl, order){
         '<a href="'+esc(order.tracking_url)+'" style="display:inline-block;background:#B46869;color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:13px 26px;border-radius:999px;font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif">Track your package</a>'+
       '</td></tr>'+
       (order.tracking_number ? '<tr><td style="padding:2px 0 0;color:#8C6A60;font-size:12.5px;font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif">Tracking: '+esc(order.tracking_number)+'</td></tr>' : '');
+  }
+  // Gift recipient: the code in an OTP-style box (Gmail reads those as
+  // transactional) + one modest CTA to the site. The box renders from the
+  // order row, so the code always reaches the recipient even if the editable
+  // body copy stops mentioning it.
+  var giftBlock = '';
+  if(tpl.status==='gift_recipient' && order.gift_code){
+    var SANS_G = "font-family:'Hanken Grotesk',Helvetica,Arial,sans-serif";
+    giftBlock =
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px"><tr><td align="center" style="border:1px solid rgba(95,70,63,0.18);border-radius:14px;background:#FAF6F2;padding:16px 20px">'+
+        '<div style="'+SANS_G+';font-size:11px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;color:rgba(95,70,63,0.62)">Your gift code</div>'+
+        '<div style="font-family:\'Courier New\',Courier,monospace;font-size:24px;font-weight:700;letter-spacing:3px;color:#5F463F;margin-top:6px">'+esc(order.gift_code)+'</div>'+
+      '</td></tr></table>'+
+      '<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:18px"><tr><td>'+
+        '<a href="https://paigemadden.app" style="display:inline-block;background:#B46869;color:#fff;text-decoration:none;font-weight:600;font-size:15px;padding:13px 26px;border-radius:999px;'+SANS_G+'">Use your gift</a>'+
+      '</td></tr></table>';
   }
   // Order-summary receipt (line items + status pill) for the two "money"
   // emails: amber "pending" on order-received, green check once verified —
@@ -1448,6 +1495,7 @@ function renderEmailHtml(tpl, order){
           '<h1 style="font-family:\'Cormorant Garamond\',Georgia,serif;font-weight:700;color:#5F463F;font-size:30px;line-height:1.2;margin:16px 0 4px">'+heading+'</h1>'+
           '<p style="font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif;color:#8C6A60;font-size:15.5px;line-height:1.65;margin:10px 0 0">Hi '+name+',</p>'+
           '<p style="font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif;color:#8C6A60;font-size:15.5px;line-height:1.65;margin:8px 0 0">'+bodyHtml+'</p>'+
+          giftBlock+
           receipt+
           (tracking ? '<table role="presentation" cellpadding="0" cellspacing="0" style="margin-top:20px">'+tracking+'</table>' : '')+
         '</td></tr>'+
@@ -1456,7 +1504,7 @@ function renderEmailHtml(tpl, order){
           '<p style="font-family:\'Cormorant Garamond\',Georgia,serif;color:#B46869;font-size:21px;margin:8px 0 0">With love, Paige</p>'+
           '<hr style="border:none;border-top:1px solid #EEE3DA;margin:22px 0 14px">'+
           '<p style="font-family:\'Hanken Grotesk\',Helvetica,Arial,sans-serif;color:#B8A79E;font-size:11.5px;line-height:1.55;margin:0">'+
-            (tpl.status==='gift_recipient' ? 'You\'re receiving this because someone sent you a Paige Madden Nails gift.'
+            (tpl.status==='gift_recipient' ? 'You\'re receiving this because '+esc(order.gift_from||'someone')+' sent you a Paige Madden Nails gift.'
              : (tpl.status==='gift_buyer_receipt'||tpl.status==='gift_card') ? 'You\'re receiving this because you bought a Paige Madden Nails gift card.'
              : 'You\'re receiving this because you placed an order with Paige Madden Nails.')+
           '</p>'+
@@ -1475,9 +1523,10 @@ function notifyCustomer(order, status){
   // the label; the customer hears from us at Completed (shipped + tracking).
   if(status==='ready' && order.fulfillment==='shipping') return;
   var html = renderEmailHtml(tpl, order);
+  var subject = fillEmailPlaceholders(tpl.subject || '', order);
   // Send via the send-order-email edge function (keeps the API key server-side).
   // Fire-and-report: never blocks the status change; surfaces failures as a toast.
-  sb.functions.invoke('send-order-email', { body:{ to:order.email, subject:tpl.subject, html:html } })
+  sb.functions.invoke('send-order-email', { body:{ to:order.email, subject:subject, html:html, text:renderEmailText(tpl, order) } })
     .then(function(r){
       if(r.error){
         var ctx=r.error.context;
@@ -1583,14 +1632,20 @@ function viewGiftCards(){
   var pendRows = pending.map(function(c){
     var total = Number(c.amount||0) + Number(c.ship_fee||0);
     var isCard = c.delivery_method==='card';
+    // Card-paid gifts (Stripe webhook) arrive pre-verified: green pill, no
+    // "did the money land?" homework — just Issue & send.
+    var gcPaid = !!c.paid_at;
+    var pill = gcPaid
+      ? '<span class="pill" style="background:#E5F4EA;color:#2BA05A"><span class="pdot" style="background:#2BA05A"></span>Paid · card</span>'
+      : gcPill('pending');
     var deliv = isCard ? 'Mail a physical card' : 'Email the recipient';
     var to = isCard
       ? esc(c.recipient_name||'—')+' · '+esc(giftAddr(c)||'no address on file')
       : esc(c.recipient_name||'—')+' · '+esc(c.recipient_email||'no email');
-    return '<div style="border:1px solid #F0E4C9;background:#FFFDF7;border-radius:12px;padding:14px 16px;margin-bottom:10px">'+
+    return '<div style="border:1px solid '+(gcPaid?'#BFE3CC':'#F0E4C9')+';background:'+(gcPaid?'#F7FCF8':'#FFFDF7')+';border-radius:12px;padding:14px 16px;margin-bottom:10px">'+
       '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">'+
-        '<div><span class="oid" style="letter-spacing:1px">'+esc(c.purchase_ref||'—')+'</span> '+gcPill('pending')+'</div>'+
-        '<div class="money">'+money(total)+' <span class="muted" style="font-weight:400">to collect</span></div>'+
+        '<div><span class="oid" style="letter-spacing:1px">'+esc(c.purchase_ref||'—')+'</span> '+pill+'</div>'+
+        '<div class="money">'+money(total)+' <span class="muted" style="font-weight:400">'+(gcPaid?'collected':'to collect')+'</span></div>'+
       '</div>'+
       '<div class="muted" style="margin-top:7px;font-size:13px">'+money(c.amount)+' gift'+
         (Number(c.ship_fee)?' + '+money(c.ship_fee)+' shipping':'')+' · '+esc(deliv)+'</div>'+
@@ -1607,7 +1662,7 @@ function viewGiftCards(){
   var pendingPanel = pending.length ?
     '<div class="panel" style="max-width:880px;border:1.5px solid #F0D9B0">'+
       '<div class="panel-h"><div class="panel-t">Pending gift purchases · '+pending.length+
-        '<small>Bought online, awaiting payment. Confirm the money landed (the <b>ref</b> is in the payment note), then <b>Issue &amp; send</b> — that releases the code and emails it out (or shows it to write on the card). The buyer gets a receipt either way.</small></div></div>'+
+        '<small>Bought online. For Venmo/Zelle, confirm the money landed (the <b>ref</b> is in the payment note); card payments verify themselves and show a green <b>Paid · card</b> pill. Then <b>Issue &amp; send</b>, which releases the code and emails it out (or shows it to write on the card). The buyer gets a receipt either way.</small></div></div>'+
       '<div class="panel-b">'+pendRows+'</div>'+
     '</div>' : '';
 
@@ -1699,7 +1754,7 @@ function generateGiftCard(btn){
     if(tpl && tpl.enabled!==false){
       var order={ customer_name:name||'there', email:email, gift_amount:rec.amount };
       var html=renderEmailHtml(tpl, order);
-      sb.functions.invoke('send-order-email',{ body:{ to:email, subject:tpl.subject, html:html } }).then(function(rr){
+      sb.functions.invoke('send-order-email',{ body:{ to:email, subject:fillEmailPlaceholders(tpl.subject||'', order), html:html, text:renderEmailText(tpl, order) } }).then(function(rr){
         if(rr.error){ toast('Receipt not sent', rr.error.message||'','err'); return; }
         var d=rr.data||{}; if(d.error){ toast('Receipt not sent', d.error,'err'); return; }
         toast('Receipt sent','→ '+email,'ok');
@@ -1849,7 +1904,12 @@ function issueGiftCard(id){
   var card=state.giftCards[i];
   var total=Number(card.amount||0)+Number(card.ship_fee||0);
   var isCard=card.delivery_method==='card';
-  if(!confirm('Confirm you received '+money(total)+' for '+(card.purchase_ref||'this gift')+'?\n\nThis releases the code'+(isCard?' to write on the card':' and emails it to the recipient')+' and sends the buyer a receipt.')) return;
+  // A card payment was already verified by the Stripe webhook, so the confirm
+  // skips the "did you receive the money?" question for those.
+  var ask = card.paid_at
+    ? money(total)+' for '+(card.purchase_ref||'this gift')+' was already collected by card.\n\nIssue now? This releases the code'+(isCard?' to write on the card':' and emails it to the recipient')+' and sends the buyer a receipt.'
+    : 'Confirm you received '+money(total)+' for '+(card.purchase_ref||'this gift')+'?\n\nThis releases the code'+(isCard?' to write on the card':' and emails it to the recipient')+' and sends the buyer a receipt.';
+  if(!confirm(ask)) return;
   var ts=new Date().toISOString();
   sb.from('gift_cards').update({status:'active', issued_at:ts}).eq('id',id).eq('status','pending').select().then(function(r){
     if(r.error){ toast('Couldn’t issue', r.error.message,'err'); return; }
@@ -1865,7 +1925,7 @@ function issueGiftCard(id){
         var ro={ customer_name:full.recipient_name||'there', email:full.recipient_email,
           gift_amount:full.amount, gift_code:full.code, gift_from:full.buyer_name||'A friend',
           gift_recipient:full.recipient_name||'you', gift_message:full.gift_message||'' };
-        sb.functions.invoke('send-order-email',{ body:{ to:full.recipient_email, subject:rt.subject, html:renderEmailHtml(rt, ro) } })
+        sb.functions.invoke('send-order-email',{ body:{ to:full.recipient_email, subject:fillEmailPlaceholders(rt.subject||'', ro), html:renderEmailHtml(rt, ro), text:renderEmailText(rt, ro) } })
           .then(function(rr){ if(rr.error){ toast('Recipient email failed', rr.error.message||'','err'); } else { toast('Sent to recipient','→ '+full.recipient_email,'ok'); } })
           .catch(function(e){ toast('Recipient email failed', String((e&&e.message)||e),'err'); });
       }
@@ -1897,7 +1957,7 @@ function issueGiftCard(id){
       if(bt && bt.enabled!==false){
         var bo={ customer_name:full.buyer_name||'there', email:full.buyer_email,
           gift_amount:full.amount, gift_recipient:full.recipient_name||'your recipient' };
-        sb.functions.invoke('send-order-email',{ body:{ to:full.buyer_email, subject:bt.subject, html:renderEmailHtml(bt, bo) } })
+        sb.functions.invoke('send-order-email',{ body:{ to:full.buyer_email, subject:fillEmailPlaceholders(bt.subject||'', bo), html:renderEmailHtml(bt, bo), text:renderEmailText(bt, bo) } })
           .then(function(rr){ if(rr.error){ toast('Buyer receipt failed', rr.error.message||'','err'); } else { toast('Receipt sent to buyer','→ '+full.buyer_email,'ok'); } })
           .catch(function(e){ toast('Buyer receipt failed', String((e&&e.message)||e),'err'); });
       }
@@ -2681,11 +2741,13 @@ function renderGiftDrawer(host){
   var secs = '';
 
   // ---- Overview ----
+  var gcPaid = !!c.paid_at;
   secs += '<div class="dr-sec-t" style="margin-bottom:8px">Overview</div>'+
     '<div class="dr-card">'+
       kv('Amount', money(c.amount))+
       (Number(c.ship_fee)>0 ? kv('Shipping', money(c.ship_fee)) : '')+
-      kv('<b>'+(c.status==='pending'?'To collect':'Total')+'</b>', '<b>'+money(total)+'</b>')+
+      kv('<b>'+(c.status==='pending' && !gcPaid ?'To collect':'Total')+'</b>', '<b>'+money(total)+'</b>')+
+      (gcPaid ? kv('Payment', '<span class="chip" style="color:#2BA05A">'+I.check+'Paid by card (Stripe)</span>') : '')+
       kv('Type', gcTypeChip(c))+
       kv('Status', gcPill(c.status))+
     '</div>';
@@ -2734,6 +2796,7 @@ function renderGiftDrawer(host){
   secs += '<div class="dr-sec-t" style="margin:16px 0 8px">Timeline</div>'+
     '<div class="dr-card">'+
       kv('Ordered', fmtDay(c.created_at))+
+      (c.paid_at ? kv('Paid', fmtDay(c.paid_at)+' · card') : '')+
       (c.issued_at ? kv('Issued', fmtDay(c.issued_at)) : '')+
       (c.redeemed_at ? kv('Redeemed', fmtDay(c.redeemed_at)) : '')+
     '</div>';
