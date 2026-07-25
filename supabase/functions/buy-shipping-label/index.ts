@@ -11,7 +11,12 @@
 // every order. Rush is a production-speed upgrade (Paige works on the set
 // faster) — it does NOT change the shipping service.
 //
-// Secrets (set with `supabase secrets set ...`):
+// Config (admin-editable in the Integrations tab; stored in app_settings):
+//   shippo_enabled, shippo_api_key, ship_from_name / ship_from_street1 /
+//   ship_from_street2 / ship_from_city / ship_from_state / ship_from_zip /
+//   ship_from_country / ship_from_phone / ship_from_email
+// Each value FALLS BACK to the matching env secret below when it's blank, so
+// the old secrets keep working until the key is set in the UI:
 //   SHIPPO_TOKEN      shippo_test_... or shippo_live_...
 //   SHIP_FROM_NAME / SHIP_FROM_STREET1 / SHIP_FROM_STREET2 /
 //   SHIP_FROM_CITY / SHIP_FROM_STATE / SHIP_FROM_ZIP /
@@ -40,25 +45,32 @@ function json(body: unknown, status = 200) {
 
 const env = (k: string) => Deno.env.get(k) ?? "";
 
-const SHIP_FROM = {
-  name: env("SHIP_FROM_NAME"),
-  street1: env("SHIP_FROM_STREET1"),
-  street2: env("SHIP_FROM_STREET2"),
-  city: env("SHIP_FROM_CITY"),
-  state: env("SHIP_FROM_STATE"),
-  zip: env("SHIP_FROM_ZIP"),
-  country: env("SHIP_FROM_COUNTRY") || "US",
-  phone: env("SHIP_FROM_PHONE"),
-  // Shippo requires a from-email to buy a label, but it is NOT printed on
-  // the package. Falls back to the admin email when the secret is blank.
-  email: env("SHIP_FROM_EMAIL") || ADMIN_EMAIL,
-};
+// Build the ship-from address, preferring the admin-editable app_settings
+// values and falling back to the env secret per field (blank = "use the
+// secret"). `cfg` is the app_settings map; may be empty (then all env).
+function buildShipFrom(cfg: Record<string, string>) {
+  const val = (k: string, envKey: string) =>
+    (cfg[k] ?? "").trim() || env(envKey);
+  return {
+    name: val("ship_from_name", "SHIP_FROM_NAME"),
+    street1: val("ship_from_street1", "SHIP_FROM_STREET1"),
+    street2: val("ship_from_street2", "SHIP_FROM_STREET2"),
+    city: val("ship_from_city", "SHIP_FROM_CITY"),
+    state: val("ship_from_state", "SHIP_FROM_STATE"),
+    zip: val("ship_from_zip", "SHIP_FROM_ZIP"),
+    country: val("ship_from_country", "SHIP_FROM_COUNTRY") || "US",
+    phone: val("ship_from_phone", "SHIP_FROM_PHONE"),
+    // Shippo requires a from-email to buy a label, but it is NOT printed on
+    // the package. Falls back to the admin email when both DB + secret blank.
+    email: val("ship_from_email", "SHIP_FROM_EMAIL") || ADMIN_EMAIL,
+  };
+}
 
-async function shippo(path: string, body: unknown) {
+async function shippo(path: string, body: unknown, token: string) {
   const res = await fetch(`${SHIPPO_BASE}${path}`, {
     method: "POST",
     headers: {
-      Authorization: `ShippoToken ${env("SHIPPO_TOKEN")}`,
+      Authorization: `ShippoToken ${token}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
@@ -88,14 +100,33 @@ Deno.serve(async (req) => {
     return json({ error: "Not authorized." }, 403);
   }
 
-  if (!env("SHIPPO_TOKEN")) {
-    return json({ error: "Shipping is not configured yet (missing SHIPPO_TOKEN)." }, 500);
+  // ---- load admin-editable config from app_settings (service role) ----
+  // Defensive: any read failure leaves cfg empty, so every field falls back
+  // to its env secret — i.e. a DB hiccup degrades to today's behavior.
+  const db = createClient(SUPABASE_URL, SERVICE_KEY);
+  const cfg: Record<string, string> = {};
+  try {
+    const { data: rows } = await db.from("app_settings").select("key,value");
+    (rows ?? []).forEach((r: any) => { cfg[r.key] = r.value ?? ""; });
+  } catch { /* fall back to env for everything */ }
+
+  // Strict "false" check: if the migration hasn't run, the key is undefined,
+  // so shipping is NOT considered disabled and behavior is unchanged.
+  if (cfg.shippo_enabled === "false") {
+    return json({ error: "Shipping is turned off in Integrations." }, 400);
   }
-  if (!SHIP_FROM.street1 || !SHIP_FROM.zip) {
-    return json({ error: "Return address is not configured yet (set the SHIP_FROM_* secrets)." }, 500);
+
+  const token = (cfg.shippo_api_key ?? "").trim() || env("SHIPPO_TOKEN");
+  const shipFrom = buildShipFrom(cfg);
+
+  if (!token) {
+    return json({ error: "Shipping is not configured yet — add your Shippo API key in Integrations." }, 500);
   }
-  if (!SHIP_FROM.phone) {
-    return json({ error: "A return phone number is required to buy labels (set the SHIP_FROM_PHONE secret)." }, 500);
+  if (!shipFrom.street1 || !shipFrom.zip) {
+    return json({ error: "Return address is not configured yet — set the ship-from address in Integrations." }, 500);
+  }
+  if (!shipFrom.phone) {
+    return json({ error: "A return phone number is required to buy labels — set it in Integrations." }, 500);
   }
 
   // ---- read the request ----
@@ -106,7 +137,6 @@ Deno.serve(async (req) => {
   if (!orderId) return json({ error: "Missing order_id." }, 400);
 
   // ---- load the order with the service role (bypasses RLS) ----
-  const db = createClient(SUPABASE_URL, SERVICE_KEY);
   const { data: order, error: oErr } = await db
     .from("orders").select("*").eq("id", orderId).single();
   if (oErr || !order) return json({ error: "Order not found." }, 404);
@@ -153,11 +183,11 @@ Deno.serve(async (req) => {
 
   // ---- create the shipment + fetch rates ----
   const ship = await shippo("/shipments/", {
-    address_from: SHIP_FROM,
+    address_from: shipFrom,
     address_to: addressTo,
     parcels: [parcelPayload],
     async: false,
-  });
+  }, token);
   if (!ship.ok) {
     return json({ error: "Shippo rejected the shipment.", detail: ship.data }, 502);
   }
@@ -179,7 +209,7 @@ Deno.serve(async (req) => {
     rate: chosen.object_id,
     label_file_type: "PDF_4x6",
     async: false,
-  });
+  }, token);
   if (!tx.ok || tx.data?.status !== "SUCCESS") {
     const msgs = (tx.data?.messages ?? []).map((m: any) => m.text).join(" ");
     return json({ error: "Could not buy the label." + (msgs ? " " + msgs : ""), detail: tx.data }, 502);

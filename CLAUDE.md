@@ -67,7 +67,7 @@ The customer-facing business runs off a dedicated free Gmail — **`paigemaddenn
 
 - **Order alerts (customer → business):** `index.html` posts each new order to **FormSubmit**, activated and using its **hashed endpoint** (`formsubmit.co/0e620942…`) so the Gmail isn't exposed in page source. Alerts land in `paigemaddennails@gmail.com`.
 - **Customer emails (business → customer):** `admin.html` `notifyCustomer()` → the `send-order-email` edge fn → **Resend**. Sends from **`Paige Madden Nails <orders@paigemadden.app>`** with **reply-to `paigemaddennails@gmail.com`**. The `paigemadden.app` domain is **verified in Resend** (DKIM/SPF/MX auto-added to Vercel DNS). Resend account is under the Gmail.
-- **Shipping (Shippo):** account under the Gmail. `buy-shipping-label` edge fn is **deployed** and working; currently on a **TEST key** (labels print "SAMPLE – DO NOT MAIL"). Always buys the **cheapest (Standard/Ground Advantage) USPS rate** for every order — rush is a *production*-speed upsell, not a shipping upgrade. Return address = 540 Northshore Ct, Lake Orion, MI 48362.
+- **Shipping (Shippo):** account under the Gmail. `buy-shipping-label` edge fn is **deployed** and working; currently on a **TEST key** (labels print "SAMPLE – DO NOT MAIL"). Always buys the **cheapest (Standard/Ground Advantage) USPS rate** for every order — rush is a *production*-speed upsell, not a shipping upgrade. Return address = 540 Northshore Ct, Lake Orion, MI 48362. **The Shippo key + return address are now admin-editable in the `admin.html` → Integrations tab** (stored in `app_settings`; see below); the edge fn reads those and falls back to the env secrets when they're blank, so swapping test→live no longer needs the dashboard.
 - **Edge functions live on Supabase** (deploy separately from Git): `buy-shipping-label`, `send-order-email`, `send-order-confirmation`. Deploy via the Supabase MCP `deploy_edge_function` or `supabase functions deploy <name>`. The `ADMIN_EMAIL` gate applies to `buy-shipping-label` + `send-order-email` (`jeremy@idealtraits.com`); `send-order-confirmation` is intentionally **anon-callable** but locked to sending only the `new` template to a given order's own on-file email.
 
 ## Config in the HTML (these are the load-bearing constants)
@@ -127,7 +127,7 @@ out of the repo and lives in **Supabase Edge Function secrets** (dashboard →
 Edge Functions → Secrets, or `supabase secrets set KEY=value`). Claude does not
 set these — the user does. Currently set:
 
-- **Shippo:** `SHIPPO_TOKEN` (test key), `SHIP_FROM_NAME/STREET1/CITY/STATE/ZIP/PHONE/COUNTRY/EMAIL`.
+- **Shippo:** `SHIPPO_TOKEN` (test key), `SHIP_FROM_NAME/STREET1/CITY/STATE/ZIP/PHONE/COUNTRY/EMAIL`. **These are now fallbacks:** the Integrations tab writes `shippo_api_key` / `shippo_enabled` / `ship_from_*` into `app_settings`, and `buy-shipping-label` prefers those per-field, using the env secret only when the DB value is blank (migration `0016_integrations_settings`). The key is stored as `app_settings.value` (readable by the authenticated admin via RLS) rather than a true secret — an accepted trade-off for in-UI editing.
 - **Resend:** `RESEND_API_KEY`, `MAIL_FROM` (`Paige Madden Nails <orders@paigemadden.app>`); `MAIL_REPLY_TO` defaults to the Gmail. For inbound forwarding: `RESEND_INBOUND_SECRET` (the webhook's `whsec_…` signing secret; `forward-inbound-email` rejects everything until it's set) and optional `INBOUND_FORWARD_TO` (defaults to the Gmail).
 - The Supabase **service-role** key is auto-injected into edge fns (`SUPABASE_SERVICE_ROLE_KEY`) — do not hardcode it.
 
@@ -232,7 +232,7 @@ confirmed S/M/L per-finger defaults and the rush-fee migration carried straight 
 - **DMARC on forwarded mail shows FAIL in Gmail (cosmetic, low-pri):** forwarded replies still
   land in the inbox because DKIM passes *and* aligns (`dkim=pass header.i=@paigemadden.app`), which
   carries DMARC. Not worth chasing unless forwards start hitting spam; if so, revisit alignment.
-- **Shippo is on a TEST key** — swap to a live key (dashboard) before real shipments.
+- **Shippo is on a TEST key** — swap to a live key **in admin → Integrations** (or the dashboard) before real shipments.
 - **Cash App handle** is still the placeholder `$cashtag`.
 - **Multi-admin shipped** — `admin_users` allowlist + Users Management tab (migration `0016`, `invite-admin` edge fn). The owner email `jeremy@idealtraits.com` remains hardcoded as a bootstrap fail-safe in `is_admin()`/`claim_admin_access()`/`admin.html`. Open follow-ups: point Supabase Auth SMTP at Resend so invite emails deliver reliably; deleting a user leaves a dormant `auth.users` account (harmless — is_admin() denies them; hard-delete would need a service-role edge action).
 - Anon has over-broad table grants (gated by RLS but worth tightening); Auth leaked-password protection is off.
