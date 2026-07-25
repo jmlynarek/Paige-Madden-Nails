@@ -712,7 +712,10 @@ function notifItems(){
 function filteredOrders(){
   var q=state.q.trim().toLowerCase();
   return state.orders.filter(function(o){
-    if(state.filter!=='all' && o.status!==state.filter) return false;
+    // "unpaid" filters by MONEY (payment not collected), matching the $ column;
+    // every other tab filters by workflow status.
+    if(state.filter==='unpaid'){ if(o.status==='cancelled' || o.gift_shipment_id || orderPaid(o)) return false; }
+    else if(state.filter!=='all' && o.status!==state.filter) return false;
     if(!q) return true;
     return (o.customer_name||'').toLowerCase().indexOf(q)>=0
         || (o.email||'').toLowerCase().indexOf(q)>=0
@@ -774,13 +777,16 @@ function viewDashboard(){
     return '<div class="kpi"><div class="kpi-top"><span class="kpi-ic" style="background:'+icbg+';color:'+iccol+'">'+ic+'</span>'+label+'</div>'+
       '<div class="kpi-val">'+val+'</div><div class="kpi-sub">'+sub+'</div></div>';
   };
-  // Needs-attention = new orders to review + unpaid orders awaiting payment.
-  var attn = c.new + (c.unpaid||0);
+  // Needs-attention = new orders to review + orders already past "New" whose
+  // money still hasn't been collected (same money logic as the $ indicators;
+  // new orders aren't double-counted — they're the first number).
+  var awaiting = state.orders.filter(function(o){ return ['new','cancelled'].indexOf(o.status)<0 && !o.gift_shipment_id && !orderPaid(o); }).length;
+  var attn = c.new + awaiting;
   var kpis = '<div class="kpis">'+
     kpi(I.cash,'#E5F4EA','#2BA05A','Revenue (completed)', money(revenue), c.completed+' completed order'+(c.completed===1?'':'s'))+
     kpi(I.spark,'#FBF1DC','#C98A12','Open pipeline', money(pipeline), (c.new+c.in_progress+c.ready)+' active')+
     kpi(I.cart,'#EAF1FC','#3B7DD8','Total orders', c.all, '<span class="trend '+(tr>=0?'up':'down')+'">'+(tr>=0?'▲':'▼')+' '+Math.abs(tr)+'%</span> last 7 days')+
-    kpi(I.bell,'#FBE9EA','#B46869','Needs attention', attn, attn?(c.new+' new'+(c.unpaid?' · '+c.unpaid+' unpaid':''))+' to handle':'All caught up')+
+    kpi(I.bell,'#FBE9EA','#B46869','Needs attention', attn, attn?(c.new+' new'+(awaiting?' · '+awaiting+' awaiting payment':''))+' to handle':'All caught up')+
   '</div>';
 
   var parts = ALL_STATUSES.map(function(k){ return {name:STATUS[k].label, v:c[k], color:STATUS[k].color}; });
@@ -889,12 +895,17 @@ function viewDashboard(){
 
 function viewOrders(){
   var c = counts();
+  // The "Unpaid" tab is the MONEY view: every real order whose payment hasn't
+  // been collected yet — exactly what the grey $ indicators show. (The Unpaid
+  // STATUS pill is narrower: Paige flagged it and a payment nudge was emailed.)
+  var moneyUnpaid = state.orders.filter(function(o){ return o.status!=='cancelled' && !o.gift_shipment_id && !orderPaid(o); }).length;
   var tabDef = [{k:'all',label:'All'}].concat(ALL_STATUSES.map(function(k){return {k:k,label:STATUS[k].label};}));
   var tabs = tabDef.map(function(t){
     var col = t.k==='all'? 'var(--rose)' : STATUS[t.k].color;
-    return '<button class="tab '+(state.filter===t.k?'on':'')+'" data-filter="'+t.k+'">'+
+    var n = t.k==='unpaid' ? moneyUnpaid : (c[t.k]||0);
+    return '<button class="tab '+(state.filter===t.k?'on':'')+'" data-filter="'+t.k+'"'+(t.k==='unpaid'?' title="Payment not collected yet — matches the $ column"':'')+'>'+
       (t.k==='all'?'':'<span class="tdot" style="background:'+col+'"></span>')+t.label+
-      '<span class="tnum">'+(c[t.k]||0)+'</span></button>';
+      '<span class="tnum">'+n+'</span></button>';
   }).join('');
 
   var rows = filteredOrders();
