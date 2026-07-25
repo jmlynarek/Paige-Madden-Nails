@@ -625,7 +625,7 @@ function refreshScheduled(){
 // Re-pull the waitlist (cheap; low volume) after any change.
 function refreshWaitlist(){
   sb.from('waitlist_leads').select('*').order('created_at',{ascending:true}).then(function(r){
-    if(!r.error){ state.waitlist = r.data || []; if(state.view==='settings') render(); }
+    if(!r.error){ state.waitlist = r.data || []; render(); } // render() keeps the bell badge live too
   });
 }
 
@@ -636,6 +636,18 @@ function counts(){
   return c;
 }
 function unseen(){ return state.orders.filter(function(o){ return !o.admin_seen; }); }
+// Everything worth surfacing in the topbar bell, newest first: unseen orders +
+// pending gift purchases (money to collect, a card to send) + waitlist signups you
+// haven't reached out to yet. Derived from workflow state — an item drops off the
+// bell once it's handled (order marked seen, gift issued/voided, lead notified).
+function notifItems(){
+  var items = [];
+  unseen().forEach(function(o){ items.push({ kind:'order', id:o.id, ts:o.created_at, order:o }); });
+  (state.giftCards||[]).forEach(function(g){ if(g.status==='pending') items.push({ kind:'gift', id:g.id, ts:g.created_at, gift:g }); });
+  (state.waitlist||[]).forEach(function(w){ if(!w.notified_at) items.push({ kind:'waitlist', id:w.id, ts:w.created_at, lead:w }); });
+  items.sort(function(a,b){ return new Date(b.ts||0) - new Date(a.ts||0); });
+  return items;
+}
 function filteredOrders(){
   var q=state.q.trim().toLowerCase();
   return state.orders.filter(function(o){
@@ -2009,16 +2021,35 @@ function delOrder(id){
 function renderNotif(){
   var host=$('#notifHost'); if(!host) return;
   if(!state.notifOpen){ host.innerHTML=''; return; }
-  var list = unseen();
-  var items = list.length ? list.map(function(o){
+  var list = notifItems();
+  var orderCount = list.filter(function(x){ return x.kind==='order'; }).length;
+  var items = list.length ? list.map(function(n){
+    if(n.kind==='gift'){
+      var g=n.gift, total=Number(g.amount||0)+Number(g.ship_fee||0);
+      return '<div class="ntf" data-notif-goto="giftcards">'+avatar(g.buyer_name||g.purchase_ref||'Gift')+
+        '<div class="ntf-main"><div class="ntf-t"><b>'+esc(g.buyer_name||'Someone')+'</b> bought a '+money(total)+' gift</div>'+
+        '<div class="ntf-time">Awaiting payment · '+ago(g.created_at)+'</div></div>'+
+        '<span class="ntf-new"></span></div>';
+    }
+    if(n.kind==='waitlist'){
+      var w=n.lead;
+      return '<div class="ntf" data-notif-goto="settings">'+avatar(w.name||w.email)+
+        '<div class="ntf-main"><div class="ntf-t"><b>'+esc(w.name||w.email||'Someone')+'</b> joined the waitlist</div>'+
+        '<div class="ntf-time">'+(w.name?esc(w.email)+' · ':'')+ago(w.created_at)+'</div></div>'+
+        '<span class="ntf-new"></span></div>';
+    }
+    var o=n.order;
+    var title = o.gift_shipment_id
+      ? '<b>'+esc(o.customer_name||'A gift card')+'</b> — gift card to mail'
+      : '<b>'+esc(o.customer_name)+'</b> placed a '+money(orderValue(o))+' order';
     return '<div class="ntf" data-open="'+o.id+'">'+avatar(o.customer_name)+
-      '<div class="ntf-main"><div class="ntf-t"><b>'+esc(o.customer_name)+'</b> placed a '+money(orderValue(o))+' order</div>'+
-      '<div class="ntf-time">'+esc(o.nail_shape||'')+' · '+ago(o.created_at)+'</div></div>'+
+      '<div class="ntf-main"><div class="ntf-t">'+title+'</div>'+
+      '<div class="ntf-time">'+(o.gift_shipment_id?'Ship the card':esc(o.nail_shape||'New order'))+' · '+ago(o.created_at)+'</div></div>'+
       '<span class="ntf-new"></span></div>';
   }).join('') : '<div class="empty" style="padding:34px">'+I.check+'<div>You’re all caught up.</div></div>';
 
   host.innerHTML = '<div class="pop"><div class="pop-h"><span class="pt">Activity</span>'+
-    (list.length?'<button class="clr" data-markall>Mark all read</button>':'')+'</div>'+
+    (orderCount?'<button class="clr" data-markall>Mark orders read</button>':'')+'</div>'+
     '<div class="pop-list">'+items+'</div></div>';
 }
 
@@ -2027,7 +2058,7 @@ function render(){
   if(!state.user){ return; }
   if(state.loading){ $('#root').innerHTML='<div class="loading-full"><div class="spin"></div></div>'; return; }
 
-  var c = counts(), un = unseen().length;
+  var c = counts(), un = notifItems().length;
   var nav = [
     {k:'dashboard', label:'Dashboard', icon:I.grid},
     {k:'orders', label:'Orders', icon:I.cart, count:c.all},
@@ -2089,6 +2120,7 @@ function wire(){
   document.querySelectorAll('[data-filter]').forEach(function(b){ b.onclick=function(){ state.filter=b.getAttribute('data-filter'); render(); }; });
   document.querySelectorAll('[data-range]').forEach(function(b){ b.onclick=function(){ state.range=Number(b.getAttribute('data-range')); render(); }; });
   document.querySelectorAll('[data-open]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); state.notifOpen=false; openOrder(b.getAttribute('data-open')); }; });
+  document.querySelectorAll('[data-notif-goto]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); state.notifOpen=false; state.ntSel=null; state.view=b.getAttribute('data-notif-goto'); render(); window.scrollTo(0,0); }; });
   document.querySelectorAll('[data-del]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); delOrder(b.getAttribute('data-del')); }; });
   document.querySelectorAll('[data-status]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); if(state.drawerId) setStatus(state.drawerId, b.getAttribute('data-status')); }; });
   document.querySelectorAll('[data-close]').forEach(function(b){ b.onclick=closeDrawer; });
