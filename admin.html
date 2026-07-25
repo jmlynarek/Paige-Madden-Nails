@@ -85,6 +85,7 @@
   .btn:hover { transform: translateY(-1px); box-shadow: 0 12px 26px rgba(180,104,105,.34); }
   .btn:active { transform: translateY(0); }
   .btn[disabled] { opacity: .55; pointer-events: none; }
+  .btn svg, .btn-line svg { width: 17px; height: 17px; flex: none; }
   .btn-ghost { background: transparent; color: var(--ink-2); box-shadow: none; font-weight: 600; }
   .btn-ghost:hover { transform: none; box-shadow: none; color: var(--rose); }
   .auth-msg { font-size: 13px; margin-top: 12px; min-height: 18px; }
@@ -1943,7 +1944,7 @@ function renderDrawer(){
     var pickupHtml =
       '<div class="dr-card"><div class="kv"><span class="k">Method</span><span class="v">Local pickup</span></div></div>'+
       '<div class="muted" style="font-size:12px;margin:10px 0 8px">Customer wants it shipped instead? Add an address to switch this order to shipping and buy a label.</div>'+
-      '<button class="btn-line" id="toShip" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px">'+I.truck+'Switch to shipping…</button>'+
+      '<button class="btn btn-line" id="toShip" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px">'+I.truck+'Switch to shipping…</button>'+
       '<div id="shipForm" style="display:none;margin-top:12px">'+
         '<div style="display:grid;gap:8px">'+
           swf('swName','Recipient',o.customer_name)+
@@ -2008,7 +2009,7 @@ function renderDrawer(){
       '<div class="dr-body">'+navHtml+bodyHtml+'</div>'+
       '<div class="dr-foot">'+
         '<button class="btn btn-line" data-close>Close</button>'+
-        '<button class="btn btn-danger" data-del="'+o.id+'">'+I.trash+'</button>'+
+        '<button class="btn btn-danger" data-del="'+o.id+'" title="Delete order" aria-label="Delete order">'+I.trash+'Delete</button>'+
       '</div>'+
     '</aside>';
 
