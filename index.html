@@ -812,6 +812,22 @@
     try { history.replaceState(null, '', location.pathname); } catch (e) {}
   })();
 
+  // Checkout now opens in a NEW tab, so the Stripe return trip lands (and
+  // persists lastOrder.paid / lastGift.paid) over there. Mirror it here the
+  // moment it happens, so the tab the customer kept open (the one showing
+  // their PM-###/PMG-### code) flips to "Payment received" by itself.
+  window.addEventListener('storage', function (e) {
+    if (e.key !== STORAGE_KEY || !e.newValue) return;
+    try {
+      var st = JSON.parse(e.newValue);
+      if (step === 'submitted' && st.lastOrder && st.lastOrder.paid && !(lastOrder && lastOrder.paid)) {
+        lastOrder = st.lastOrder; render();
+      } else if (step === 'giftdone' && st.lastGift && st.lastGift.paid && !(lastGift && lastGift.paid)) {
+        lastGift = st.lastGift; render();
+      }
+    } catch (err) {}
+  });
+
   function orderLabel(no) { return 'PM-' + no; }
   function syncTier() { data.tier = data.simpleColors ? 'classic' : 'custom'; }
   function selectedTier() { return TIERS.filter(function (t) { return t.id === data.tier; })[0] || TIERS[TIERS.length - 1]; }
@@ -1757,14 +1773,25 @@
     }).join('');
   }
   // The card tile: ask create-checkout-session for a hosted Stripe page and
-  // hand the browser over. The AMOUNT is decided server-side from the order
-  // row; the id is just which order to pay. Errors leave the P2P tiles usable.
+  // open it in a NEW TAB, like the Venmo/Cash App tiles, so this screen (the
+  // one showing the PM-###/PMG-### code) stays open behind the payment. The
+  // tab must be opened synchronously inside the click (popup blockers eat
+  // tabs opened after an async wait); it gets pointed at Stripe once the
+  // session URL comes back. The AMOUNT is decided server-side from the row;
+  // the id/ref is just which thing to pay. Errors leave the P2P tiles usable.
   function wireStripePay(app) {
     var b = app.querySelector('[data-stripe-pay], [data-stripe-gift]');
     if (!b || !sb) return;
     b.onclick = function () {
       if (b.classList.contains('busy')) return;
       b.classList.add('busy');
+      var payWin = null;
+      try {
+        payWin = window.open('', '_blank');
+        if (payWin && payWin.document) {
+          payWin.document.write('<title>Secure checkout</title><body style="font-family:system-ui,sans-serif;color:#5F463F;background:#FAF6F2;display:flex;align-items:center;justify-content:center;height:96vh;margin:0"><p>Opening secure checkout…</p></body>');
+        }
+      } catch (e) { payWin = null; }
       var act = b.querySelector('.rb-paytile__act');
       var orig = act.innerHTML;
       act.innerHTML = '<span class="btn__spin" aria-hidden="true"></span>';
@@ -1775,10 +1802,17 @@
         .then(function (r) {
           var url = r && r.data && r.data.url;
           if (r.error || !url) throw (r.error || new Error('No checkout URL returned'));
-          window.location.href = url;
+          if (payWin && !payWin.closed) {
+            payWin.location.href = url;      // pay in the new tab; code stays here
+            b.classList.remove('busy');
+            act.innerHTML = orig;
+          } else {
+            window.location.href = url;      // popup blocked: same-tab fallback
+          }
         })
         .catch(function (e) {
           if (window.console) console.error('Card checkout failed:', e);
+          if (payWin && !payWin.closed) { try { payWin.close(); } catch (e2) {} }
           b.classList.remove('busy');
           act.innerHTML = orig;
           var h = b.querySelector('.rb-paytile__handle');
