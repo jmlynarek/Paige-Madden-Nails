@@ -533,6 +533,15 @@
   .rb-gift__msg .ok { color: var(--rose); font-weight: 600; }
   .rb-gift__msg .muted { color: var(--ink-soft); }
   .rb-gift__remove { background: none; border: 0; color: var(--ink-soft); text-decoration: underline; cursor: pointer; font: inherit; padding: 0; margin-left: 6px; }
+  /* Post-submit variant on the order-submitted screen (no top border — it
+     sits between the pay tiles and the footer note, centered toggle) */
+  .rb-gift--done { border-top: 0; padding-top: 0; margin-top: 16px; text-align: center; }
+  .rb-gift--done .rb-gift__body { text-align: left; }
+  /* Pre-submit confirm modal: breakdown + gift link need their own spacing
+     (the plain confirmModal gets it from .rb-modal__msg) */
+  .rb-modal__sum { margin-top: 14px; }
+  .rb-modal__giftlink { margin-top: 13px; }
+  .rb-modal__sum + .rb-modal__actions, .rb-modal__giftlink + .rb-modal__actions { margin-top: 20px; }
   .rb-sum { background: #FBF1F0; border-radius: 14px; padding: 12px 15px; margin-top: 13px; }
   .rb-sum__row { display: flex; justify-content: space-between; font-size: 13px; color: rgba(95,70,63,0.7); }
   .rb-sum__row + .rb-sum__row { margin-top: 4px; }
@@ -1588,8 +1597,9 @@
     return card;
   }
 
-  function paintSum(sumEl) {
-    if (!sumEl) return;
+  // One source of truth for the breakdown rows — painted into the delivery
+  // card's summary AND the pre-submit confirm modal, so they can never drift.
+  function sumHtml() {
     var t = selectedTier();
     var lineItem = t.name + ' set · ' + (data.shape || '—') + ' · ' + (data.sizePreset || 'Custom');
     var html = '<div class="rb-sum__row"><span>' + esc(lineItem) + '</span><span>' + money(basePrice()) + '</span></div>';
@@ -1597,7 +1607,11 @@
     if (isRush()) html += '<div class="rb-sum__row"><span>Rush</span><span>' + money(RUSH_FEE) + '</span></div>';
     if (giftCredit() > 0) html += '<div class="rb-sum__row"><span>Gift credit</span><span>− ' + money(giftCredit()) + '</span></div>';
     html += '<div class="rb-sum__total"><span>Due now</span><span class="amt">' + money(amountDue()) + '</span></div>';
-    sumEl.innerHTML = html;
+    return html;
+  }
+  function paintSum(sumEl) {
+    if (!sumEl) return;
+    sumEl.innerHTML = sumHtml();
   }
 
   function wireCollapse(card) {
@@ -1654,7 +1668,7 @@
           if (curFootHint) curFootHint.innerHTML = '<span style="color:var(--rose);font-weight:600">Your photos are a little large — remove one on the Inspo step.</span>';
           return;
         }
-        submitOrder();
+        confirmSubmitModal();
       },
     };
   }
@@ -1714,6 +1728,9 @@
         '<div class="rb-total">' +
           '<div class="rb-total__label">Total due now</div>' +
           '<div class="rb-total__amt">' + esc(money(total)) + '</div>' +
+          (!paidInFull && giftCredit() > 0
+            ? '<div class="rb-total__note" style="margin-top:8px">Your <b>' + esc(money(giftCredit())) + ' gift credit</b> is applied.</div>'
+            : '') +
           (paidInFull ? ''
             : '<div class="rb-total__note" style="margin-top:12px">Your set starts once the <b>full amount</b> is received and verified.</div>') +
         '</div>' +
@@ -1730,12 +1747,26 @@
           : (PAY_METHODS.length
             ? '<div class="rb-pays">' + tiles + '</div>'
             : '<p class="rb-empty">Paige will send her payment details with your confirmation.</p>')) +
+        (!paidInFull && lastOrder && lastOrder.id && giftCredit() === 0
+          ? '<div class="rb-gift rb-gift--done">' +
+              '<button type="button" class="rb-gift__toggle" data-gift-toggle>' + Icon.gift + '<span class="rb-gift__toggle-txt">Forgot a gift code? Add it here</span></button>' +
+              '<div class="rb-gift__body" data-gift-body hidden>' +
+                '<div class="rb-gift__row">' +
+                  '<input class="rb-inp" data-gift placeholder="Enter code" autocapitalize="characters" autocomplete="off" style="flex:1;text-transform:uppercase" />' +
+                  '<button class="rb-gift__apply" type="button" data-gift-apply>Apply</button>' +
+                  '<button class="rb-gift__x" type="button" data-gift-cancel aria-label="Close gift code">✕</button>' +
+                '</div>' +
+                '<div class="rb-gift__msg" data-gift-msg></div>' +
+              '</div>' +
+            '</div>'
+          : '') +
         '<div class="rb-done__foot">Paige texts you within 24 hours to confirm your design <span style="color:var(--rose)">' + Icon.heart + '</span></div>' +
         '<button class="rb-restart" type="button" data-restart>Start another order</button>' +
       '</div>';
 
     wirePayCopy(app);
     wireStripePay(app);
+    wireSubmittedGift(app);
     app.querySelector('[data-restart]').onclick = resetOrder;
     return app;
   }
@@ -1820,6 +1851,53 @@
         });
     };
   }
+  // Post-submit gift rescue ("forgot my code"): the order row already exists,
+  // so the code is applied to it directly via the apply_gift_to_order RPC
+  // (burns the card + stamps the row atomically; migration 0020). On success a
+  // full render() reconciles everything — new total, new P2P deep-link
+  // amounts, and the paid-in-full state when due hits $0. Stripe needs no
+  // client update: create-checkout-session reprices from the order row.
+  function wireSubmittedGift(app) {
+    var tog = app.querySelector('[data-gift-toggle]');
+    if (!tog) return;  // affordance not rendered (paid, gift already applied, or no saved order)
+    var body = app.querySelector('[data-gift-body]');
+    var inp = app.querySelector('[data-gift]');
+    var msg = app.querySelector('[data-gift-msg]');
+    tog.onclick = function () { body.hidden = false; tog.style.display = 'none'; inp.focus(); };
+    app.querySelector('[data-gift-cancel]').onclick = function () {
+      body.hidden = true; tog.style.display = ''; inp.value = ''; msg.innerHTML = '';
+    };
+    inp.oninput = function () { inp.value = inp.value.toUpperCase(); };
+    var ERR = {
+      invalid_code: 'That code is not valid or was already used.',
+      already_has_gift: 'A gift code is already on this order.',
+      already_paid: 'This order is already paid. Nothing to apply.'
+    };
+    app.querySelector('[data-gift-apply]').onclick = function () {
+      var code = (inp.value || '').trim().toUpperCase();
+      if (!code) { inp.focus(); return; }
+      if (!sb || !lastOrder || !lastOrder.id) {
+        msg.innerHTML = '<span class="muted">Could not check that code. Try again in a moment.</span>';
+        return;
+      }
+      msg.innerHTML = '<span class="muted">Checking…</span>';
+      sb.rpc('apply_gift_to_order', { p_order_id: lastOrder.id, p_gift_code: code }).then(function (res) {
+        var row = res && res.data ? (Array.isArray(res.data) ? res.data[0] : res.data) : null;
+        if (res && !res.error && row && row.applied) {
+          data.giftCode = code;
+          data.giftCredit = Number(row.credit) || 0;
+          lastOrder.gift_credit = data.giftCredit;
+          persist();
+          render();
+        } else {
+          var key = row && row.message;
+          msg.innerHTML = '<span class="ok">' + esc(ERR[key] || 'Could not apply that code. Try again in a moment.') + '</span>';
+        }
+      }, function () {
+        msg.innerHTML = '<span class="muted">Could not check that code. Try again in a moment.</span>';
+      });
+    };
+  }
   function wirePayCopy(app) {
     var copyBtn = app.querySelector('[data-copy]');
     if (copyBtn) copyBtn.onclick = function () {
@@ -1901,6 +1979,46 @@
     ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
     ov.querySelector('[data-cancel]').onclick = close;
     ov.querySelector('[data-ok]').onclick = function () { close(); o.onConfirm(); };
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(ov);
+    ov.querySelector('[data-cancel]').focus();  // safe default: focus "Keep editing"
+  }
+
+  // Pre-submit "one last look": the breakdown plus a gift-code nudge, shown
+  // when the section-5 CTA is tapped. Catches a forgotten gift code BEFORE
+  // create_order fires (post-submit there's the rescue on SubmittedScreen).
+  // Sibling of confirmModal() — that one escapes a plain-text msg, this one
+  // hosts the rich rb-sum breakdown.
+  function confirmSubmitModal() {
+    var due = amountDue();
+    var ov = el('div', 'rb-modal-ov');
+    ov.innerHTML =
+      '<div class="rb-modal rb-pop" role="dialog" aria-modal="true">' +
+        '<div class="rb-modal__title">One last look</div>' +
+        '<div class="rb-sum rb-modal__sum">' + sumHtml() + '</div>' +
+        (giftCredit() === 0
+          ? '<button type="button" class="rb-gift__toggle rb-modal__giftlink" data-modal-gift>' + Icon.gift + '<span class="rb-gift__toggle-txt">Have a gift code?</span></button>'
+          : '') +
+        '<div class="rb-modal__actions">' +
+          '<button class="rb-modal__btn rb-modal__btn--ghost" type="button" data-cancel>Keep editing</button>' +
+          '<button class="rb-modal__btn rb-modal__btn--go" type="button" data-ok>' + esc(due > 0 ? 'Submit & pay ' + money(due) : 'Submit my order') + '</button>' +
+        '</div>' +
+      '</div>';
+    function close() { document.removeEventListener('keydown', onKey); ov.remove(); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+    ov.querySelector('[data-cancel]').onclick = close;
+    ov.querySelector('[data-ok]').onclick = function () { close(); submitOrder(); };
+    var g = ov.querySelector('[data-modal-gift]');
+    if (g) g.onclick = function () {
+      // Section 5 is the active card whenever this modal is open, so its
+      // gift toggle/field are mounted — reveal (which focuses) or just focus.
+      close();
+      var body = document.querySelector('[data-gift-body]');
+      var tog = document.querySelector('[data-gift-toggle]');
+      if (body && body.hidden && tog) tog.click();
+      else { var inp = document.querySelector('[data-gift]'); if (inp) inp.focus(); }
+    };
     document.addEventListener('keydown', onKey);
     document.body.appendChild(ov);
     ov.querySelector('[data-cancel]').focus();  // safe default: focus "Keep editing"
