@@ -221,20 +221,19 @@ via migration `create_order_restore_fee_line_items` (`$7` shipping / `$10` rush)
 
 **Gift-code rescue (2026-07-29, LIVE, verified end to end):** a customer who submitted without
 their gift code used to be stuck (no back navigation; "start over" would create a duplicate order,
-since `create_order` fires on the section-5 CTA and redemption happened only inside it). Two-part fix:
-(1) **Pre-submit "One last look" confirm modal** — the section-5 CTA now opens `confirmSubmitModal()`
-(sibling of `confirmModal()`) showing the breakdown via the shared `sumHtml()` (extracted from
-`paintSum()`; single source of truth for the rows) plus a "Have a gift code?" link that jumps to and
-focuses the delivery card's gift field; only its go-button calls `submitOrder()`. (2) **Post-submit
-"Forgot a gift code? Add it here"** on the unpaid order-submitted screen (`wireSubmittedGift()`) —
-applies the code to the EXISTING order via the anon-callable `apply_gift_to_order(p_order_id,
-p_gift_code)` RPC (migration `0020`): the order UUID is the bearer token, guards are one-gift-per-order
-/ not paid / not completed-or-cancelled, and burn + stamp are atomic with the row locked. On success a
-full `render()` reprices the P2P deep links and flips to the gift-covered state at $0 due; Stripe needs
-nothing (create-checkout-session reprices from the row). Accepted artifact: the confirmation email +
-FormSubmit alert that already went out keep the pre-gift amount — admin reads `gift_credit` off the row
-and shows the correct due. The affordance renders only when unpaid, no gift applied yet, and
-`lastOrder.id` exists.
+since `create_order` fires on the section-5 CTA and redemption happened only inside it). Fix:
+**post-submit "Forgot a gift code? Add it here"** on the unpaid order-submitted screen
+(`wireSubmittedGift()`) — applies the code to the EXISTING order via the anon-callable
+`apply_gift_to_order(p_order_id, p_gift_code)` RPC (migration `0020`): the order UUID is the bearer
+token, guards are one-gift-per-order / not paid / not completed-or-cancelled, and burn + stamp are
+atomic with the row locked. On success a full `render()` reprices the P2P deep links and flips to the
+gift-covered state at $0 due; Stripe needs nothing (create-checkout-session reprices from the row).
+Accepted artifact: the confirmation email + FormSubmit alert that already went out keep the pre-gift
+amount — admin reads `gift_credit` off the row and shows the correct due. The affordance renders only
+when unpaid, no gift applied yet, and `lastOrder.id` exists. (A pre-submit "One last look" confirm
+modal shipped alongside this and was REMOVED the same day per Jeremy — it duplicated the summary
+already sitting above the CTA and added a tap to every order; the section-5 CTA calls `submitOrder()`
+directly again. Don't re-add a confirm step without asking him.)
 
 **Prior step-wizard overhaul (2026-07-23, now REPLACED by the above):** Welcome → **Shape**
 (auto-advance) → **Size** (S/M/L presets + steppers) → **Design** (photo-OR-link, 2-up tiers) →

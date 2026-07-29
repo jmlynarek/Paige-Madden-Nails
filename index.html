@@ -537,11 +537,6 @@
      sits between the pay tiles and the footer note, centered toggle) */
   .rb-gift--done { border-top: 0; padding-top: 0; margin-top: 16px; text-align: center; }
   .rb-gift--done .rb-gift__body { text-align: left; }
-  /* Pre-submit confirm modal: breakdown + gift link need their own spacing
-     (the plain confirmModal gets it from .rb-modal__msg) */
-  .rb-modal__sum { margin-top: 14px; }
-  .rb-modal__giftlink { margin-top: 13px; }
-  .rb-modal__sum + .rb-modal__actions, .rb-modal__giftlink + .rb-modal__actions { margin-top: 20px; }
   .rb-sum { background: #FBF1F0; border-radius: 14px; padding: 12px 15px; margin-top: 13px; }
   .rb-sum__row { display: flex; justify-content: space-between; font-size: 13px; color: rgba(95,70,63,0.7); }
   .rb-sum__row + .rb-sum__row { margin-top: 4px; }
@@ -1597,9 +1592,8 @@
     return card;
   }
 
-  // One source of truth for the breakdown rows — painted into the delivery
-  // card's summary AND the pre-submit confirm modal, so they can never drift.
-  function sumHtml() {
+  function paintSum(sumEl) {
+    if (!sumEl) return;
     var t = selectedTier();
     var lineItem = t.name + ' set · ' + (data.shape || '—') + ' · ' + (data.sizePreset || 'Custom');
     var html = '<div class="rb-sum__row"><span>' + esc(lineItem) + '</span><span>' + money(basePrice()) + '</span></div>';
@@ -1607,11 +1601,7 @@
     if (isRush()) html += '<div class="rb-sum__row"><span>Rush</span><span>' + money(RUSH_FEE) + '</span></div>';
     if (giftCredit() > 0) html += '<div class="rb-sum__row"><span>Gift credit</span><span>− ' + money(giftCredit()) + '</span></div>';
     html += '<div class="rb-sum__total"><span>Due now</span><span class="amt">' + money(amountDue()) + '</span></div>';
-    return html;
-  }
-  function paintSum(sumEl) {
-    if (!sumEl) return;
-    sumEl.innerHTML = sumHtml();
+    sumEl.innerHTML = html;
   }
 
   function wireCollapse(card) {
@@ -1668,7 +1658,7 @@
           if (curFootHint) curFootHint.innerHTML = '<span style="color:var(--rose);font-weight:600">Your photos are a little large — remove one on the Inspo step.</span>';
           return;
         }
-        confirmSubmitModal();
+        submitOrder();
       },
     };
   }
@@ -1979,46 +1969,6 @@
     ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
     ov.querySelector('[data-cancel]').onclick = close;
     ov.querySelector('[data-ok]').onclick = function () { close(); o.onConfirm(); };
-    document.addEventListener('keydown', onKey);
-    document.body.appendChild(ov);
-    ov.querySelector('[data-cancel]').focus();  // safe default: focus "Keep editing"
-  }
-
-  // Pre-submit "one last look": the breakdown plus a gift-code nudge, shown
-  // when the section-5 CTA is tapped. Catches a forgotten gift code BEFORE
-  // create_order fires (post-submit there's the rescue on SubmittedScreen).
-  // Sibling of confirmModal() — that one escapes a plain-text msg, this one
-  // hosts the rich rb-sum breakdown.
-  function confirmSubmitModal() {
-    var due = amountDue();
-    var ov = el('div', 'rb-modal-ov');
-    ov.innerHTML =
-      '<div class="rb-modal rb-pop" role="dialog" aria-modal="true">' +
-        '<div class="rb-modal__title">One last look</div>' +
-        '<div class="rb-sum rb-modal__sum">' + sumHtml() + '</div>' +
-        (giftCredit() === 0
-          ? '<button type="button" class="rb-gift__toggle rb-modal__giftlink" data-modal-gift>' + Icon.gift + '<span class="rb-gift__toggle-txt">Have a gift code?</span></button>'
-          : '') +
-        '<div class="rb-modal__actions">' +
-          '<button class="rb-modal__btn rb-modal__btn--ghost" type="button" data-cancel>Keep editing</button>' +
-          '<button class="rb-modal__btn rb-modal__btn--go" type="button" data-ok>' + esc(due > 0 ? 'Submit & pay ' + money(due) : 'Submit my order') + '</button>' +
-        '</div>' +
-      '</div>';
-    function close() { document.removeEventListener('keydown', onKey); ov.remove(); }
-    function onKey(e) { if (e.key === 'Escape') close(); }
-    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
-    ov.querySelector('[data-cancel]').onclick = close;
-    ov.querySelector('[data-ok]').onclick = function () { close(); submitOrder(); };
-    var g = ov.querySelector('[data-modal-gift]');
-    if (g) g.onclick = function () {
-      // Section 5 is the active card whenever this modal is open, so its
-      // gift toggle/field are mounted — reveal (which focuses) or just focus.
-      close();
-      var body = document.querySelector('[data-gift-body]');
-      var tog = document.querySelector('[data-gift-toggle]');
-      if (body && body.hidden && tog) tog.click();
-      else { var inp = document.querySelector('[data-gift]'); if (inp) inp.focus(); }
-    };
     document.addEventListener('keydown', onKey);
     document.body.appendChild(ov);
     ov.querySelector('[data-cancel]').focus();  // safe default: focus "Keep editing"
