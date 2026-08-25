@@ -197,6 +197,10 @@
   .rb-galcard__body { padding: 9px 11px 11px; }
   .rb-galcard__code { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: rgba(95,70,63,0.55); }
   .rb-galcard__name { font-size: 13.5px; font-weight: 700; color: var(--ink); margin-top: 2px; }
+  .rb-galcard__desc {
+    font-size: 11.5px; line-height: 1.4; color: var(--ink-2); margin-top: 2px;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
   .rb-galcard__price { font-size: 14px; font-weight: 700; color: var(--rose); margin-top: 3px; }
   .rb-gal__empty { text-align: center; font-size: 14px; color: rgba(95,70,63,0.6); padding: 34px 20px; line-height: 1.6; }
 
@@ -921,7 +925,8 @@
   var deepLinkSetCode = '';
   (function () {
     var q = new URLSearchParams(location.search);
-    deepLinkSetCode = (q.get('set') || '').trim().toUpperCase();
+    // Codes are plain digits now; tolerate old "PMS-102" QR tags and "#102".
+    deepLinkSetCode = (q.get('set') || '').trim().toUpperCase().replace(/^PMS-/, '').replace(/^#/, '');
     if (q.get('paid') !== '1' && q.get('giftpaid') !== '1' && q.get('canceled') !== '1') {
       if (deepLinkSetCode) { try { history.replaceState(null, '', location.pathname); } catch (e) {} }
       return;
@@ -1195,11 +1200,17 @@
   var galleryFrom = 'welcome';   // 'welcome' | 'inspo' — where Back returns to
 
   function invPhotoUrl(path) {
+    // Bulk-imported photos live IN this repo (Vercel serves them) and their
+    // paths contain a slash ("gallery/12.jpg"); admin uploads are flat
+    // uuid.jpg names in the public `inventory` storage bucket.
+    if (path.indexOf('/') !== -1) return '/' + path.replace(/^\/+/, '');
     if (sb) {
       try { return sb.storage.from('inventory').getPublicUrl(path).data.publicUrl; } catch (e) {}
     }
     return SUPABASE_URL + '/storage/v1/object/public/inventory/' + path;
   }
+  // Codes are stored as plain digits ("102"); shown everywhere as "#102".
+  function invCodeLabel(code) { return '#' + String(code || ''); }
 
   function loadInventory() {
     if (!sb || inventoryLoading) return;
@@ -1244,7 +1255,7 @@
         '<button class="rb-lb__x" type="button" data-close aria-label="Close">✕</button>' +
         '<div class="rb-lb__imgwrap" data-wrap><img class="rb-lb__img" src="' + esc(s.url) + '" alt="' + esc(s.name || s.code) + '" data-img /></div>' +
         '<div class="rb-lb__body">' +
-          '<div class="rb-lb__code">' + esc(s.code) + ' · ' + money(s.price) + '</div>' +
+          '<div class="rb-lb__code">' + esc(invCodeLabel(s.code)) + ' · ' + money(s.price) + '</div>' +
           (s.name ? '<div class="rb-lb__name">' + esc(s.name) + '</div>' : '') +
           (s.description ? '<div class="rb-lb__desc">' + esc(s.description) + '</div>' : '') +
           '<div class="rb-lb__hint">Tap the photo to zoom in and out.</div>' +
@@ -1296,8 +1307,9 @@
       return '<button type="button" class="rb-galcard" data-set-i="' + i + '">' +
         '<img src="' + esc(s.url) + '" alt="' + esc(s.name || s.code) + '" loading="lazy" />' +
         '<div class="rb-galcard__body">' +
-          '<div class="rb-galcard__code">' + esc(s.code) + '</div>' +
+          '<div class="rb-galcard__code">' + esc(invCodeLabel(s.code)) + '</div>' +
           (s.name ? '<div class="rb-galcard__name">' + esc(s.name) + '</div>' : '') +
+          (s.description ? '<div class="rb-galcard__desc">' + esc(s.description) + '</div>' : '') +
           '<div class="rb-galcard__price">' + money(s.price) + '</div>' +
         '</div>' +
       '</button>';
@@ -1501,7 +1513,7 @@
     } else {
       ico = Icon.palette; label = 'Inspo'; valCls = ' rose';
       val = data.inventorySet
-        ? '✦ Design ' + data.inventorySet.code + ' · ' + money(basePrice())
+        ? '✦ Design ' + invCodeLabel(data.inventorySet.code) + ' · ' + money(basePrice())
         : '✦ ' + selectedTier().name + ' · ' + money(basePrice());
     }
     row.innerHTML =
@@ -1670,7 +1682,7 @@
         '<div class="rb-setcard">' +
           '<img src="' + esc(invSet.url) + '" alt="' + esc(invSet.code) + '" />' +
           '<div class="rb-setcard__body">' +
-            '<div class="rb-setcard__code">Paige’s design · ' + esc(invSet.code) + '</div>' +
+            '<div class="rb-setcard__code">Paige’s design · ' + esc(invCodeLabel(invSet.code)) + '</div>' +
             (invSet.name ? '<div class="rb-setcard__name">' + esc(invSet.name) + '</div>' : '') +
             (invSet.description ? '<div class="rb-setcard__desc">' + esc(invSet.description) + '</div>' : '') +
             '<div class="rb-setcard__price">' + money(Number(invSet.price) || 0) + '</div>' +
@@ -2000,7 +2012,7 @@
     if (!sumEl) return;
     var t = selectedTier();
     var lineItem = data.inventorySet
-      ? 'Design ' + data.inventorySet.code + (data.inventorySet.name ? ' · ' + data.inventorySet.name : '')
+      ? 'Design ' + invCodeLabel(data.inventorySet.code) + (data.inventorySet.name ? ' · ' + data.inventorySet.name : '')
       : t.name + ' set · ' + (data.shape || '—') + ' · ' + (data.sizePreset || 'Custom');
     var html = '<div class="rb-sum__row"><span>' + esc(lineItem) + '</span><span>' + money(basePrice()) + '</span></div>';
     if (isShipping()) html += '<div class="rb-sum__row"><span>Shipping</span><span>' + money(SHIP_FEE) + '</span></div>';
@@ -2040,7 +2052,7 @@
       var advance = function () { data.designDone = true; data.active = nextIncomplete(); renderMain({ advance: true }); };
       if (data.inventorySet) {
         return { label: 'Continue — ' + money(basePrice()), enabled: true,
-          hint: 'Paige’s design ' + data.inventorySet.code + ' — made fresh in your sizes', go: advance };
+          hint: 'Paige’s design ' + invCodeLabel(data.inventorySet.code) + ' — made fresh in your sizes', go: advance };
       }
       if (data.simpleColors) {
         return hasPhoto()
@@ -2947,7 +2959,7 @@
       fd.append('Nail shape', data.shape || 'Not selected');
       fd.append('Sizes (both hands)', sizesStr);
       if (data.inventorySet) {
-        fd.append('From design', data.inventorySet.code +
+        fd.append('From design', invCodeLabel(data.inventorySet.code) +
           (data.inventorySet.name ? ' · ' + data.inventorySet.name : '') +
           ' (' + money(basePrice()) + ') — remake in the customer’s shape & sizes');
       } else {

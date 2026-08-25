@@ -406,6 +406,20 @@
   .ntf-new { width: 8px; height: 8px; border-radius: 50%; background: var(--rose); flex: none; margin-top: 6px; }
 
   /* ===================== TOASTS ===================== */
+  /* Design edit modal (Designs tab) */
+  .inv-modal-ov {
+    position: fixed; inset: 0; z-index: 150;
+    display: flex; align-items: center; justify-content: center;
+    padding: calc(var(--safe-top, 0px) + 20px) 20px calc(var(--safe-bottom, 0px) + 20px);
+    background: rgba(46, 32, 29, 0.45);
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  }
+  .inv-modal {
+    width: 100%; max-width: 420px; max-height: 100%; overflow-y: auto;
+    background: var(--card, #fff); border-radius: 20px; padding: 22px 22px 20px;
+    box-shadow: 0 24px 64px rgba(46, 32, 29, 0.3);
+  }
+
   .toasts { position: fixed; right: 18px; bottom: calc(18px + var(--safe-bottom)); z-index: 200; display: flex; flex-direction: column; gap: 10px; }
   .toast { display: flex; align-items: center; gap: 11px; background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--rose); border-radius: 13px; box-shadow: var(--shadow-pop); padding: 12px 15px; min-width: 240px; max-width: 340px; animation: tin .26s cubic-bezier(.2,.8,.2,1); }
   .toast.ok { border-left-color: #2BA05A; } .toast.err { border-left-color: #C9534A; }
@@ -977,7 +991,7 @@ function viewOrders(){
     var designCell = o.gift_shipment_id
       ? '<span class="chip" style="color:#B46869">'+I.gift+'Gift card · mail out</span>'
       : o.inventory_set_code
-      ? '<span class="chip" style="color:#0E9E8E" title="From a gallery design — remake in the customer’s sizes">'+I.box+'Design '+esc(o.inventory_set_code)+'<span class="muted">· '+esc(o.nail_shape||'—')+'</span></span>'
+      ? '<span class="chip" style="color:#0E9E8E" title="From a gallery design — remake in the customer’s sizes">'+I.box+'Design '+esc(invCode(o.inventory_set_code))+'<span class="muted">· '+esc(o.nail_shape||'—')+'</span></span>'
       : '<span class="chip" style="color:var(--ink-2)">'+I.palette+esc(o.nail_shape||'—')+'<span class="muted">· '+esc((state.tiers.find(function(x){return x.id===o.design_tier;})||{}).name||o.design_tier)+'</span></span>';
     return '<tr data-open="'+o.id+'">'+
       '<td data-label="Order"><span class="oid">'+(o.admin_seen?'':'<span class="unseen-dot"></span>')+shortId(o)+'</span>'+
@@ -1644,9 +1658,14 @@ function gcTypeChip(c){ var t=gcType(c); return '<span class="chip">'+t.icon+t.l
 // Photos live in the PUBLIC `inventory` bucket (unlike the private
 // `inspiration` one), so plain CDN URLs — no signed-URL churn.
 function invPublicUrl(path){
+  // Bulk-imported photos live in the site repo ("gallery/12.jpg", served by
+  // Vercel); admin uploads are flat uuid.jpg names in the storage bucket.
+  if(String(path||'').indexOf('/')!==-1) return 'https://paigemadden.app/' + String(path).replace(/^\/+/, '');
   try { return sb.storage.from('inventory').getPublicUrl(path).data.publicUrl; }
   catch(e){ return ''; }
 }
+// Codes are stored as plain digits ("102"); shown everywhere as "#102".
+function invCode(c){ return '#' + String(c||''); }
 // The photo picked in the add-set form, held until Add saves it (not in state —
 // a re-render rebuilds the form, so the draft photo is re-painted from here).
 var invDraftPhoto = null;
@@ -1686,7 +1705,7 @@ function viewInventory(){
   var addPanel =
     '<div class="panel" style="max-width:880px">'+
       '<div class="panel-h"><div class="panel-t">Add a design'+
-        '<small>Snap the set (with its price paper), type the price, Add. You get a <b>PMS code to write on the tag</b> — the design shows in the public gallery right away, and customers order a fresh remake of it in their sizes.</small></div></div>'+
+        '<small>Snap the set (with its price paper), type the price, Add. You get a <b>number to write on the tag</b> — the design shows in the public gallery right away, and customers order a fresh remake of it in their sizes.</small></div></div>'+
       '<div class="panel-b">'+
         '<input type="file" accept="image/*" data-inv-file style="display:none">'+
         '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">'+
@@ -1723,7 +1742,7 @@ function viewInventory(){
       '<img src="'+esc(invPublicUrl(s.photo_path))+'" alt="'+esc(s.name||s.code)+'" loading="lazy" style="width:100%;aspect-ratio:1;object-fit:cover;display:block;background:var(--bg)">'+
       '<div style="padding:10px 12px 12px;display:flex;flex-direction:column;gap:3px;flex:1">'+
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'+
-          '<span class="oid" style="letter-spacing:1px">'+esc(s.code)+'</span>'+
+          '<span class="oid" style="letter-spacing:1px">'+esc(invCode(s.code))+'</span>'+
           (isHidden
             ? '<span class="pill" style="background:#F4EFEA;color:#8A7A6A"><span class="pdot" style="background:#B7A896"></span>Hidden</span>'
             : '<span class="pill" style="background:#E5F4EA;color:#2BA05A"><span class="pdot" style="background:#2BA05A"></span>Visible</span>')+
@@ -1781,11 +1800,11 @@ function addInventorySet(btn){
       out2.innerHTML =
         '<div style="background:#FBF1F0;border:1px solid #F0D9D8;border-radius:14px;padding:16px 18px;text-align:center">'+
           '<div class="muted" style="font-size:12.5px;text-transform:uppercase;letter-spacing:1px">Write this on the tag</div>'+
-          '<div style="font-size:34px;font-weight:700;letter-spacing:4px;color:#B46869;margin:6px 0 4px">'+esc(rec.code)+'</div>'+
+          '<div style="font-size:34px;font-weight:700;letter-spacing:4px;color:#B46869;margin:6px 0 4px">'+esc(invCode(rec.code))+'</div>'+
           '<div class="muted" style="font-size:13px">'+money(rec.price)+' · live in the gallery now</div>'+
         '</div>';
     }
-    toast('Set added', rec?rec.code+' · '+money(rec.price):'', 'ok');
+    toast('Design added', rec?invCode(rec.code)+' · '+money(rec.price):'', 'ok');
   }).catch(function(e){
     btn.disabled=false; btn.textContent=orig;
     toast('Couldn’t add the set', (e&&e.message)||'upload failed','err');
@@ -1799,7 +1818,7 @@ function hideDesign(id){
   sb.from('inventory_sets').update({ status:'hidden' }).eq('id',id).eq('status','visible').select().then(function(r){
     if(r.error){ s.status=prev; render(); toast('Couldn’t hide it', r.error.message,'err'); return; }
     if(!r.data || !r.data.length){ refreshInventory(); return; } // someone beat us to it
-    toast('Hidden', s.code+' left the public gallery', 'ok');
+    toast('Hidden', invCode(s.code)+' left the public gallery', 'ok');
   });
 }
 function showDesign(id){
@@ -1808,38 +1827,70 @@ function showDesign(id){
   sb.from('inventory_sets').update({ status:'visible' }).eq('id',id).eq('status','hidden').select().then(function(r){
     if(r.error){ s.status=prev; render(); toast('Couldn’t show it', r.error.message,'err'); return; }
     if(!r.data || !r.data.length){ refreshInventory(); return; }
-    toast('Back in the gallery', s.code, 'ok');
+    toast('Back in the gallery', invCode(s.code), 'ok');
   });
 }
-// Edit name / description / price in one pass (three prompts, cancel any one
-// to abort the whole edit — nothing saves until all three are answered).
+// Edit modal: photo preview + name, description, and price on one form.
 function editDesign(id){
   var s = state.inventory.find(function(x){return x.id===id;}); if(!s) return;
-  var name = window.prompt('Name for '+s.code+' (blank for none):', s.name||'');
-  if(name===null) return;
-  var desc = window.prompt('Description for '+s.code+' (blank for none):', s.description||'');
-  if(desc===null) return;
-  var raw = window.prompt('Price for '+s.code+' ($):', String(Number(s.price)||''));
-  if(raw===null) return;
-  var price = parseFloat(String(raw).replace(/[^0-9.]/g,''));
-  if(!price || price<=0){ toast('Enter a price above zero','','err'); return; }
-  var prev = { name:s.name, description:s.description, price:s.price };
-  s.name = name.trim()||null; s.description = desc.trim()||null; s.price = price; render();
-  sb.from('inventory_sets').update({ name:s.name, description:s.description, price:price }).eq('id',id).then(function(r){
-    if(r.error){ s.name=prev.name; s.description=prev.description; s.price=prev.price; render(); toast('Couldn’t save', r.error.message,'err'); return; }
-    toast('Design updated', s.code+' · '+money(price), 'ok');
-  });
+  var ov = el('div','inv-modal-ov');
+  ov.innerHTML =
+    '<div class="inv-modal" role="dialog" aria-modal="true">'+
+      '<div style="display:flex;gap:14px;align-items:flex-start">'+
+        '<img src="'+esc(invPublicUrl(s.photo_path))+'" alt="'+esc(invCode(s.code))+'" style="width:88px;height:88px;object-fit:cover;border-radius:12px;flex-shrink:0;background:var(--bg)">'+
+        '<div style="min-width:0">'+
+          '<div style="font-family:var(--serif);font-size:20px;font-weight:600">Edit design '+esc(invCode(s.code))+'</div>'+
+          '<div class="muted" style="font-size:12.5px;margin-top:3px">What customers see in the gallery.</div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="field" style="margin-top:14px"><label class="nt-lbl">Name</label>'+
+        '<input class="input" data-em-name placeholder="Starfish and Pearls"></div>'+
+      '<div class="field" style="margin-top:10px"><label class="nt-lbl">Description</label>'+
+        '<textarea class="input" data-em-desc rows="3" placeholder="Milky white almond, 3D starfish, gold studs" style="resize:vertical;min-height:70px"></textarea></div>'+
+      '<div class="field" style="margin-top:10px;max-width:150px"><label class="nt-lbl">Price ($)</label>'+
+        '<input class="input" data-em-price inputmode="decimal"></div>'+
+      '<div style="display:flex;gap:10px;margin-top:18px">'+
+        '<button class="btn btn-line" data-em-cancel style="flex:1">Cancel</button>'+
+        '<button class="btn" data-em-save style="flex:1.4">Save changes</button>'+
+      '</div>'+
+    '</div>';
+  // Values set via .value (not innerHTML) so quotes/apostrophes survive.
+  ov.querySelector('[data-em-name]').value = s.name||'';
+  ov.querySelector('[data-em-desc]').value = s.description||'';
+  ov.querySelector('[data-em-price]').value = String(Number(s.price)||'');
+  function close(){ document.removeEventListener('keydown', onKey); ov.remove(); }
+  function onKey(e){ if(e.key==='Escape') close(); }
+  ov.addEventListener('click', function(e){ if(e.target===ov) close(); });
+  ov.querySelector('[data-em-cancel]').onclick = close;
+  ov.querySelector('[data-em-save]').onclick = function(){
+    var name = ov.querySelector('[data-em-name]').value.trim();
+    var desc = ov.querySelector('[data-em-desc]').value.trim();
+    var price = parseFloat(ov.querySelector('[data-em-price]').value.replace(/[^0-9.]/g,''));
+    if(!price || price<=0){ toast('Enter a price above zero','','err'); return; }
+    var btn = ov.querySelector('[data-em-save]');
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span>';
+    sb.from('inventory_sets').update({ name:name||null, description:desc||null, price:price }).eq('id',id).then(function(r){
+      if(r.error){ btn.disabled=false; btn.textContent='Save changes'; toast('Couldn’t save', r.error.message,'err'); return; }
+      s.name = name||null; s.description = desc||null; s.price = price;
+      close(); render();
+      toast('Design updated', invCode(s.code)+' · '+money(price), 'ok');
+    });
+  };
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(ov);
+  ov.querySelector('[data-em-name]').focus();
 }
 function deleteSet(id){
   var s = state.inventory.find(function(x){return x.id===id;}); if(!s) return;
-  if(!confirm('Delete '+s.code+'? It disappears from the gallery and this list. Orders made from it keep the code.')) return;
+  if(!confirm('Delete '+invCode(s.code)+'? It disappears from the gallery and this list. Orders made from it keep the code.')) return;
   var prev = state.inventory.slice();
   state.inventory = state.inventory.filter(function(x){return x.id!==id;}); render();
   sb.from('inventory_sets').delete().eq('id',id).then(function(r){
     if(r.error){ state.inventory = prev; render(); toast('Couldn’t delete', r.error.message,'err'); return; }
-    // Best-effort photo cleanup (the bucket has an admin DELETE policy).
-    if(s.photo_path) sb.storage.from('inventory').remove([s.photo_path]).catch(function(){});
-    toast('Set deleted', s.code, 'ok');
+    // Best-effort photo cleanup — bucket uploads only (repo-hosted photos
+    // have a slash in their path and live in Git, not storage).
+    if(s.photo_path && s.photo_path.indexOf('/')===-1) sb.storage.from('inventory').remove([s.photo_path]).catch(function(){});
+    toast('Design deleted', invCode(s.code), 'ok');
   });
 }
 function pickInventoryPhoto(fileInput){
@@ -1972,9 +2023,9 @@ function generateGiftCard(btn){
       out.innerHTML =
         '<div style="background:#FBF1F0;border:1px solid #F0D9D8;border-radius:14px;padding:16px 18px;text-align:center">'+
           '<div class="muted" style="font-size:12.5px;text-transform:uppercase;letter-spacing:1px">Write this on the card</div>'+
-          '<div style="font-size:34px;font-weight:700;letter-spacing:4px;color:#B46869;margin:6px 0 4px">'+esc(rec.code)+'</div>'+
+          '<div style="font-size:34px;font-weight:700;letter-spacing:4px;color:#B46869;margin:6px 0 4px">'+esc(invCode(rec.code))+'</div>'+
           '<div class="muted" style="font-size:13px">'+money(rec.amount)+' · receipt sent to '+esc(email)+'</div>'+
-          '<button class="btn btn-line btn-sm" data-gc-copy="'+esc(rec.code)+'" style="margin-top:12px">Copy code</button>'+
+          '<button class="btn btn-line btn-sm" data-gc-copy="'+esc(invCode(rec.code))+'" style="margin-top:12px">Copy code</button>'+
         '</div>';
       var cp=out.querySelector('[data-gc-copy]');
       if(cp) cp.onclick=function(){ var v=cp.getAttribute('data-gc-copy'); if(navigator.clipboard){ navigator.clipboard.writeText(v).then(function(){ toast('Copied',v,'ok'); }); } };
@@ -3232,13 +3283,13 @@ function renderDrawer(){
       // instead of the shape/tier card. Paige remakes the design in the
       // customer's shape and sizes — nothing to mark sold.
       var invSet = state.inventory.find(function(x){ return x.id===o.inventory_set_id; });
-      var invCode = (invSet && invSet.code) || o.inventory_set_code || '—';
+      var invCodeLbl = invCode((invSet && invSet.code) || o.inventory_set_code || '—');
       var invGone = !invSet;
       var invBadge = invGone ? accBadge('Design deleted','info') : accBadge('From the gallery','info');
       var invHtml =
-        (invSet ? '<img src="'+esc(invPublicUrl(invSet.photo_path))+'" alt="'+esc(invCode)+'" style="width:100%;max-width:260px;border-radius:14px;display:block;margin-bottom:10px">' : '')+
+        (invSet ? '<img src="'+esc(invPublicUrl(invSet.photo_path))+'" alt="'+esc(invCodeLbl)+'" style="width:100%;max-width:260px;border-radius:14px;display:block;margin-bottom:10px">' : '')+
         '<div class="dr-card">'+
-          '<div class="kv"><span class="k">Design</span><span class="v"><span class="oid" style="letter-spacing:1px">'+esc(invCode)+'</span>'+(invSet&&invSet.name?' · '+esc(invSet.name):'')+'</span></div>'+
+          '<div class="kv"><span class="k">Design</span><span class="v"><span class="oid" style="letter-spacing:1px">'+esc(invCodeLbl)+'</span>'+(invSet&&invSet.name?' · '+esc(invSet.name):'')+'</span></div>'+
           '<div class="kv"><span class="k">Price</span><span class="v">'+money(orderSetPrice(o))+'</span></div>'+
           '<div class="kv"><span class="k">Shape</span><span class="v">'+esc(o.nail_shape||'—')+' <span class="muted">· remake the design in this shape</span></span></div>'+
         '</div>'+
@@ -3246,7 +3297,7 @@ function renderDrawer(){
           ? '<div class="muted" style="font-size:12.5px;margin-top:10px">This design was deleted from the Designs tab — the code above is the record.</div>'
           : '')+
         '<div style="margin-top:12px"><div class="dr-sec-t" style="margin-bottom:8px">Customer’s sizes</div><div class="sizes">'+sizeCells+'</div></div>';
-      sections.push({ id:'sec-design', icon:I.box, label:'Paige’s design', open:false, badge:invBadge, sub:esc(invCode), html:invHtml });
+      sections.push({ id:'sec-design', icon:I.box, label:'Paige’s design', open:false, badge:invBadge, sub:esc(invCodeLbl), html:invHtml });
     } else {
     sections.push({ id:'sec-design', icon:I.palette, label:'Design', open:false, sub:esc((o.nail_shape||'—')+' · '+tierName), html:
       '<div class="dr-card"><div class="kv"><span class="k">Shape</span><span class="v">'+esc(o.nail_shape||'—')+'</span></div><div class="kv"><span class="k">Tier</span><span class="v">'+esc(tierName)+'</span></div></div>'+
