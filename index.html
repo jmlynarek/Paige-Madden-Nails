@@ -200,6 +200,32 @@
   .rb-galcard__price { font-size: 14px; font-weight: 700; color: var(--rose); margin-top: 3px; }
   .rb-gal__empty { text-align: center; font-size: 14px; color: rgba(95,70,63,0.6); padding: 34px 20px; line-height: 1.6; }
 
+  /* Design teaser strip inside the Inspo card (real thumbnails beat a text link) */
+  .rb-designs { margin-top: 14px; }
+  .rb-designs__head {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 700; color: var(--ink);
+  }
+  .rb-designs__head svg { color: var(--rose); flex-shrink: 0; }
+  .rb-designs__strip {
+    display: flex; gap: 8px; margin-top: 9px; overflow-x: auto;
+    padding-bottom: 4px; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .rb-designs__strip::-webkit-scrollbar { display: none; }
+  .rb-dthumb {
+    flex: 0 0 86px; width: 86px; border: 1px solid var(--line); border-radius: 14px;
+    overflow: hidden; background: #fff; padding: 0; cursor: pointer; font-family: var(--sans);
+    text-align: left; transition: border-color .15s ease, transform .1s ease;
+  }
+  .rb-dthumb:active { transform: scale(0.97); }
+  .rb-dthumb img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--bg); }
+  .rb-dthumb__price { display: block; padding: 4px 7px 6px; font-size: 11.5px; font-weight: 700; color: var(--rose); }
+  .rb-dthumb--all {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    border: 1.5px dashed var(--rose-30); background: #FDF8F6;
+    color: var(--rose); font-size: 12px; font-weight: 700; min-height: 86px;
+  }
+
   /* Picked gallery design inside the Inspo card */
   .rb-setcard {
     display: flex; gap: 12px; align-items: center; margin-top: 13px;
@@ -1157,6 +1183,9 @@
           inventory = [];
         }
         if (step === 'gallery') render();
+        // The Inspo section shows a design teaser strip — repaint it if the
+        // customer is sitting there when the fetch lands (nail_shapes pattern).
+        else if (step === 'main' && data.active === 4) renderMain({ advance: false });
       }, function () { inventoryLoading = false; if (inventory === null) inventory = []; if (step === 'gallery') render(); });
   }
 
@@ -1587,7 +1616,7 @@
     card.innerHTML = cardHead('Your Inspo', 4, data.designDone) +
       '<input type="file" accept="image/*" multiple data-file style="display:none" />' +
       '<div class="rb-drop" data-drop></div>' +
-      '<button class="rb-vid" type="button" data-browse-designs>' + Icon.sparkle + 'Or browse Paige’s recent designs</button>' +
+      '<div data-designs></div>' +
       '<div data-price></div>' +
       '<button class="rb-toggle" type="button" data-toggle>' +
         '<span class="rb-track"><span class="rb-knob"></span></span>' +
@@ -1687,9 +1716,37 @@
       data.simpleColors = !data.simpleColors; syncTier(); persist();
       paintToggle(); paintPrice(); paintPill(); paintFooter();
     };
-    card.querySelector('[data-browse-designs]').onclick = function () {
-      galleryFrom = 'inspo'; step = 'gallery'; render();
-    };
+    // Teaser strip of real design thumbnails — tap one to use it as the inspo,
+    // or "See all" for the full gallery. Renders only once designs exist
+    // (loadInventory repaints this section when the fetch lands).
+    var designsWrap = card.querySelector('[data-designs]');
+    function paintDesigns() {
+      if (inventory === null) { loadInventory(); designsWrap.innerHTML = ''; return; }
+      if (!inventory.length) { designsWrap.innerHTML = ''; return; }
+      var thumbs = inventory.slice(0, 8).map(function (s, i) {
+        return '<button type="button" class="rb-dthumb" data-dpick="' + i + '">' +
+          '<img src="' + esc(s.url) + '" alt="' + esc(s.name || s.code) + '" loading="lazy" />' +
+          '<span class="rb-dthumb__price">' + money(s.price) + '</span>' +
+        '</button>';
+      }).join('');
+      designsWrap.innerHTML =
+        '<div class="rb-designs">' +
+          '<div class="rb-designs__head">' + Icon.sparkle + 'No photo? Pick one of Paige’s designs</div>' +
+          '<div class="rb-designs__strip">' + thumbs +
+            '<button type="button" class="rb-dthumb rb-dthumb--all" data-dall>See all ' + inventory.length + ' →</button>' +
+          '</div>' +
+        '</div>';
+      designsWrap.querySelectorAll('[data-dpick]').forEach(function (b) {
+        b.onclick = function () {
+          var s = inventory[Number(b.getAttribute('data-dpick'))];
+          if (s) chooseInventorySet(s);
+        };
+      });
+      designsWrap.querySelector('[data-dall]').onclick = function () {
+        galleryFrom = 'inspo'; step = 'gallery'; render();
+      };
+    }
+    paintDesigns();
 
     renderDrop(); paintPrice(); paintToggle();
     wireCollapse(card);
