@@ -161,6 +161,60 @@
     color: var(--rose); cursor: pointer; transition: background .15s ease, transform .1s ease;
   }
   .rb-welcome__gift:active { transform: scale(0.99); background: rgba(180,104,105,0.06); }
+
+  /* ── Ready-made sets gallery ── */
+  .rb-gal { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .rb-gal__head {
+    display: flex; align-items: center; gap: 10px;
+    padding: calc(var(--safe-top) + 14px) 18px 10px;
+  }
+  .rb-gal__back {
+    display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--rose-30);
+    background: rgba(255,255,255,0.6); color: var(--rose); border-radius: 99px;
+    padding: 7px 14px; font-family: var(--sans); font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+  .rb-gal__back:active { transform: scale(0.97); }
+  .rb-gal__title { font-family: var(--serif); font-size: 19px; font-weight: 600; color: var(--ink); }
+  .rb-gal__search {
+    margin: 6px 18px 10px; display: block; width: calc(100% - 36px); box-sizing: border-box;
+    border: 1px solid var(--line); border-radius: 14px; background: #fff;
+    padding: 11px 14px; font-family: var(--sans); font-size: 15px; color: var(--ink);
+  }
+  .rb-gal__search:focus { outline: none; border-color: var(--rose); }
+  .rb-gal__scroll { flex: 1; overflow-y: auto; padding: 2px 18px calc(var(--safe-bottom) + 26px); }
+  .rb-gal__note {
+    margin-bottom: 12px; background: var(--blush); border: 1px solid var(--rose-line);
+    border-radius: 12px; padding: 10px 13px; font-size: 13px; line-height: 1.5; color: var(--ink-2);
+  }
+  .rb-gal__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .rb-galcard {
+    background: #fff; border: 1px solid var(--line); border-radius: 18px; overflow: hidden;
+    padding: 0; text-align: left; cursor: pointer; font-family: var(--sans);
+    transition: border-color .15s ease, transform .1s ease; display: flex; flex-direction: column;
+  }
+  .rb-galcard:active { transform: scale(0.98); }
+  .rb-galcard img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: var(--bg); }
+  .rb-galcard__body { padding: 9px 11px 11px; }
+  .rb-galcard__code { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: rgba(95,70,63,0.55); }
+  .rb-galcard__name { font-size: 13.5px; font-weight: 700; color: var(--ink); margin-top: 2px; }
+  .rb-galcard__price { font-size: 14px; font-weight: 700; color: var(--rose); margin-top: 3px; }
+  .rb-gal__empty { text-align: center; font-size: 14px; color: rgba(95,70,63,0.6); padding: 34px 20px; line-height: 1.6; }
+
+  /* Picked ready-made set inside the Inspo card */
+  .rb-setcard {
+    display: flex; gap: 12px; align-items: center; margin-top: 13px;
+    background: #FBF1F0; border: 1.5px solid var(--rose); border-radius: 16px; padding: 11px;
+  }
+  .rb-setcard img { width: 74px; height: 74px; border-radius: 12px; object-fit: cover; flex-shrink: 0; box-shadow: var(--shadow-sm); }
+  .rb-setcard__body { flex: 1; min-width: 0; }
+  .rb-setcard__code { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: rgba(95,70,63,0.55); }
+  .rb-setcard__name { font-size: 14.5px; font-weight: 700; color: var(--ink); margin-top: 1px; }
+  .rb-setcard__price { font-size: 13.5px; font-weight: 700; color: var(--rose); margin-top: 2px; }
+  .rb-setcard__x {
+    flex-shrink: 0; border: 1px solid var(--rose); background: #fff; color: var(--rose);
+    border-radius: 10px; padding: 8px 13px; font-family: var(--sans); font-weight: 700; font-size: 12.5px; cursor: pointer;
+  }
+  .rb-setcard__x:active { transform: scale(0.98); }
   /* Paused / waitlist welcome variant */
   .rb-welcome__msg { font-family: var(--sans); font-size: 15px; line-height: 1.62; color: var(--ink-2); margin-top: 14px; max-width: 34ch; }
   .rb-welcome__wait {
@@ -744,6 +798,9 @@
       address1: '', address2: '', city: '', state: 'MI', zip: '',
       tier: 'custom',
       giftCode: '', giftCredit: 0,
+      // ready-made set picked from the gallery: { id, code, price, name, description, url }
+      // (a reference, not a blob — survives reload, unlike `photos`)
+      inventorySet: null,
       // receipt-builder UI state
       active: 1, infoDone: false, sizeConfirmed: false, designDone: false, simpleColors: false,
     };
@@ -798,9 +855,15 @@
   // different browser) still shows a generic "payment received" with the code.
   var stripeReturnPaid = false, stripeReturnCode = '';
   var giftReturnPaid = false, giftReturnRef = '';
+  // ?set=PMS-### — QR code on a physical tag deep-links straight to that set.
+  var deepLinkSetCode = '';
   (function () {
     var q = new URLSearchParams(location.search);
-    if (q.get('paid') !== '1' && q.get('giftpaid') !== '1' && q.get('canceled') !== '1') return;
+    deepLinkSetCode = (q.get('set') || '').trim().toUpperCase();
+    if (q.get('paid') !== '1' && q.get('giftpaid') !== '1' && q.get('canceled') !== '1') {
+      if (deepLinkSetCode) { try { history.replaceState(null, '', location.pathname); } catch (e) {} }
+      return;
+    }
     if (q.get('paid') === '1') {
       stripeReturnCode = q.get('code') || '';
       if (lastOrder) { lastOrder.paid = true; }
@@ -835,7 +898,12 @@
   function orderLabel(no) { return 'PM-' + no; }
   function syncTier() { data.tier = data.simpleColors ? 'classic' : 'custom'; }
   function selectedTier() { return TIERS.filter(function (t) { return t.id === data.tier; })[0] || TIERS[TIERS.length - 1]; }
-  function basePrice() { return Number(selectedTier().price) || 0; }
+  function basePrice() {
+    // A ready-made set carries its own price (the server re-reads it from the
+    // inventory row on save — this is display-only, like SHIP_FEE below).
+    if (data.inventorySet) return Number(data.inventorySet.price) || 0;
+    return Number(selectedTier().price) || 0;
+  }
   function isShipping() { return data.fulfillment === 'shipping'; }
   function isRush() { return data.shipSpeed === 'rush'; }
   var SHIP_FEE = 7, RUSH_FEE = 10;   // must match the create_order RPC in the DB
@@ -846,6 +914,8 @@
   function amountDue() { return Math.max(0, totalAmount() - giftCredit()); }
   function notesForSave() { return data.notes.trim() || null; }
   function hasPhoto() { return photos.length > 0; }
+  // Section 4 is satisfied by an uploaded photo OR a picked ready-made set.
+  function hasInspo() { return hasPhoto() || !!data.inventorySet; }
 
   function persist() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: step, data: data, lastOrder: lastOrder, gift: giftData, lastGift: lastGift })); }
@@ -873,6 +943,8 @@
     tiktok: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M13.2 3v10.8a2.9 2.9 0 11-2.9-2.9c.3 0 .6 0 .9.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.2 5.4A4.8 4.8 0 0018 8.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     gift:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="8" width="18" height="4" rx="1" stroke="currentColor" stroke-width="1.7"/><path d="M12 8v13" stroke="currentColor" stroke-width="1.7"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 6 12 8c0-2 2-5 4.5-5a2.5 2.5 0 0 1 0 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
     heart: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align:-2px"><path d="M12 20.3l-1.6-1.5C5.4 14.2 2.5 11.6 2.5 8.4 2.5 5.9 4.5 4 7 4c1.5 0 2.9.7 3.8 1.8L12 7.2l1.2-1.4C14.1 4.7 15.5 4 17 4c2.5 0 4.5 1.9 4.5 4.4 0 3.2-2.9 5.8-7.9 10.4L12 20.3z"/></svg>',
+    sparkle: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3l1.9 5.6L19.5 10.5l-5.6 1.9L12 18l-1.9-5.6L4.5 10.5l5.6-1.9L12 3z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M18.5 15.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z" fill="currentColor"/></svg>',
+    back: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M10 3.5L5.5 8 10 12.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   };
 
   var root = document.getElementById('root');
@@ -893,6 +965,7 @@
     persist();
     root.innerHTML = '';
     if (step === 'welcome') root.appendChild(WelcomeScreen());
+    else if (step === 'gallery') root.appendChild(GalleryScreen());
     else if (step === 'submitted') root.appendChild(SubmittedScreen());
     else if (step === 'gift') root.appendChild(GiftScreen());
     else if (step === 'giftdone') root.appendChild(GiftDoneScreen());
@@ -923,11 +996,15 @@
         '</div>' +
         '<div class="rb-welcome__foot">' +
           '<button class="btn" data-start>Start my custom order →</button>' +
+          '<button class="rb-welcome__gift" type="button" data-browse>' + Icon.sparkle + '<span>Shop ready-made sets</span></button>' +
           '<button class="rb-welcome__gift" type="button" data-gift>' + Icon.gift + '<span>Send a gift</span></button>' +
         '</div>' +
       '</div>';
     app.querySelector('[data-start]').onclick = function () {
       step = 'main'; if (!data.active) data.active = 1; render();
+    };
+    app.querySelector('[data-browse]').onclick = function () {
+      step = 'gallery'; render();
     };
     app.querySelector('[data-gift]').onclick = function () {
       step = 'gift'; render();
@@ -957,9 +1034,11 @@
             socialsHtml +
           '</div>' +
           '<div class="rb-welcome__foot">' +
+            '<button class="rb-welcome__gift" type="button" data-browse>' + Icon.sparkle + '<span>Shop ready-made sets</span></button>' +
             '<button class="rb-welcome__gift" type="button" data-gift>' + Icon.gift + '<span>Send a gift</span></button>' +
           '</div>' +
         '</div>';
+      app.querySelector('[data-browse]').onclick = function () { step = 'gallery'; render(); };
       app.querySelector('[data-gift]').onclick = function () { step = 'gift'; render(); };
       return app;
     }
@@ -980,6 +1059,7 @@
         '</div>' +
         '<div class="rb-welcome__foot">' +
           '<button class="btn" data-wl-submit>Notify me when orders reopen</button>' +
+          '<button class="rb-welcome__gift" type="button" data-browse>' + Icon.sparkle + '<span>Shop ready-made sets</span></button>' +
           '<button class="rb-welcome__gift" type="button" data-gift>' + Icon.gift + '<span>Send a gift</span></button>' +
         '</div>' +
       '</div>';
@@ -990,6 +1070,7 @@
     var btn = app.querySelector('[data-wl-submit]');
 
     app.querySelector('[data-gift]').onclick = function () { step = 'gift'; render(); };
+    app.querySelector('[data-browse]').onclick = function () { step = 'gallery'; render(); };
     emailIn.onkeydown = function (e) { if (e.key === 'Enter') btn.click(); };
 
     btn.onclick = function () {
@@ -1038,6 +1119,150 @@
       fetch(FORMSUBMIT_ENDPOINT, { method: 'POST', body: fd, mode: 'no-cors' }).catch(function () {});
     } catch (e) {}
     return dbSave;
+  }
+
+  // ════════════════════════════════════════ READY-MADE SETS gallery ════════
+  // Available sets from `inventory_sets` (anon RLS shows only status='available';
+  // sets leave the gallery when Paige marks them sold in admin). Photos live in
+  // the public `inventory` storage bucket, so plain CDN URLs — no signed URLs.
+  var inventory = null;          // null = not fetched yet; [] = fetched, empty
+  var inventoryLoading = false;
+  var galleryQuery = '';
+  var galleryNotice = '';        // one-shot banner (e.g. "that set is gone")
+
+  function invPhotoUrl(path) {
+    if (sb) {
+      try { return sb.storage.from('inventory').getPublicUrl(path).data.publicUrl; } catch (e) {}
+    }
+    return SUPABASE_URL + '/storage/v1/object/public/inventory/' + path;
+  }
+
+  function loadInventory() {
+    if (!sb || inventoryLoading) return;
+    inventoryLoading = true;
+    sb.from('inventory_sets')
+      .select('id,code,name,description,price,photo_path')
+      .eq('status', 'available')
+      .order('created_at', { ascending: false })
+      .then(function (res) {
+        inventoryLoading = false;
+        if (!res.error && res.data) {
+          inventory = res.data.map(function (s) {
+            return { id: s.id, code: s.code, name: s.name || '', description: s.description || '',
+                     price: Number(s.price) || 0, url: invPhotoUrl(s.photo_path) };
+          });
+        } else if (inventory === null) {
+          inventory = [];
+        }
+        if (step === 'gallery') render();
+      }, function () { inventoryLoading = false; if (inventory === null) inventory = []; if (step === 'gallery') render(); });
+  }
+
+  function chooseInventorySet(s) {
+    data.inventorySet = { id: s.id, code: s.code, price: s.price, name: s.name, description: s.description, url: s.url };
+    data.designDone = false;      // they still tap Continue on the Inspo step
+    data.active = nextIncomplete();
+    step = 'main';
+    render();
+  }
+
+  function galleryList() {
+    var q = galleryQuery.trim().toUpperCase();
+    return (inventory || []).filter(function (s) {
+      if (!q) return true;
+      return s.code.toUpperCase().indexOf(q) !== -1 || s.name.toUpperCase().indexOf(q) !== -1;
+    });
+  }
+
+  function galleryGridHtml(list) {
+    if (inventory === null || inventoryLoading) {
+      return '<div class="rb-gal__empty">Loading sets…</div>';
+    }
+    if (!inventory.length) {
+      return '<div class="rb-gal__empty">No ready-made sets right now.<br>Check back soon — or start a custom order.</div>';
+    }
+    if (!list.length) {
+      return '<div class="rb-gal__empty">No set matches “' + esc(galleryQuery.trim()) + '”.</div>';
+    }
+    return '<div class="rb-gal__grid">' + list.map(function (s, i) {
+      return '<button type="button" class="rb-galcard" data-set-i="' + i + '">' +
+        '<img src="' + esc(s.url) + '" alt="' + esc(s.name || s.code) + '" loading="lazy" />' +
+        '<div class="rb-galcard__body">' +
+          '<div class="rb-galcard__code">' + esc(s.code) + '</div>' +
+          (s.name ? '<div class="rb-galcard__name">' + esc(s.name) + '</div>' : '') +
+          '<div class="rb-galcard__price">' + money(s.price) + '</div>' +
+        '</div>' +
+      '</button>';
+    }).join('') + '</div>';
+  }
+
+  // Tapping a card is disabled while orders are paused (browse-only).
+  function wireGalleryGrid(app, paused) {
+    if (paused) return;
+    var list = galleryList();
+    app.querySelectorAll('[data-set-i]').forEach(function (b) {
+      b.onclick = function () {
+        var s = list[Number(b.getAttribute('data-set-i'))];
+        if (s) chooseInventorySet(s);
+      };
+    });
+  }
+
+  function GalleryScreen() {
+    if (inventory === null) loadInventory();
+    var app = el('div', 'rb-app');
+    var paused = orderStatus.paused;
+
+    app.innerHTML =
+      '<div class="rb-gal">' +
+        '<div class="rb-gal__head">' +
+          '<button type="button" class="rb-gal__back" data-back>' + Icon.back + 'Back</button>' +
+          '<div class="rb-gal__title">Ready-made sets</div>' +
+        '</div>' +
+        '<input class="rb-gal__search" data-gal-q placeholder="Search by code or name" autocomplete="off" />' +
+        '<div class="rb-gal__scroll">' +
+          (galleryNotice ? '<div class="rb-gal__note">' + esc(galleryNotice) + '</div>' : '') +
+          (paused ? '<div class="rb-gal__note">Ordering is paused right now — browse away, and find these sets at the booth.</div>' : '') +
+          '<div data-gal-grid>' + galleryGridHtml(galleryList()) + '</div>' +
+        '</div>' +
+      '</div>';
+    galleryNotice = '';
+
+    app.querySelector('[data-back]').onclick = function () { step = 'welcome'; render(); };
+
+    var qEl = app.querySelector('[data-gal-q]');
+    qEl.value = galleryQuery;
+    qEl.oninput = function () {
+      galleryQuery = qEl.value;
+      // Repaint only the grid so typing never loses focus.
+      app.querySelector('[data-gal-grid]').innerHTML = galleryGridHtml(galleryList());
+      wireGalleryGrid(app, paused);
+    };
+
+    wireGalleryGrid(app, paused);
+    return app;
+  }
+
+  // ?set=PMS-### from a tag's QR code: attach the set and jump into the flow.
+  function loadDeepLinkSet() {
+    if (!deepLinkSetCode || !sb) return;
+    sb.from('inventory_sets')
+      .select('id,code,name,description,price,photo_path')
+      .eq('code', deepLinkSetCode)
+      .maybeSingle()
+      .then(function (res) {
+        if (!res.error && res.data) {
+          var s = res.data;
+          var mapped = { id: s.id, code: s.code, name: s.name || '', description: s.description || '',
+                         price: Number(s.price) || 0, url: invPhotoUrl(s.photo_path) };
+          if (orderStatus.paused) { step = 'gallery'; render(); return; }
+          chooseInventorySet(mapped);
+        } else {
+          // Sold or unknown — anon RLS hides sold rows, so both look the same.
+          galleryNotice = 'Set ' + deepLinkSetCode + ' isn’t available anymore — here’s what’s left.';
+          step = 'gallery'; render();
+        }
+      }, function () {});
   }
 
   // ════════════════════════════════════════ MAIN ════════
@@ -1160,7 +1385,9 @@
       val = data.sizePreset ? (sizeAdjusted() ? data.sizePreset + ' · adjusted' : data.sizePreset) : 'Custom';
     } else {
       ico = Icon.palette; label = 'Inspo'; valCls = ' rose';
-      val = '✦ ' + selectedTier().name + ' · ' + money(basePrice());
+      val = data.inventorySet
+        ? '✦ Set ' + data.inventorySet.code + ' · ' + money(basePrice())
+        : '✦ ' + selectedTier().name + ' · ' + money(basePrice());
     }
     row.innerHTML =
       '<div class="rb-row__in">' +
@@ -1318,6 +1545,35 @@
   function designEditor(animate) {
     var card = el('div', 'rb-card' + (animate ? ' rb-reveal' : ''));
     curActiveCard = card;
+
+    // A ready-made set from the gallery IS the inspo: show it (with a Remove
+    // that reverts to the normal upload flow) instead of the photo drop zone.
+    // The tier toggle is hidden too — the set's own price applies.
+    if (data.inventorySet) {
+      var invSet = data.inventorySet;
+      card.innerHTML = cardHead('Your Inspo', 4, data.designDone) +
+        '<div class="rb-setcard">' +
+          '<img src="' + esc(invSet.url) + '" alt="' + esc(invSet.code) + '" />' +
+          '<div class="rb-setcard__body">' +
+            '<div class="rb-setcard__code">Ready-made · ' + esc(invSet.code) + '</div>' +
+            (invSet.name ? '<div class="rb-setcard__name">' + esc(invSet.name) + '</div>' : '') +
+            '<div class="rb-setcard__price">' + money(Number(invSet.price) || 0) + '</div>' +
+          '</div>' +
+          '<button type="button" class="rb-setcard__x" data-unset>Remove</button>' +
+        '</div>' +
+        '<div class="rb-subline">Already made — Paige checks your sizes against this set before it goes out.</div>' +
+        '<textarea class="rb-ta" data-notes placeholder="Notes or requests · optional"></textarea>';
+      var setNotes = card.querySelector('[data-notes]');
+      setNotes.value = data.notes;
+      setNotes.oninput = function () { data.notes = setNotes.value; persist(); };
+      card.querySelector('[data-unset]').onclick = function () {
+        data.inventorySet = null; data.designDone = false; persist();
+        renderMain({ advance: false });
+      };
+      wireCollapse(card);
+      return card;
+    }
+
     card.innerHTML = cardHead('Your Inspo', 4, data.designDone) +
       '<input type="file" accept="image/*" multiple data-file style="display:none" />' +
       '<div class="rb-drop" data-drop></div>' +
@@ -1595,7 +1851,9 @@
   function paintSum(sumEl) {
     if (!sumEl) return;
     var t = selectedTier();
-    var lineItem = t.name + ' set · ' + (data.shape || '—') + ' · ' + (data.sizePreset || 'Custom');
+    var lineItem = data.inventorySet
+      ? 'Ready-made set ' + data.inventorySet.code + (data.inventorySet.name ? ' · ' + data.inventorySet.name : '')
+      : t.name + ' set · ' + (data.shape || '—') + ' · ' + (data.sizePreset || 'Custom');
     var html = '<div class="rb-sum__row"><span>' + esc(lineItem) + '</span><span>' + money(basePrice()) + '</span></div>';
     if (isShipping()) html += '<div class="rb-sum__row"><span>Shipping</span><span>' + money(SHIP_FEE) + '</span></div>';
     if (isRush()) html += '<div class="rb-sum__row"><span>Rush</span><span>' + money(RUSH_FEE) + '</span></div>';
@@ -1632,6 +1890,10 @@
     }
     if (a === 4) {
       var advance = function () { data.designDone = true; data.active = nextIncomplete(); renderMain({ advance: true }); };
+      if (data.inventorySet) {
+        return { label: 'Continue — ' + money(basePrice()), enabled: true,
+          hint: 'Ready-made set ' + data.inventorySet.code + ' — already made, ready to go', go: advance };
+      }
       if (data.simpleColors) {
         return hasPhoto()
           ? { label: 'Continue — ' + money(40), enabled: true, hint: 'Classic set · 1–2 solid colors — $40', go: advance }
@@ -1918,7 +2180,7 @@
   // Header "Start over" — reuse resetOrder, but only nag if there's real work
   // to lose (keyed off the same completion flags the flow already tracks).
   function hasProgress() {
-    return !!(data.shape || data.sizeConfirmed || data.designDone || photos.length);
+    return !!(data.shape || data.sizeConfirmed || data.designDone || photos.length || data.inventorySet);
   }
   function confirmReset() {
     if (!hasProgress()) { resetOrder(); return; }
@@ -2453,7 +2715,10 @@
       p_region: shipping ? (data.state.trim() || null) : null,
       p_postal_code: shipping ? (data.zip.trim() || null) : null,
       p_country: shipping ? 'US' : null,
-      p_gift_code: data.giftCode || null
+      p_gift_code: data.giftCode || null,
+      // Ready-made set: the RPC re-reads price + code from the inventory row
+      // (the p_tier_price above is ignored when this is set).
+      p_inventory_set_id: data.inventorySet ? data.inventorySet.id : null
     }).then(function (res) {
       if (res.error) throw res.error;
       var rec = Array.isArray(res.data) ? res.data[0] : res.data;
@@ -2533,7 +2798,13 @@
       }
       fd.append('Nail shape', data.shape || 'Not selected');
       fd.append('Sizes (both hands)', sizesStr);
-      fd.append('Design tier', tier.name + ' (' + money(Number(tier.price) || 0) + ')');
+      if (data.inventorySet) {
+        fd.append('Ready-made set', data.inventorySet.code +
+          (data.inventorySet.name ? ' · ' + data.inventorySet.name : '') +
+          ' (' + money(basePrice()) + ') — mark it sold in admin once confirmed');
+      } else {
+        fd.append('Design tier', tier.name + ' (' + money(Number(tier.price) || 0) + ')');
+      }
       fd.append('Total due', money(amountDue()) +
         ((shipFee() || rushFee() || giftCredit())
           ? ' (' + money(basePrice()) + ' set' +
@@ -2627,6 +2898,7 @@
   render();
   loadReferenceData();
   loadOrderStatus();
+  loadDeepLinkSet();
   </script>
 </body>
 </html>

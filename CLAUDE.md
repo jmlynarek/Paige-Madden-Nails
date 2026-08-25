@@ -235,6 +235,32 @@ modal shipped alongside this and was REMOVED the same day per Jeremy — it dupl
 already sitting above the CTA and added a tap to every order; the section-5 CTA calls `submitOrder()`
 directly again. Don't re-add a confirm step without asking him.)
 
+**Ready-made set inventory + public gallery (2026-08-25, LIVE):** Paige's ~100 pre-made
+event sets now live in `inventory_sets` (migration `0021`; `PMS-###` codes from
+`inventory_no_seq`, per-set `price`/`name`/`description`, `status available|sold`,
+photo in the NEW **public** storage bucket `inventory` — admin-write/anon-read,
+DELETE policy included). Public: "Shop ready-made sets" on the welcome (and paused
+welcome) → a `step==='gallery'` grid screen (code/name search, anon RLS shows only
+`available`) → picking a set fills `data.inventorySet` (persisted; NOT a section —
+no renumbering, no STORAGE_KEY bump) → the Inspo section shows the set card with
+Remove instead of the upload zone, the set's price replaces the $40/$50 tier
+everywhere (`basePrice()`), and `?set=PMS-###` deep links (QR on the physical tag)
+straight into the flow. `create_order` gained `p_inventory_set_id` (old signature
+DROPPED — live fn had `public_token` in its return, repo 0011 didn't): it re-reads
+price+code from the set row server-side (client price ignored), stamps
+`orders.inventory_set_id/inventory_set_code`, and deliberately does NOT touch set
+status — **sets leave the gallery ONLY when Paige taps Mark sold in admin →
+Inventory** (Jeremy's decision: no auto-reserve; an online order shows a "Set
+PMS-###" chip + a drawer "Ready-made set" section with photo + a Mark-sold
+shortcut + an already-sold warning instead). Mark sold / Re-list use one-shot
+`.eq('status', …)` guards (issueGiftCard pattern) so booth devices can't
+double-sell. Admin add-set uploads a compressed photo to `inventory/{uuid}.jpg`
+then inserts (code auto-generates; toast says "write PMS-### on the tag").
+Customers still pick shape+sizes (Paige compares by hand); while orders are
+paused the gallery is browse-only. Set price lands in `tier_price`, so
+`orderValue()`, Stripe (`create-checkout-session`), and the confirmation email
+all work unchanged — **no edge-fn changes**. Sizes-vs-set fit is manual.
+
 **Prior step-wizard overhaul (2026-07-23, now REPLACED by the above):** Welcome → **Shape**
 (auto-advance) → **Size** (S/M/L presets + steppers) → **Design** (photo-OR-link, 2-up tiers) →
 **Details** → **Turnaround** (3.5) → Confirmation → Payment, using fractional step keys. The

@@ -529,6 +529,8 @@ var state = {
   user: null, ready: false, loading: true,
   orders: [], tiers: [], shapes: [], payments: [], templates: [],
   scheduled: [], optouts: [], settings: {}, giftCards: [], waitlist: [], adminUsers: [],
+  // Ready-made set inventory (Inventory tab) + its Available/Sold/All filter chip.
+  inventory: [], invFilter: 'available',
   view: 'dashboard', filter: 'all', q: '',
   range: 30, sidebarOpen: false, notifOpen: false,
   drawerId: null, giftDrawerId: null, photos: {}, ntSel: null,
@@ -627,7 +629,8 @@ function loadAll(){
     sb.from('gift_cards').select('*').order('created_at',{ascending:false}),
     sb.from('waitlist_leads').select('*').order('created_at',{ascending:true}),
     sb.from('admin_users').select('*').order('created_at',{ascending:true}),
-    sb.from('customer_notes').select('*')
+    sb.from('customer_notes').select('*'),
+    sb.from('inventory_sets').select('*').order('created_at',{ascending:false})
   ]).then(function(res){
     if(res[0].error) throw res[0].error;
     state.orders    = res[0].data || [];
@@ -644,6 +647,7 @@ function loadAll(){
     state.adminUsers = (res[10] && res[10].data) || [];
     state.custNotes = {};
     ((res[11] && res[11].data) || []).forEach(function(r){ state.custNotes[r.key] = r.notes || ''; });
+    state.inventory = (res[12] && res[12].data) || [];
     state.loading = false;
     render();
   }).catch(function(e){
@@ -692,7 +696,19 @@ function subscribeRealtime(){
       // Approved the moment they accept and sign in.
       refreshAdminUsers();
     })
+    .on('postgres_changes', { event:'*', schema:'public', table:'inventory_sets' }, function(){
+      // Keeps the Inventory grid live across booth devices (a Mark sold on
+      // Paige's phone disappears from the laptop too).
+      refreshInventory();
+    })
     .subscribe();
+}
+
+// Re-pull the inventory after any change (add / mark sold / delete). Low volume.
+function refreshInventory(){
+  sb.from('inventory_sets').select('*').order('created_at',{ascending:false}).then(function(r){
+    if(!r.error){ state.inventory = r.data || []; render(); }
+  });
 }
 
 // Re-pull gift cards after any change (generate / redeem / void). Low volume.
@@ -960,6 +976,8 @@ function viewOrders(){
       : '<span class="chip">'+(ship?I.truck:I.bag)+(ship?'Ship':'Pickup')+'</span>';
     var designCell = o.gift_shipment_id
       ? '<span class="chip" style="color:#B46869">'+I.gift+'Gift card · mail out</span>'
+      : o.inventory_set_code
+      ? '<span class="chip" style="color:#0E9E8E" title="Ready-made set — mark it sold in Inventory">'+I.box+'Set '+esc(o.inventory_set_code)+'<span class="muted">· '+esc(o.nail_shape||'—')+'</span></span>'
       : '<span class="chip" style="color:var(--ink-2)">'+I.palette+esc(o.nail_shape||'—')+'<span class="muted">· '+esc((state.tiers.find(function(x){return x.id===o.design_tier;})||{}).name||o.design_tier)+'</span></span>';
     return '<tr data-open="'+o.id+'">'+
       '<td data-label="Order"><span class="oid">'+(o.admin_seen?'':'<span class="unseen-dot"></span>')+shortId(o)+'</span>'+
@@ -1621,6 +1639,213 @@ function gcType(c){
   return { label:'In person', icon:I.bag };
 }
 function gcTypeChip(c){ var t=gcType(c); return '<span class="chip">'+t.icon+t.label+'</span>'; }
+
+/* ───────────────────────── inventory (ready-made sets) ───────────────────────── */
+// Photos live in the PUBLIC `inventory` bucket (unlike the private
+// `inspiration` one), so plain CDN URLs — no signed-URL churn.
+function invPublicUrl(path){
+  try { return sb.storage.from('inventory').getPublicUrl(path).data.publicUrl; }
+  catch(e){ return ''; }
+}
+// The photo picked in the add-set form, held until Add saves it (not in state —
+// a re-render rebuilds the form, so the draft photo is re-painted from here).
+var invDraftPhoto = null;
+
+// Same compression the public site uses (index.html) — admin had no upload
+// path before this tab.
+function invCompressImage(file){
+  return new Promise(function(resolve, reject){
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function(){
+      var MAXD = 1600, w = img.naturalWidth, h = img.naturalHeight;
+      if(w > h && w > MAXD){ h = Math.round(h * MAXD / w); w = MAXD; }
+      else if(h >= w && h > MAXD){ w = Math.round(w * MAXD / h); h = MAXD; }
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(function(blob){ blob ? resolve(blob) : reject(); }, 'image/jpeg', 0.7);
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(); };
+    img.src = url;
+  });
+}
+
+function viewInventory(){
+  var sets = state.inventory || [];
+  var avail = sets.filter(function(s){ return s.status==='available'; });
+  var sold = sets.filter(function(s){ return s.status==='sold'; });
+  var availVal = avail.reduce(function(t,s){ return t + Number(s.price||0); }, 0);
+
+  // ---- add a set ----
+  var photoTile = invDraftPhoto
+    ? '<img src="'+esc(invDraftPhoto.url)+'" alt="set photo" style="width:92px;height:92px;object-fit:cover;border-radius:12px;display:block">'
+    : '<div style="width:92px;height:92px;border:1.5px dashed var(--line);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:var(--ink-3);font-size:11.5px">'+I.image+'Photo</div>';
+  var addPanel =
+    '<div class="panel" style="max-width:880px">'+
+      '<div class="panel-h"><div class="panel-t">Add a ready-made set'+
+        '<small>Snap the set (with its price paper), type the price, Add. You get a <b>PMS code to write on the tag</b> — the set shows in the public gallery right away.</small></div></div>'+
+      '<div class="panel-b">'+
+        '<input type="file" accept="image/*" data-inv-file style="display:none">'+
+        '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start">'+
+          '<button type="button" data-inv-pick style="border:none;background:none;padding:0;cursor:pointer" title="'+(invDraftPhoto?'Change photo':'Add photo')+'">'+photoTile+'</button>'+
+          '<div style="flex:1;min-width:230px;display:flex;flex-direction:column;gap:10px">'+
+            '<div style="display:flex;gap:10px;flex-wrap:wrap">'+
+              '<div class="field" style="margin:0;width:120px"><label class="nt-lbl">Price ($)</label>'+
+                '<input class="input" data-inv-price inputmode="decimal" placeholder="50"></div>'+
+              '<div class="field" style="margin:0;flex:1;min-width:150px"><label class="nt-lbl">Name <span class="muted">· optional</span></label>'+
+                '<input class="input" data-inv-name placeholder="Starfish &amp; pearls"></div>'+
+            '</div>'+
+            '<div class="field" style="margin:0"><label class="nt-lbl">Description <span class="muted">· optional</span></label>'+
+              '<input class="input" data-inv-desc placeholder="Milky white almond, 3D starfish, gold studs"></div>'+
+            '<button class="btn btn-sm" data-inv-add style="align-self:flex-start;padding:0 22px;height:44px">Add set</button>'+
+          '</div>'+
+        '</div>'+
+        '<div data-inv-result style="margin-top:14px"></div>'+
+      '</div>'+
+    '</div>';
+
+  // ---- the grid ----
+  var f = state.invFilter;
+  var list = f==='available' ? avail : f==='sold' ? sold : sets;
+  var chips =
+    '<div class="tabs" style="margin:14px 0 12px">'+
+      [['available','Available',avail.length],['sold','Sold',sold.length],['all','All',sets.length]].map(function(t){
+        return '<button class="tab '+(f===t[0]?'on':'')+'" data-inv-filter="'+t[0]+'">'+t[1]+'<span class="tnum">'+t[2]+'</span></button>';
+      }).join('')+
+    '</div>';
+
+  var cards = list.length ? list.map(function(s){
+    var isSold = s.status==='sold';
+    return '<div style="background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden;display:flex;flex-direction:column;'+(isSold?'opacity:.72':'')+'">'+
+      '<img src="'+esc(invPublicUrl(s.photo_path))+'" alt="'+esc(s.name||s.code)+'" loading="lazy" style="width:100%;aspect-ratio:1;object-fit:cover;display:block;background:var(--bg)">'+
+      '<div style="padding:10px 12px 12px;display:flex;flex-direction:column;gap:3px;flex:1">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px">'+
+          '<span class="oid" style="letter-spacing:1px">'+esc(s.code)+'</span>'+
+          (isSold
+            ? '<span class="pill" style="background:#F4EFEA;color:#8A7A6A"><span class="pdot" style="background:#B7A896"></span>Sold</span>'
+            : '<span class="pill" style="background:#E5F4EA;color:#2BA05A"><span class="pdot" style="background:#2BA05A"></span>Available</span>')+
+        '</div>'+
+        (s.name?'<div style="font-weight:700;font-size:13.5px">'+esc(s.name)+'</div>':'')+
+        '<div class="money" style="font-size:15px">'+money(s.price)+'</div>'+
+        (s.description?'<div class="muted" style="font-size:12px;line-height:1.4">'+esc(s.description)+'</div>':'')+
+        '<div style="margin-top:auto;padding-top:9px;display:flex;gap:6px;flex-wrap:wrap">'+
+          (isSold
+            ? '<button class="btn btn-line btn-sm" data-inv-relist="'+s.id+'">Re-list</button>'
+            : '<button class="btn btn-sm" data-inv-sold="'+s.id+'">Mark sold</button>')+
+          '<button class="ico" data-inv-price-edit="'+s.id+'" title="Edit price">'+I.pencil+'</button>'+
+          '<button class="ico danger" data-inv-del="'+s.id+'" title="Delete">'+I.trash+'</button>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }).join('') : '<div class="empty" style="grid-column:1/-1">'+I.box+'<div>'+(f==='sold'?'Nothing marked sold yet.':'No sets here yet — add your first one above.')+'</div></div>';
+
+  var gridPanel =
+    '<div class="panel" style="margin-top:16px">'+
+      '<div class="panel-h"><div class="panel-t">Ready-made sets'+
+        '<small>'+avail.length+' available · '+money(availVal)+' on the table. <b>Mark sold</b> the moment one sells at the booth — that’s what removes it from the public gallery (online orders do NOT auto-remove).</small></div></div>'+
+      '<div class="panel-b">'+chips+
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px">'+cards+'</div>'+
+      '</div>'+
+    '</div>';
+
+  return '<div class="view">'+addPanel+gridPanel+'</div>';
+}
+
+// Add: upload the compressed photo to inventory/{uuid}.jpg, then insert the row
+// (the PMS-### code auto-generates in the DB). Best-effort storage cleanup if
+// the insert fails so we don't strand orphan photos.
+function addInventorySet(btn){
+  var prEl=document.querySelector('[data-inv-price]'), nmEl=document.querySelector('[data-inv-name]'), dsEl=document.querySelector('[data-inv-desc]');
+  var out=document.querySelector('[data-inv-result]');
+  var price=parseFloat((prEl&&prEl.value||'').replace(/[^0-9.]/g,''));
+  if(!invDraftPhoto){ toast('Add a photo of the set','','err'); return; }
+  if(!price || price<=0){ toast('Enter the price on the paper','','err'); if(prEl)prEl.focus(); return; }
+  btn.disabled=true; var orig=btn.textContent; btn.innerHTML='<span class="spin"></span>';
+  var id = (window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2);
+  var path = id + '.jpg';
+  sb.storage.from('inventory').upload(path, invDraftPhoto.blob, { contentType:'image/jpeg', upsert:false }).then(function(up){
+    if(up.error) throw up.error;
+    return sb.from('inventory_sets').insert([{ id:id, price:price, name:(nmEl&&nmEl.value.trim())||null, description:(dsEl&&dsEl.value.trim())||null, photo_path:path }]).select();
+  }).then(function(r){
+    btn.disabled=false; btn.textContent=orig;
+    if(r.error){ sb.storage.from('inventory').remove([path]).catch(function(){}); toast('Couldn’t add the set', r.error.message,'err'); return; }
+    var rec = Array.isArray(r.data)?r.data[0]:r.data;
+    URL.revokeObjectURL(invDraftPhoto.url); invDraftPhoto=null;
+    if(rec) state.inventory.unshift(rec);
+    render();
+    var out2=document.querySelector('[data-inv-result]');
+    if(rec && out2){
+      out2.innerHTML =
+        '<div style="background:#FBF1F0;border:1px solid #F0D9D8;border-radius:14px;padding:16px 18px;text-align:center">'+
+          '<div class="muted" style="font-size:12.5px;text-transform:uppercase;letter-spacing:1px">Write this on the tag</div>'+
+          '<div style="font-size:34px;font-weight:700;letter-spacing:4px;color:#B46869;margin:6px 0 4px">'+esc(rec.code)+'</div>'+
+          '<div class="muted" style="font-size:13px">'+money(rec.price)+' · live in the gallery now</div>'+
+        '</div>';
+    }
+    toast('Set added', rec?rec.code+' · '+money(rec.price):'', 'ok');
+  }).catch(function(e){
+    btn.disabled=false; btn.textContent=orig;
+    toast('Couldn’t add the set', (e&&e.message)||'upload failed','err');
+  });
+}
+
+// One-shot guard (.eq status) so two booth devices can't double-sell/relist.
+function markSetSold(id){
+  var s = state.inventory.find(function(x){return x.id===id;}); if(!s) return;
+  var prev = s.status; s.status='sold'; s.sold_at=new Date().toISOString(); render();
+  sb.from('inventory_sets').update({ status:'sold', sold_at:new Date().toISOString() }).eq('id',id).eq('status','available').select().then(function(r){
+    if(r.error){ s.status=prev; s.sold_at=null; render(); toast('Couldn’t mark sold', r.error.message,'err'); return; }
+    if(!r.data || !r.data.length){ refreshInventory(); return; } // someone beat us to it
+    toast('Marked sold', s.code+' left the public gallery', 'ok');
+  });
+}
+function relistSet(id){
+  var s = state.inventory.find(function(x){return x.id===id;}); if(!s) return;
+  var prev = s.status; s.status='available'; s.sold_at=null; render();
+  sb.from('inventory_sets').update({ status:'available', sold_at:null }).eq('id',id).eq('status','sold').select().then(function(r){
+    if(r.error){ s.status=prev; render(); toast('Couldn’t re-list', r.error.message,'err'); return; }
+    if(!r.data || !r.data.length){ refreshInventory(); return; }
+    toast('Back in the gallery', s.code, 'ok');
+  });
+}
+function editSetPrice(id){
+  var s = state.inventory.find(function(x){return x.id===id;}); if(!s) return;
+  var raw = window.prompt('New price for '+s.code+' ($):', String(Number(s.price)||''));
+  if(raw===null) return;
+  var price = parseFloat(String(raw).replace(/[^0-9.]/g,''));
+  if(!price || price<=0){ toast('Enter a number above zero','','err'); return; }
+  var prev = s.price; s.price = price; render();
+  sb.from('inventory_sets').update({ price: price }).eq('id',id).then(function(r){
+    if(r.error){ s.price=prev; render(); toast('Couldn’t save the price', r.error.message,'err'); return; }
+    toast('Price updated', s.code+' · '+money(price), 'ok');
+  });
+}
+function deleteSet(id){
+  var s = state.inventory.find(function(x){return x.id===id;}); if(!s) return;
+  if(!confirm('Delete '+s.code+'? It disappears from the gallery and this list. Orders that bought it keep the code.')) return;
+  var prev = state.inventory.slice();
+  state.inventory = state.inventory.filter(function(x){return x.id!==id;}); render();
+  sb.from('inventory_sets').delete().eq('id',id).then(function(r){
+    if(r.error){ state.inventory = prev; render(); toast('Couldn’t delete', r.error.message,'err'); return; }
+    // Best-effort photo cleanup (the bucket has an admin DELETE policy).
+    if(s.photo_path) sb.storage.from('inventory').remove([s.photo_path]).catch(function(){});
+    toast('Set deleted', s.code, 'ok');
+  });
+}
+function pickInventoryPhoto(fileInput){
+  var f = fileInput.files && fileInput.files[0];
+  fileInput.value='';
+  if(!f || !/^image\//.test(f.type)) return;
+  invCompressImage(f).then(function(blob){
+    if(invDraftPhoto) URL.revokeObjectURL(invDraftPhoto.url);
+    invDraftPhoto = { blob: blob, url: URL.createObjectURL(blob) };
+    render();
+  }, function(){ toast('Couldn’t read that photo','','err'); });
+}
 
 function viewGiftCards(){
   var cards = state.giftCards || [];
@@ -2996,9 +3221,34 @@ function renderDrawer(){
         (gift>0?'<div class="kv"><span class="k">Gift credit</span><span class="v" style="color:#0E7E5B">− '+money(gift)+'</span></div>':'')+
         '<div class="kv"><span class="k"><b>'+(gift>0?'Still to collect':'Total to collect')+'</b></span><span class="v"><b>'+money(due)+'</b></span></div>'+
       '</div>'+payToggle });
+    if(o.inventory_set_id || o.inventory_set_code){
+      // Ready-made set order: show the set (photo, code, price, live status)
+      // instead of the shape/tier design card. Marking it sold happens HERE or
+      // in the Inventory tab — an online order never auto-removes a set.
+      var invSet = state.inventory.find(function(x){ return x.id===o.inventory_set_id; });
+      var invCode = (invSet && invSet.code) || o.inventory_set_code || '—';
+      var invSold = !!(invSet && invSet.status==='sold');
+      var invGone = !invSet;
+      var invBadge = invGone ? accBadge('Set deleted','info') : (invSold ? accBadge('Marked sold','ok',true) : accBadge('Still in gallery','warn'));
+      var invHtml =
+        (invSet ? '<img src="'+esc(invPublicUrl(invSet.photo_path))+'" alt="'+esc(invCode)+'" style="width:100%;max-width:260px;border-radius:14px;display:block;margin-bottom:10px">' : '')+
+        '<div class="dr-card">'+
+          '<div class="kv"><span class="k">Set</span><span class="v"><span class="oid" style="letter-spacing:1px">'+esc(invCode)+'</span>'+(invSet&&invSet.name?' · '+esc(invSet.name):'')+'</span></div>'+
+          '<div class="kv"><span class="k">Price</span><span class="v">'+money(orderSetPrice(o))+'</span></div>'+
+          '<div class="kv"><span class="k">Shape</span><span class="v">'+esc(o.nail_shape||'—')+' <span class="muted">· customer’s pick — compare with the set</span></span></div>'+
+        '</div>'+
+        (invGone
+          ? '<div class="muted" style="font-size:12.5px;margin-top:10px">This set was deleted from Inventory — the code above is the record.</div>'
+          : invSold
+          ? '<div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span class="chip" style="color:#2BA05A">'+I.check+'Marked sold</span><span class="muted" style="font-size:12.5px">Heads up: if it also sold at the booth, double-check before fulfilling.</span></div>'
+          : '<button class="btn" data-inv-sold="'+esc(o.inventory_set_id)+'" style="margin-top:10px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px">'+I.box+'Mark this set sold</button>')+
+        '<div style="margin-top:12px"><div class="dr-sec-t" style="margin-bottom:8px">Customer’s sizes</div><div class="sizes">'+sizeCells+'</div></div>';
+      sections.push({ id:'sec-design', icon:I.box, label:'Ready-made set', open:false, badge:invBadge, sub:esc(invCode), html:invHtml });
+    } else {
     sections.push({ id:'sec-design', icon:I.palette, label:'Design', open:false, sub:esc((o.nail_shape||'—')+' · '+tierName), html:
       '<div class="dr-card"><div class="kv"><span class="k">Shape</span><span class="v">'+esc(o.nail_shape||'—')+'</span></div><div class="kv"><span class="k">Tier</span><span class="v">'+esc(tierName)+'</span></div></div>'+
       '<div style="margin-top:12px"><div class="dr-sec-t" style="margin-bottom:8px">Sizes</div><div class="sizes">'+sizeCells+'</div></div>' });
+    }
   }
   if(o.notes && !isGift){ sections.push({ id:'sec-notes', icon:I.note, label:'Notes', open:false, sub:'', html:'<div class="notes-box">'+esc(o.notes)+'</div>' }); }
   sections.push({ id:'sec-photos', icon:I.image, label:'Photos', open:false, sub:(ph===undefined?'':(ph.length?ph.length+' photo'+(ph.length>1?'s':''):'None')), html:photosHtml });
@@ -3045,6 +3295,7 @@ function renderDrawer(){
     };
   });
   host.querySelectorAll('[data-close]').forEach(function(b){ b.onclick = closeDrawer; });
+  host.querySelectorAll('[data-inv-sold]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); markSetSold(b.getAttribute('data-inv-sold')); }; });
   host.querySelectorAll('[data-status]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); setStatus(id, b.getAttribute('data-status')); }; });
   host.querySelectorAll('[data-cancel-email]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); sendCancelEmail(b.getAttribute('data-cancel-email')); }; });
   host.querySelectorAll('[data-unpaid-email]').forEach(function(b){ b.onclick = function(e){ e.stopPropagation(); resendUnpaidEmail(b.getAttribute('data-unpaid-email')); }; });
@@ -3260,6 +3511,7 @@ function render(){
     {k:'dashboard', label:'Dashboard', icon:I.grid},
     {k:'orders', label:'Orders', icon:I.cart, count:c.all},
     {k:'customers', label:'Customers', icon:I.users},
+    {k:'inventory', label:'Inventory', icon:I.box},
     {k:'giftcards', label:'Gift Cards', icon:I.gift, count:giftPending},
     {k:'marketing', label:'Marketing', icon:I.spark}
   ];
@@ -3277,12 +3529,13 @@ function render(){
   }
   var navHtml = navItems(nav), navBottomHtml = navItems(navBottom);
 
-  var titles = { dashboard:['Dashboard','Your studio at a glance'], orders:['Orders','Manage every custom request'], customers:['Customers','Every customer, their orders & lifetime value'], giftcards:['Gift Cards','Generate & track gift codes'], marketing:['Marketing','Reminder emails & repeat customers'], notifications:['Notifications','The wording of every automatic email'], users:['Users Management','Who can sign in to this admin'], integrations:['Integrations','API keys & shipping setup'], settings:['Settings',''] };
+  var titles = { dashboard:['Dashboard','Your studio at a glance'], orders:['Orders','Manage every custom request'], customers:['Customers','Every customer, their orders & lifetime value'], inventory:['Inventory','Ready-made sets · the public gallery'], giftcards:['Gift Cards','Generate & track gift codes'], marketing:['Marketing','Reminder emails & repeat customers'], notifications:['Notifications','The wording of every automatic email'], users:['Users Management','Who can sign in to this admin'], integrations:['Integrations','API keys & shipping setup'], settings:['Settings',''] };
   var t = titles[state.view]||['',''];
 
   var content = state.view==='dashboard'?viewDashboard()
     : state.view==='orders'?viewOrders()
     : state.view==='customers'?viewCustomers()
+    : state.view==='inventory'?viewInventory()
     : state.view==='giftcards'?viewGiftCards()
     : state.view==='marketing'?viewMarketing()
     : state.view==='notifications'?viewNotifications()
@@ -3384,6 +3637,14 @@ function wire(){
   document.querySelectorAll('[data-lead-copy]').forEach(function(b){ b.onclick=function(){ copyLeadEmail(b.getAttribute('data-lead-copy')); }; });
   document.querySelectorAll('[data-lead-notify]').forEach(function(b){ b.onclick=function(){ markLeadNotified(b.getAttribute('data-lead-notify')); }; });
   document.querySelectorAll('[data-lead-remove]').forEach(function(b){ b.onclick=function(){ removeLead(b.getAttribute('data-lead-remove')); }; });
+  document.querySelectorAll('[data-inv-filter]').forEach(function(b){ b.onclick=function(){ state.invFilter=b.getAttribute('data-inv-filter'); render(); }; });
+  document.querySelectorAll('[data-inv-pick]').forEach(function(b){ b.onclick=function(){ var f=document.querySelector('[data-inv-file]'); if(f) f.click(); }; });
+  document.querySelectorAll('[data-inv-file]').forEach(function(inp){ inp.onchange=function(){ pickInventoryPhoto(inp); }; });
+  document.querySelectorAll('[data-inv-add]').forEach(function(b){ b.onclick=function(){ addInventorySet(b); }; });
+  document.querySelectorAll('[data-inv-sold]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); markSetSold(b.getAttribute('data-inv-sold')); }; });
+  document.querySelectorAll('[data-inv-relist]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); relistSet(b.getAttribute('data-inv-relist')); }; });
+  document.querySelectorAll('[data-inv-price-edit]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); editSetPrice(b.getAttribute('data-inv-price-edit')); }; });
+  document.querySelectorAll('[data-inv-del]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); deleteSet(b.getAttribute('data-inv-del')); }; });
   document.querySelectorAll('[data-gc-generate]').forEach(function(b){ b.onclick=function(){ generateGiftCard(b); }; });
   document.querySelectorAll('[data-gc-issue]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); issueGiftCard(b.getAttribute('data-gc-issue')); }; });
   document.querySelectorAll('[data-gc-redeem]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); redeemGiftCard(b.getAttribute('data-gc-redeem')); }; });
