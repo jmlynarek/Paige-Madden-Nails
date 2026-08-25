@@ -1468,7 +1468,11 @@
 
   function paintPill() {
     if (!curPill) return;
-    curPill.textContent = data.active === 5 ? money(amountDue()) + ' total' : 'Your set · ' + money(basePrice());
+    curPill.textContent = data.active === 5
+      ? money(amountDue()) + ' total'
+      : (data.inventorySet
+          ? 'Design ' + invCodeLabel(data.inventorySet.code) + ' · ' + money(basePrice())
+          : 'Your set · ' + money(basePrice()));
   }
 
   function buildSections(scroll, animateActive) {
@@ -1484,9 +1488,11 @@
     if (data.active === 3) scroll.appendChild(sizeEditor(animateActive));
     else if (data.sizeConfirmed) scroll.appendChild(receiptRow('size'));
     else scroll.appendChild(upcoming(3, 'Your sizes'));
-    // 4 — Inspo
+    // 4 — Inspo. A design picked from the gallery shows as a filled receipt
+    // row right away (even before the customer reaches section 4), so someone
+    // who chose from the gallery FIRST can see their pick riding along.
     if (data.active === 4) scroll.appendChild(designEditor(animateActive));
-    else if (data.designDone) scroll.appendChild(receiptRow('design'));
+    else if (data.designDone || data.inventorySet) scroll.appendChild(receiptRow('design'));
     else scroll.appendChild(upcoming(4, 'Your inspo'));
     // 5 — Delivery & payment
     if (data.active === 5) scroll.appendChild(deliveryEditor(animateActive));
@@ -1511,10 +1517,16 @@
       ico = Icon.ruler; label = 'Size';
       val = data.sizePreset ? (sizeAdjusted() ? data.sizePreset + ' · adjusted' : data.sizePreset) : 'Custom';
     } else {
-      ico = Icon.palette; label = 'Inspo'; valCls = ' rose';
-      val = data.inventorySet
-        ? '✦ Design ' + invCodeLabel(data.inventorySet.code) + ' · ' + money(basePrice())
-        : '✦ ' + selectedTier().name + ' · ' + money(basePrice());
+      label = 'Inspo'; valCls = ' rose';
+      if (data.inventorySet) {
+        // The picked design IS the identifier: its photo as the row icon, its
+        // name (or code) and price as the value.
+        ico = '<img src="' + esc(data.inventorySet.url) + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:8px" />';
+        val = '✦ ' + (data.inventorySet.name || 'Design ' + invCodeLabel(data.inventorySet.code)) + ' · ' + money(basePrice());
+      } else {
+        ico = Icon.palette;
+        val = '✦ ' + selectedTier().name + ' · ' + money(basePrice());
+      }
     }
     row.innerHTML =
       '<div class="rb-row__in">' +
