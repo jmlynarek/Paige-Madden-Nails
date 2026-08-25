@@ -162,7 +162,7 @@
   }
   .rb-welcome__gift:active { transform: scale(0.99); background: rgba(180,104,105,0.06); }
 
-  /* ── Ready-made sets gallery ── */
+  /* ── Design gallery ── */
   .rb-gal { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
   .rb-gal__head {
     display: flex; align-items: center; gap: 10px;
@@ -200,7 +200,7 @@
   .rb-galcard__price { font-size: 14px; font-weight: 700; color: var(--rose); margin-top: 3px; }
   .rb-gal__empty { text-align: center; font-size: 14px; color: rgba(95,70,63,0.6); padding: 34px 20px; line-height: 1.6; }
 
-  /* Picked ready-made set inside the Inspo card */
+  /* Picked gallery design inside the Inspo card */
   .rb-setcard {
     display: flex; gap: 12px; align-items: center; margin-top: 13px;
     background: #FBF1F0; border: 1.5px solid var(--rose); border-radius: 16px; padding: 11px;
@@ -798,7 +798,7 @@
       address1: '', address2: '', city: '', state: 'MI', zip: '',
       tier: 'custom',
       giftCode: '', giftCredit: 0,
-      // ready-made set picked from the gallery: { id, code, price, name, description, url }
+      // gallery design picked as inspo: { id, code, price, name, description, url }
       // (a reference, not a blob — survives reload, unlike `photos`)
       inventorySet: null,
       // receipt-builder UI state
@@ -899,7 +899,7 @@
   function syncTier() { data.tier = data.simpleColors ? 'classic' : 'custom'; }
   function selectedTier() { return TIERS.filter(function (t) { return t.id === data.tier; })[0] || TIERS[TIERS.length - 1]; }
   function basePrice() {
-    // A ready-made set carries its own price (the server re-reads it from the
+    // A gallery design carries its own price (the server re-reads it from the
     // inventory row on save — this is display-only, like SHIP_FEE below).
     if (data.inventorySet) return Number(data.inventorySet.price) || 0;
     return Number(selectedTier().price) || 0;
@@ -914,7 +914,7 @@
   function amountDue() { return Math.max(0, totalAmount() - giftCredit()); }
   function notesForSave() { return data.notes.trim() || null; }
   function hasPhoto() { return photos.length > 0; }
-  // Section 4 is satisfied by an uploaded photo OR a picked ready-made set.
+  // Section 4 is satisfied by an uploaded photo OR a picked gallery design.
   function hasInspo() { return hasPhoto() || !!data.inventorySet; }
 
   function persist() {
@@ -996,7 +996,7 @@
         '</div>' +
         '<div class="rb-welcome__foot">' +
           '<button class="btn" data-start>Start my custom order →</button>' +
-          '<button class="rb-welcome__gift" type="button" data-browse>' + Icon.sparkle + '<span>Shop ready-made sets</span></button>' +
+          '<button class="rb-welcome__gift" type="button" data-browse>' + Icon.sparkle + '<span>Browse recent designs</span></button>' +
           '<button class="rb-welcome__gift" type="button" data-gift>' + Icon.gift + '<span>Send a gift</span></button>' +
         '</div>' +
       '</div>';
@@ -1004,7 +1004,7 @@
       step = 'main'; if (!data.active) data.active = 1; render();
     };
     app.querySelector('[data-browse]').onclick = function () {
-      step = 'gallery'; render();
+      galleryFrom = 'welcome'; step = 'gallery'; render();
     };
     app.querySelector('[data-gift]').onclick = function () {
       step = 'gift'; render();
@@ -1034,11 +1034,11 @@
             socialsHtml +
           '</div>' +
           '<div class="rb-welcome__foot">' +
-            '<button class="rb-welcome__gift" type="button" data-browse>' + Icon.sparkle + '<span>Shop ready-made sets</span></button>' +
+            '<button class="rb-welcome__gift" type="button" data-browse>' + Icon.sparkle + '<span>Browse recent designs</span></button>' +
             '<button class="rb-welcome__gift" type="button" data-gift>' + Icon.gift + '<span>Send a gift</span></button>' +
           '</div>' +
         '</div>';
-      app.querySelector('[data-browse]').onclick = function () { step = 'gallery'; render(); };
+      app.querySelector('[data-browse]').onclick = function () { galleryFrom = 'welcome'; step = 'gallery'; render(); };
       app.querySelector('[data-gift]').onclick = function () { step = 'gift'; render(); };
       return app;
     }
@@ -1059,7 +1059,7 @@
         '</div>' +
         '<div class="rb-welcome__foot">' +
           '<button class="btn" data-wl-submit>Notify me when orders reopen</button>' +
-          '<button class="rb-welcome__gift" type="button" data-browse>' + Icon.sparkle + '<span>Shop ready-made sets</span></button>' +
+          '<button class="rb-welcome__gift" type="button" data-browse>' + Icon.sparkle + '<span>Browse recent designs</span></button>' +
           '<button class="rb-welcome__gift" type="button" data-gift>' + Icon.gift + '<span>Send a gift</span></button>' +
         '</div>' +
       '</div>';
@@ -1070,7 +1070,7 @@
     var btn = app.querySelector('[data-wl-submit]');
 
     app.querySelector('[data-gift]').onclick = function () { step = 'gift'; render(); };
-    app.querySelector('[data-browse]').onclick = function () { step = 'gallery'; render(); };
+    app.querySelector('[data-browse]').onclick = function () { galleryFrom = 'welcome'; step = 'gallery'; render(); };
     emailIn.onkeydown = function (e) { if (e.key === 'Enter') btn.click(); };
 
     btn.onclick = function () {
@@ -1121,14 +1121,16 @@
     return dbSave;
   }
 
-  // ════════════════════════════════════════ READY-MADE SETS gallery ════════
-  // Available sets from `inventory_sets` (anon RLS shows only status='available';
-  // sets leave the gallery when Paige marks them sold in admin). Photos live in
-  // the public `inventory` storage bucket, so plain CDN URLs — no signed URLs.
+  // ════════════════════════════════════════ DESIGN GALLERY ════════
+  // Paige's past work from `inventory_sets` — DESIGNS she remakes in any size,
+  // not stock (anon RLS shows only status='visible'; Hide in admin retires
+  // one). Picking a design uses it as the order's inspo at the design's own
+  // price. Photos live in the public `inventory` bucket, so plain CDN URLs.
   var inventory = null;          // null = not fetched yet; [] = fetched, empty
   var inventoryLoading = false;
   var galleryQuery = '';
-  var galleryNotice = '';        // one-shot banner (e.g. "that set is gone")
+  var galleryNotice = '';        // one-shot banner (e.g. "that design is gone")
+  var galleryFrom = 'welcome';   // 'welcome' | 'inspo' — where Back returns to
 
   function invPhotoUrl(path) {
     if (sb) {
@@ -1142,7 +1144,7 @@
     inventoryLoading = true;
     sb.from('inventory_sets')
       .select('id,code,name,description,price,photo_path')
-      .eq('status', 'available')
+      .eq('status', 'visible')
       .order('created_at', { ascending: false })
       .then(function (res) {
         inventoryLoading = false;
@@ -1159,6 +1161,7 @@
   }
 
   function chooseInventorySet(s) {
+    galleryNotice = '';
     data.inventorySet = { id: s.id, code: s.code, price: s.price, name: s.name, description: s.description, url: s.url };
     data.designDone = false;      // they still tap Continue on the Inspo step
     data.active = nextIncomplete();
@@ -1179,10 +1182,10 @@
       return '<div class="rb-gal__empty">Loading sets…</div>';
     }
     if (!inventory.length) {
-      return '<div class="rb-gal__empty">No ready-made sets right now.<br>Check back soon — or start a custom order.</div>';
+      return '<div class="rb-gal__empty">No designs to browse yet.<br>Check back soon — or start with your own inspo photo.</div>';
     }
     if (!list.length) {
-      return '<div class="rb-gal__empty">No set matches “' + esc(galleryQuery.trim()) + '”.</div>';
+      return '<div class="rb-gal__empty">No design matches “' + esc(galleryQuery.trim()) + '”.</div>';
     }
     return '<div class="rb-gal__grid">' + list.map(function (s, i) {
       return '<button type="button" class="rb-galcard" data-set-i="' + i + '">' +
@@ -1217,18 +1220,24 @@
       '<div class="rb-gal">' +
         '<div class="rb-gal__head">' +
           '<button type="button" class="rb-gal__back" data-back>' + Icon.back + 'Back</button>' +
-          '<div class="rb-gal__title">Ready-made sets</div>' +
+          '<div class="rb-gal__title">Recent designs</div>' +
         '</div>' +
         '<input class="rb-gal__search" data-gal-q placeholder="Search by code or name" autocomplete="off" />' +
         '<div class="rb-gal__scroll">' +
           (galleryNotice ? '<div class="rb-gal__note">' + esc(galleryNotice) + '</div>' : '') +
-          (paused ? '<div class="rb-gal__note">Ordering is paused right now — browse away, and find these sets at the booth.</div>' : '') +
+          (paused ? '<div class="rb-gal__note">Ordering is paused right now — you can still browse for inspiration.</div>' : '') +
           '<div data-gal-grid>' + galleryGridHtml(galleryList()) + '</div>' +
         '</div>' +
       '</div>';
-    galleryNotice = '';
 
-    app.querySelector('[data-back]').onclick = function () { step = 'welcome'; render(); };
+    // Back returns to wherever browsing started: the Inspo step or the welcome.
+    // The one-shot notice clears on leaving (not per render — the async
+    // inventory fetch re-renders this screen and would wipe it too early).
+    app.querySelector('[data-back]').onclick = function () {
+      galleryNotice = '';
+      if (galleryFrom === 'inspo') { step = 'main'; render(); }
+      else { step = 'welcome'; render(); }
+    };
 
     var qEl = app.querySelector('[data-gal-q]');
     qEl.value = galleryQuery;
@@ -1258,8 +1267,9 @@
           if (orderStatus.paused) { step = 'gallery'; render(); return; }
           chooseInventorySet(mapped);
         } else {
-          // Sold or unknown — anon RLS hides sold rows, so both look the same.
-          galleryNotice = 'Set ' + deepLinkSetCode + ' isn’t available anymore — here’s what’s left.';
+          // Hidden or unknown — anon RLS hides retired designs, so both look the same.
+          galleryNotice = 'That design isn’t in the gallery anymore — here are the rest.';
+          galleryFrom = 'welcome';
           step = 'gallery'; render();
         }
       }, function () {});
@@ -1386,7 +1396,7 @@
     } else {
       ico = Icon.palette; label = 'Inspo'; valCls = ' rose';
       val = data.inventorySet
-        ? '✦ Set ' + data.inventorySet.code + ' · ' + money(basePrice())
+        ? '✦ Design ' + data.inventorySet.code + ' · ' + money(basePrice())
         : '✦ ' + selectedTier().name + ' · ' + money(basePrice());
     }
     row.innerHTML =
@@ -1546,22 +1556,22 @@
     var card = el('div', 'rb-card' + (animate ? ' rb-reveal' : ''));
     curActiveCard = card;
 
-    // A ready-made set from the gallery IS the inspo: show it (with a Remove
+    // A design picked from the gallery IS the inspo: show it (with a Remove
     // that reverts to the normal upload flow) instead of the photo drop zone.
-    // The tier toggle is hidden too — the set's own price applies.
+    // The tier toggle is hidden too — the design's own price applies.
     if (data.inventorySet) {
       var invSet = data.inventorySet;
       card.innerHTML = cardHead('Your Inspo', 4, data.designDone) +
         '<div class="rb-setcard">' +
           '<img src="' + esc(invSet.url) + '" alt="' + esc(invSet.code) + '" />' +
           '<div class="rb-setcard__body">' +
-            '<div class="rb-setcard__code">Ready-made · ' + esc(invSet.code) + '</div>' +
+            '<div class="rb-setcard__code">Paige’s design · ' + esc(invSet.code) + '</div>' +
             (invSet.name ? '<div class="rb-setcard__name">' + esc(invSet.name) + '</div>' : '') +
             '<div class="rb-setcard__price">' + money(Number(invSet.price) || 0) + '</div>' +
           '</div>' +
           '<button type="button" class="rb-setcard__x" data-unset>Remove</button>' +
         '</div>' +
-        '<div class="rb-subline">Already made — Paige checks your sizes against this set before it goes out.</div>' +
+        '<div class="rb-subline">Paige makes this design fresh in your shape and sizes.</div>' +
         '<textarea class="rb-ta" data-notes placeholder="Notes or requests · optional"></textarea>';
       var setNotes = card.querySelector('[data-notes]');
       setNotes.value = data.notes;
@@ -1577,6 +1587,7 @@
     card.innerHTML = cardHead('Your Inspo', 4, data.designDone) +
       '<input type="file" accept="image/*" multiple data-file style="display:none" />' +
       '<div class="rb-drop" data-drop></div>' +
+      '<button class="rb-vid" type="button" data-browse-designs>' + Icon.sparkle + 'Or browse Paige’s recent designs</button>' +
       '<div data-price></div>' +
       '<button class="rb-toggle" type="button" data-toggle>' +
         '<span class="rb-track"><span class="rb-knob"></span></span>' +
@@ -1675,6 +1686,9 @@
     toggle.onclick = function () {
       data.simpleColors = !data.simpleColors; syncTier(); persist();
       paintToggle(); paintPrice(); paintPill(); paintFooter();
+    };
+    card.querySelector('[data-browse-designs]').onclick = function () {
+      galleryFrom = 'inspo'; step = 'gallery'; render();
     };
 
     renderDrop(); paintPrice(); paintToggle();
@@ -1852,7 +1866,7 @@
     if (!sumEl) return;
     var t = selectedTier();
     var lineItem = data.inventorySet
-      ? 'Ready-made set ' + data.inventorySet.code + (data.inventorySet.name ? ' · ' + data.inventorySet.name : '')
+      ? 'Design ' + data.inventorySet.code + (data.inventorySet.name ? ' · ' + data.inventorySet.name : '')
       : t.name + ' set · ' + (data.shape || '—') + ' · ' + (data.sizePreset || 'Custom');
     var html = '<div class="rb-sum__row"><span>' + esc(lineItem) + '</span><span>' + money(basePrice()) + '</span></div>';
     if (isShipping()) html += '<div class="rb-sum__row"><span>Shipping</span><span>' + money(SHIP_FEE) + '</span></div>';
@@ -1892,7 +1906,7 @@
       var advance = function () { data.designDone = true; data.active = nextIncomplete(); renderMain({ advance: true }); };
       if (data.inventorySet) {
         return { label: 'Continue — ' + money(basePrice()), enabled: true,
-          hint: 'Ready-made set ' + data.inventorySet.code + ' — already made, ready to go', go: advance };
+          hint: 'Paige’s design ' + data.inventorySet.code + ' — made fresh in your sizes', go: advance };
       }
       if (data.simpleColors) {
         return hasPhoto()
@@ -2716,7 +2730,7 @@
       p_postal_code: shipping ? (data.zip.trim() || null) : null,
       p_country: shipping ? 'US' : null,
       p_gift_code: data.giftCode || null,
-      // Ready-made set: the RPC re-reads price + code from the inventory row
+      // Gallery design: the RPC re-reads price + code from the inventory row
       // (the p_tier_price above is ignored when this is set).
       p_inventory_set_id: data.inventorySet ? data.inventorySet.id : null
     }).then(function (res) {
@@ -2799,9 +2813,9 @@
       fd.append('Nail shape', data.shape || 'Not selected');
       fd.append('Sizes (both hands)', sizesStr);
       if (data.inventorySet) {
-        fd.append('Ready-made set', data.inventorySet.code +
+        fd.append('From design', data.inventorySet.code +
           (data.inventorySet.name ? ' · ' + data.inventorySet.name : '') +
-          ' (' + money(basePrice()) + ') — mark it sold in admin once confirmed');
+          ' (' + money(basePrice()) + ') — remake in the customer’s shape & sizes');
       } else {
         fd.append('Design tier', tier.name + ' (' + money(Number(tier.price) || 0) + ')');
       }
