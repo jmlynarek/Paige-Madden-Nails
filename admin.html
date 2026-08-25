@@ -1735,7 +1735,7 @@ function viewInventory(){
           (isHidden
             ? '<button class="btn btn-line btn-sm" data-inv-show="'+s.id+'">Show</button>'
             : '<button class="btn btn-line btn-sm" data-inv-hide="'+s.id+'">Hide</button>')+
-          '<button class="ico" data-inv-price-edit="'+s.id+'" title="Edit price">'+I.pencil+'</button>'+
+          '<button class="ico" data-inv-edit="'+s.id+'" title="Edit name, description & price">'+I.pencil+'</button>'+
           '<button class="ico danger" data-inv-del="'+s.id+'" title="Delete">'+I.trash+'</button>'+
         '</div>'+
       '</div>'+
@@ -1811,16 +1811,23 @@ function showDesign(id){
     toast('Back in the gallery', s.code, 'ok');
   });
 }
-function editSetPrice(id){
+// Edit name / description / price in one pass (three prompts, cancel any one
+// to abort the whole edit — nothing saves until all three are answered).
+function editDesign(id){
   var s = state.inventory.find(function(x){return x.id===id;}); if(!s) return;
-  var raw = window.prompt('New price for '+s.code+' ($):', String(Number(s.price)||''));
+  var name = window.prompt('Name for '+s.code+' (blank for none):', s.name||'');
+  if(name===null) return;
+  var desc = window.prompt('Description for '+s.code+' (blank for none):', s.description||'');
+  if(desc===null) return;
+  var raw = window.prompt('Price for '+s.code+' ($):', String(Number(s.price)||''));
   if(raw===null) return;
   var price = parseFloat(String(raw).replace(/[^0-9.]/g,''));
-  if(!price || price<=0){ toast('Enter a number above zero','','err'); return; }
-  var prev = s.price; s.price = price; render();
-  sb.from('inventory_sets').update({ price: price }).eq('id',id).then(function(r){
-    if(r.error){ s.price=prev; render(); toast('Couldn’t save the price', r.error.message,'err'); return; }
-    toast('Price updated', s.code+' · '+money(price), 'ok');
+  if(!price || price<=0){ toast('Enter a price above zero','','err'); return; }
+  var prev = { name:s.name, description:s.description, price:s.price };
+  s.name = name.trim()||null; s.description = desc.trim()||null; s.price = price; render();
+  sb.from('inventory_sets').update({ name:s.name, description:s.description, price:price }).eq('id',id).then(function(r){
+    if(r.error){ s.name=prev.name; s.description=prev.description; s.price=prev.price; render(); toast('Couldn’t save', r.error.message,'err'); return; }
+    toast('Design updated', s.code+' · '+money(price), 'ok');
   });
 }
 function deleteSet(id){
@@ -3638,7 +3645,7 @@ function wire(){
   document.querySelectorAll('[data-inv-add]').forEach(function(b){ b.onclick=function(){ addInventorySet(b); }; });
   document.querySelectorAll('[data-inv-hide]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); hideDesign(b.getAttribute('data-inv-hide')); }; });
   document.querySelectorAll('[data-inv-show]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); showDesign(b.getAttribute('data-inv-show')); }; });
-  document.querySelectorAll('[data-inv-price-edit]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); editSetPrice(b.getAttribute('data-inv-price-edit')); }; });
+  document.querySelectorAll('[data-inv-edit]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); editDesign(b.getAttribute('data-inv-edit')); }; });
   document.querySelectorAll('[data-inv-del]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); deleteSet(b.getAttribute('data-inv-del')); }; });
   document.querySelectorAll('[data-gc-generate]').forEach(function(b){ b.onclick=function(){ generateGiftCard(b); }; });
   document.querySelectorAll('[data-gc-issue]').forEach(function(b){ b.onclick=function(e){ e.stopPropagation(); issueGiftCard(b.getAttribute('data-gc-issue')); }; });

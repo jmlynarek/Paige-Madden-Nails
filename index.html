@@ -226,6 +226,41 @@
     color: var(--rose); font-size: 12px; font-weight: 700; min-height: 86px;
   }
 
+  /* Design preview lightbox — tap a thumbnail anywhere to see it big, zoom,
+     then choose it. */
+  .rb-lb-ov {
+    position: fixed; inset: 0; z-index: 110;
+    display: flex; align-items: center; justify-content: center;
+    padding: calc(var(--safe-top) + 14px) 14px calc(var(--safe-bottom) + 14px);
+    background: rgba(46, 32, 29, 0.62);
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+    animation: reveal .18s ease both;
+  }
+  .rb-lb {
+    position: relative; width: 100%; max-width: 440px; max-height: 100%;
+    display: flex; flex-direction: column;
+    background: var(--surface); border-radius: 22px; overflow: hidden;
+    box-shadow: 0 24px 64px rgba(46, 32, 29, 0.4);
+  }
+  .rb-lb__x {
+    position: absolute; top: 10px; right: 10px; z-index: 2;
+    width: 34px; height: 34px; border: none; border-radius: 50%;
+    background: rgba(46, 32, 29, 0.55); color: #fff; font-size: 15px;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .rb-lb__imgwrap {
+    overflow: auto; background: #F3ECE8; -webkit-overflow-scrolling: touch;
+    max-height: 56vh; flex-shrink: 1; min-height: 180px;
+  }
+  .rb-lb__img { width: 100%; display: block; cursor: zoom-in; }
+  .rb-lb__img.zoomed { width: 220%; max-width: none; cursor: zoom-out; }
+  .rb-lb__body { padding: 14px 18px calc(14px + 2px); }
+  .rb-lb__code { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: rgba(95,70,63,0.55); text-transform: uppercase; }
+  .rb-lb__name { font-family: var(--serif); font-size: 19px; font-weight: 600; color: var(--ink); margin-top: 2px; }
+  .rb-lb__desc { font-size: 13px; line-height: 1.5; color: var(--ink-2); margin-top: 4px; }
+  .rb-lb__hint { font-size: 11.5px; color: rgba(95,70,63,0.5); margin-top: 8px; }
+  .rb-lb__body .btn { margin-top: 12px; }
+
   /* Picked gallery design inside the Inspo card */
   .rb-setcard {
     display: flex; gap: 12px; align-items: center; margin-top: 13px;
@@ -235,6 +270,7 @@
   .rb-setcard__body { flex: 1; min-width: 0; }
   .rb-setcard__code { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; color: rgba(95,70,63,0.55); }
   .rb-setcard__name { font-size: 14.5px; font-weight: 700; color: var(--ink); margin-top: 1px; }
+  .rb-setcard__desc { font-size: 12px; line-height: 1.4; color: var(--ink-2); margin-top: 2px; }
   .rb-setcard__price { font-size: 13.5px; font-weight: 700; color: var(--rose); margin-top: 2px; }
   .rb-setcard__x {
     flex-shrink: 0; border: 1px solid var(--rose); background: #fff; color: var(--rose);
@@ -1198,6 +1234,46 @@
     render();
   }
 
+  // Tap-anywhere preview: the big photo (tap it to zoom + pan), the name,
+  // description, and price — then "Use this design" actually picks it.
+  // canUse=false (orders paused) shows the design without the pick button.
+  function openDesignPreview(s, canUse) {
+    var ov = el('div', 'rb-lb-ov');
+    ov.innerHTML =
+      '<div class="rb-lb rb-pop" role="dialog" aria-modal="true" aria-label="' + esc(s.code) + '">' +
+        '<button class="rb-lb__x" type="button" data-close aria-label="Close">✕</button>' +
+        '<div class="rb-lb__imgwrap" data-wrap><img class="rb-lb__img" src="' + esc(s.url) + '" alt="' + esc(s.name || s.code) + '" data-img /></div>' +
+        '<div class="rb-lb__body">' +
+          '<div class="rb-lb__code">' + esc(s.code) + ' · ' + money(s.price) + '</div>' +
+          (s.name ? '<div class="rb-lb__name">' + esc(s.name) + '</div>' : '') +
+          (s.description ? '<div class="rb-lb__desc">' + esc(s.description) + '</div>' : '') +
+          '<div class="rb-lb__hint">Tap the photo to zoom in and out.</div>' +
+          (canUse
+            ? '<button class="btn" type="button" data-use>Use this design — ' + money(s.price) + '</button>' +
+              '<div class="rb-lb__hint" style="text-align:center">Paige makes it fresh in your shape and sizes.</div>'
+            : '<div class="rb-lb__hint" style="font-weight:600;color:var(--rose)">Ordering is paused right now — enjoy browsing.</div>') +
+        '</div>' +
+      '</div>';
+    function close() { document.removeEventListener('keydown', onKey); ov.remove(); }
+    function onKey(e) { if (e.key === 'Escape') close(); }
+    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+    ov.querySelector('[data-close]').onclick = close;
+    var img = ov.querySelector('[data-img]');
+    var wrap = ov.querySelector('[data-wrap]');
+    img.onclick = function () {
+      var on = img.classList.toggle('zoomed');
+      if (on) {
+        // Center the zoomed image so the middle of the design stays in view.
+        wrap.scrollLeft = (img.offsetWidth - wrap.clientWidth) / 2;
+        wrap.scrollTop = (img.offsetHeight - wrap.clientHeight) / 2;
+      } else { wrap.scrollLeft = 0; wrap.scrollTop = 0; }
+    };
+    var use = ov.querySelector('[data-use]');
+    if (use) use.onclick = function () { close(); chooseInventorySet(s); };
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(ov);
+  }
+
   function galleryList() {
     var q = galleryQuery.trim().toUpperCase();
     return (inventory || []).filter(function (s) {
@@ -1228,14 +1304,14 @@
     }).join('') + '</div>';
   }
 
-  // Tapping a card is disabled while orders are paused (browse-only).
+  // Every card opens the big preview; while orders are paused the preview
+  // just has no "Use this design" button (browse-only).
   function wireGalleryGrid(app, paused) {
-    if (paused) return;
     var list = galleryList();
     app.querySelectorAll('[data-set-i]').forEach(function (b) {
       b.onclick = function () {
         var s = list[Number(b.getAttribute('data-set-i'))];
-        if (s) chooseInventorySet(s);
+        if (s) openDesignPreview(s, !paused);
       };
     });
   }
@@ -1596,6 +1672,7 @@
           '<div class="rb-setcard__body">' +
             '<div class="rb-setcard__code">Paige’s design · ' + esc(invSet.code) + '</div>' +
             (invSet.name ? '<div class="rb-setcard__name">' + esc(invSet.name) + '</div>' : '') +
+            (invSet.description ? '<div class="rb-setcard__desc">' + esc(invSet.description) + '</div>' : '') +
             '<div class="rb-setcard__price">' + money(Number(invSet.price) || 0) + '</div>' +
           '</div>' +
           '<button type="button" class="rb-setcard__x" data-unset>Remove</button>' +
@@ -1739,7 +1816,7 @@
       designsWrap.querySelectorAll('[data-dpick]').forEach(function (b) {
         b.onclick = function () {
           var s = inventory[Number(b.getAttribute('data-dpick'))];
-          if (s) chooseInventorySet(s);
+          if (s) openDesignPreview(s, true);
         };
       });
       designsWrap.querySelector('[data-dall]').onclick = function () {
