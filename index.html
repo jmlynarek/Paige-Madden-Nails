@@ -256,6 +256,23 @@
     overflow: auto; background: #F3ECE8; -webkit-overflow-scrolling: touch;
     max-height: 56vh; flex-shrink: 1; min-height: 180px;
   }
+  .rb-lb__count {
+    position: absolute; top: 16px; left: 14px; z-index: 2;
+    background: rgba(46, 32, 29, 0.55); color: #fff;
+    font-size: 11.5px; font-weight: 700; letter-spacing: 0.04em;
+    border-radius: 99px; padding: 5px 11px; font-variant-numeric: tabular-nums;
+  }
+  .rb-lb__nav {
+    position: absolute; top: 26vh; z-index: 2;
+    width: 40px; height: 40px; border: none; border-radius: 50%;
+    background: rgba(46, 32, 29, 0.55); color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .rb-lb__nav:active { transform: scale(0.94); }
+  .rb-lb__nav svg { width: 18px; height: 18px; }
+  .rb-lb__nav--prev { left: 10px; }
+  .rb-lb__nav--next { right: 10px; }
+  .rb-lb__nav--next svg { transform: scaleX(-1); }
   .rb-lb__img { width: 100%; display: block; cursor: zoom-in; }
   .rb-lb__img.zoomed { width: 220%; max-width: none; cursor: zoom-out; }
   .rb-lb__body { padding: 14px 18px calc(14px + 2px); }
@@ -1250,30 +1267,69 @@
 
   // Tap-anywhere preview: the big photo (tap it to zoom + pan), the name,
   // description, and price — then "Use this design" actually picks it.
-  // canUse=false (orders paused) shows the design without the pick button.
-  function openDesignPreview(s, canUse) {
+  // Takes the LIST plus an index so prev/next arrows (and arrow keys) flip
+  // through every design without closing the preview; arrows wrap around.
+  // canUse=false (orders paused) shows the designs without the pick button.
+  function openDesignPreview(list, index, canUse) {
+    var idx = index;
+    var many = list.length > 1;
     var ov = el('div', 'rb-lb-ov');
     ov.innerHTML =
-      '<div class="rb-lb rb-pop" role="dialog" aria-modal="true" aria-label="' + esc(s.code) + '">' +
+      '<div class="rb-lb rb-pop" role="dialog" aria-modal="true">' +
         '<button class="rb-lb__x" type="button" data-close aria-label="Close">✕</button>' +
-        '<div class="rb-lb__imgwrap" data-wrap><img class="rb-lb__img" src="' + esc(s.url) + '" alt="' + esc(s.name || s.code) + '" data-img /></div>' +
+        (many ? '<span class="rb-lb__count" data-count></span>' : '') +
+        '<div class="rb-lb__imgwrap" data-wrap><img class="rb-lb__img" data-img alt="" /></div>' +
+        (many ?
+          '<button class="rb-lb__nav rb-lb__nav--prev" type="button" data-prev aria-label="Previous design">' + Icon.back + '</button>' +
+          '<button class="rb-lb__nav rb-lb__nav--next" type="button" data-next aria-label="Next design">' + Icon.back + '</button>' : '') +
         '<div class="rb-lb__body">' +
-          '<div class="rb-lb__code">' + esc(invCodeLabel(s.code)) + ' · ' + money(s.price) + '</div>' +
-          (s.name ? '<div class="rb-lb__name">' + esc(s.name) + '</div>' : '') +
-          (s.description ? '<div class="rb-lb__desc">' + esc(s.description) + '</div>' : '') +
-          '<div class="rb-lb__hint">Tap the photo to zoom in and out.</div>' +
+          '<div class="rb-lb__code" data-code></div>' +
+          '<div class="rb-lb__name" data-name></div>' +
+          '<div class="rb-lb__desc" data-desc></div>' +
+          '<div class="rb-lb__hint">Tap the photo to zoom in and out.' + (many ? ' Use the arrows to see the next design.' : '') + '</div>' +
           (canUse
-            ? '<button class="btn" type="button" data-use>Use this design — ' + money(s.price) + '</button>' +
+            ? '<button class="btn" type="button" data-use></button>' +
               '<div class="rb-lb__hint" style="text-align:center">Paige makes it fresh in your shape and sizes.</div>'
             : '<div class="rb-lb__hint" style="font-weight:600;color:var(--rose)">Ordering is paused right now — enjoy browsing.</div>') +
         '</div>' +
       '</div>';
-    function close() { document.removeEventListener('keydown', onKey); ov.remove(); }
-    function onKey(e) { if (e.key === 'Escape') close(); }
-    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
-    ov.querySelector('[data-close]').onclick = close;
+
     var img = ov.querySelector('[data-img]');
     var wrap = ov.querySelector('[data-wrap]');
+    var codeEl = ov.querySelector('[data-code]');
+    var nameEl = ov.querySelector('[data-name]');
+    var descEl = ov.querySelector('[data-desc]');
+    var countEl = ov.querySelector('[data-count]');
+    var use = ov.querySelector('[data-use]');
+
+    function paint() {
+      var s = list[idx];
+      img.classList.remove('zoomed');
+      wrap.scrollLeft = 0; wrap.scrollTop = 0;
+      img.src = s.url;
+      img.alt = s.name || invCodeLabel(s.code);
+      codeEl.textContent = invCodeLabel(s.code) + ' · ' + money(s.price);
+      nameEl.textContent = s.name || '';
+      nameEl.style.display = s.name ? '' : 'none';
+      descEl.textContent = s.description || '';
+      descEl.style.display = s.description ? '' : 'none';
+      if (countEl) countEl.textContent = (idx + 1) + ' / ' + list.length;
+      if (use) use.textContent = 'Use this design — ' + money(s.price);
+    }
+    function step(dir) { idx = (idx + dir + list.length) % list.length; paint(); }
+
+    function close() { document.removeEventListener('keydown', onKey); ov.remove(); }
+    function onKey(e) {
+      if (e.key === 'Escape') close();
+      else if (many && e.key === 'ArrowRight') step(1);
+      else if (many && e.key === 'ArrowLeft') step(-1);
+    }
+    ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+    ov.querySelector('[data-close]').onclick = close;
+    if (many) {
+      ov.querySelector('[data-prev]').onclick = function () { step(-1); };
+      ov.querySelector('[data-next]').onclick = function () { step(1); };
+    }
     img.onclick = function () {
       var on = img.classList.toggle('zoomed');
       if (on) {
@@ -1282,9 +1338,9 @@
         wrap.scrollTop = (img.offsetHeight - wrap.clientHeight) / 2;
       } else { wrap.scrollLeft = 0; wrap.scrollTop = 0; }
     };
-    var use = ov.querySelector('[data-use]');
-    if (use) use.onclick = function () { close(); chooseInventorySet(s); };
+    if (use) use.onclick = function () { var s = list[idx]; close(); chooseInventorySet(s); };
     document.addEventListener('keydown', onKey);
+    paint();
     document.body.appendChild(ov);
   }
 
@@ -1325,8 +1381,8 @@
     var list = galleryList();
     app.querySelectorAll('[data-set-i]').forEach(function (b) {
       b.onclick = function () {
-        var s = list[Number(b.getAttribute('data-set-i'))];
-        if (s) openDesignPreview(s, !paused);
+        var i = Number(b.getAttribute('data-set-i'));
+        if (list[i]) openDesignPreview(list, i, !paused);
       };
     });
   }
@@ -1843,8 +1899,10 @@
         '</div>';
       designsWrap.querySelectorAll('[data-dpick]').forEach(function (b) {
         b.onclick = function () {
-          var s = inventory[Number(b.getAttribute('data-dpick'))];
-          if (s) openDesignPreview(s, true);
+          var i = Number(b.getAttribute('data-dpick'));
+          // Pass the FULL inventory so the arrows browse everything, not just
+          // the eight teaser thumbnails.
+          if (inventory[i]) openDesignPreview(inventory, i, true);
         };
       });
       designsWrap.querySelector('[data-dall]').onclick = function () {
