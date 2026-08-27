@@ -442,6 +442,8 @@
              grid-template-columns: minmax(160px,1fr) minmax(200px,1.2fr) 130px auto; }
   .gc-form .field { margin: 0; }
   .gc-form .gc-f-btn { height: 47px; padding: 0 22px; white-space: nowrap; }
+  /* The code is the thing you read off a phone across a busy booth table. */
+  .gc-code { font-size: 19px; letter-spacing: 1.5px; line-height: 1.25; }
   .gc-buyer { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .gc-buyer b { font-weight: 650; overflow-wrap: anywhere; }
   .gc-buyer-em { font-size: 12px; color: var(--ink-soft); overflow-wrap: anywhere; }
@@ -475,6 +477,7 @@
     .tbl tbody td[data-label]::before { content: attr(data-label); display: inline-block; width: 96px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); font-weight: 700; }
     /* keep the two-line buyer block beside its label instead of dropping below it */
     .tbl tbody td[data-label] .gc-buyer { display: inline-flex; vertical-align: top; max-width: calc(100% - 104px); }
+    .gc-code { font-size: 23px; letter-spacing: 2px; }
     .kpi-val { font-size: 25px; }
   }
 </style>
@@ -2009,7 +2012,7 @@ function viewGiftCards(){
       ? '<span class="muted">—</span>'
       : (ord ? '<span class="oid" data-open="'+ord.id+'" style="cursor:pointer">'+shortId(ord)+'</span>' : '<span class="muted">In person</span>')+' <span class="muted">'+fmtDay(c.redeemed_at)+'</span>';
     return '<tr data-gc-open="'+c.id+'" style="cursor:pointer">'+
-      '<td data-label="Code"><span class="oid" style="letter-spacing:1px">'+esc(c.code)+'</span></td>'+
+      '<td data-label="Code"><span class="oid gc-code">'+esc(c.code)+'</span></td>'+
       '<td data-label="Amount">'+money(c.amount)+'</td>'+
       '<td data-label="Type">'+gcTypeChip(c)+'</td>'+
       '<td data-label="Buyer">'+gcBuyerCell(c)+'</td>'+
