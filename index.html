@@ -407,6 +407,65 @@
   .rb-modal__btn--go { background: var(--rose); color: #fff; box-shadow: var(--shadow-cta); }
   .rb-modal__btn--go:hover { background: var(--rose-deep); }
 
+  /* ── Bottom sheet (gift code entry) ──
+     A text field parked at the bottom of a long scroll page is the worst spot
+     for a phone: the keyboard covers it, and iOS then scrolls the whole shell
+     off-screen trying to reveal it. So the field moves into a sheet pinned to
+     the bottom of the *visible* viewport (--app-top / --app-h are synced to
+     visualViewport), which puts it directly above the keyboard with nothing
+     left for the browser to scroll. */
+  .rb-sheet-ov {
+    position: fixed; left: 0; right: 0;
+    top: var(--app-top, 0px); height: var(--app-h, 100dvh);
+    z-index: 120; display: flex; align-items: flex-end; justify-content: center;
+    background: rgba(95, 70, 63, 0.42);
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+    animation: reveal .18s ease both;
+  }
+  .rb-sheet {
+    width: 100%; max-width: 460px;
+    background: var(--surface);
+    border-radius: 26px 26px 0 0;
+    padding: 10px 22px calc(var(--safe-bottom) + 18px);
+    box-shadow: 0 -18px 50px rgba(95, 70, 63, 0.26);
+    animation: sheetup .26s cubic-bezier(.22,.61,.36,1) both;
+  }
+  @keyframes sheetup { from { transform: translateY(100%); } to { transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .rb-sheet { animation: none; } }
+  .rb-sheet__grab { width: 40px; height: 4px; border-radius: 99px; background: var(--line); margin: 0 auto 14px; }
+  .rb-sheet__title { font-family: var(--serif); font-size: 23px; font-weight: 600; color: var(--ink); line-height: 1.15; }
+  .rb-sheet__hint { font-size: 13.5px; line-height: 1.45; color: var(--ink-soft); margin: 7px 0 15px; }
+  /* Big, centered, spaced-out — a code is read off a card and typed once. */
+  .rb-sheet__code {
+    width: 100%; height: 60px; text-align: center;
+    border: 1.5px solid var(--rose-30); background: #FEFBFA; border-radius: 16px;
+    font-family: var(--sans); font-size: 24px; font-weight: 700; letter-spacing: 3px;
+    text-transform: uppercase; color: var(--ink); outline: none;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  .rb-sheet__code::placeholder { font-size: 16px; font-weight: 500; letter-spacing: 1px; color: rgba(95,70,63,0.4); }
+  .rb-sheet__code:focus { border-color: var(--rose); box-shadow: 0 0 0 4px rgba(180,104,105,0.13); }
+  .rb-sheet__msg { font-size: 13px; margin-top: 10px; min-height: 18px; text-align: center; }
+  .rb-sheet__msg .err { color: var(--rose); font-weight: 600; }
+  .rb-sheet__msg .muted { color: var(--ink-soft); }
+  .rb-sheet__go {
+    width: 100%; margin-top: 12px; height: 54px; border: 0; border-radius: 99px;
+    background: var(--rose); color: #fff; box-shadow: var(--shadow-cta);
+    font-family: var(--sans); font-size: 16px; font-weight: 700; cursor: pointer;
+  }
+  .rb-sheet__go[disabled] { opacity: .45; box-shadow: none; cursor: default; }
+  .rb-sheet__cancel {
+    width: 100%; margin-top: 6px; height: 46px; background: none; border: 0;
+    font-family: var(--sans); font-size: 14.5px; font-weight: 600; color: var(--ink-soft); cursor: pointer;
+  }
+  /* Applied state, shown inline in the total box (no input needed any more) */
+  .rb-gift__on { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; font-size: 13.5px; color: var(--ink); }
+  .rb-gift__on-code {
+    display: inline-flex; align-items: center; gap: 6px; color: var(--rose); font-weight: 700;
+    letter-spacing: 0.06em; background: #fff; border: 1px solid var(--rose-30);
+    border-radius: 99px; padding: 5px 12px;
+  }
+
   /* ── Scroll area ── */
   .rb-scroll {
     flex: 1; overflow-y: auto; overflow-x: hidden;
@@ -653,30 +712,10 @@
     color: var(--rose); cursor: pointer;
   }
   .rb-gift__toggle-txt { text-decoration: underline; }
-  .rb-gift__body { margin-top: 9px; }
-  .rb-gift__label { font-size: 12.5px; font-weight: 600; color: var(--ink); margin-bottom: 7px; }
-  .rb-gift__label .opt { font-weight: 500; color: var(--ink-soft); }
-  .rb-gift__row { display: flex; gap: 8px; }
-  .rb-gift__apply {
-    border: 1px solid var(--rose-30); background: #fff; color: var(--rose); border-radius: 13px;
-    padding: 0 16px; height: 48px; font-family: var(--sans); font-weight: 600; font-size: 14px; cursor: pointer; white-space: nowrap;
-  }
-  /* Inline "remove/close" X — same shell as Apply, square, muted glyph */
-  .rb-gift__x {
-    flex-shrink: 0; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;
-    border: 1px solid var(--rose-30); background: #fff; color: var(--ink-soft); border-radius: 13px;
-    font-family: var(--sans); font-size: 17px; line-height: 1; cursor: pointer;
-    transition: color .15s ease, border-color .15s ease;
-  }
-  .rb-gift__x:hover { color: var(--rose); border-color: var(--rose); }
-  .rb-gift__msg { font-size: 12.5px; margin-top: 8px; }
-  .rb-gift__msg .ok { color: var(--rose); font-weight: 600; }
-  .rb-gift__msg .muted { color: var(--ink-soft); }
   .rb-gift__remove { background: none; border: 0; color: var(--ink-soft); text-decoration: underline; cursor: pointer; font: inherit; padding: 0; margin-left: 6px; }
   /* Post-submit variant on the order-submitted screen (no top border — it
      sits between the pay tiles and the footer note, centered toggle) */
   .rb-gift--done { border-top: 0; padding-top: 0; margin-top: 16px; text-align: center; }
-  .rb-gift--done .rb-gift__body { text-align: left; }
   .rb-sum { background: #FBF1F0; border-radius: 14px; padding: 12px 15px; margin-top: 13px; }
   .rb-sum__row { display: flex; justify-content: space-between; font-size: 13px; color: rgba(95,70,63,0.7); }
   .rb-sum__row + .rb-sum__row { margin-top: 4px; }
@@ -1965,28 +2004,12 @@
       '</div>' +
       '<div class="rb-sum">' +
         '<div data-sum></div>' +
-        '<div class="rb-gift">' +
-          '<button type="button" class="rb-gift__toggle" data-gift-toggle>' + Icon.gift + '<span class="rb-gift__toggle-txt">Have a gift code?</span></button>' +
-          '<div class="rb-gift__body" data-gift-body hidden>' +
-            '<div class="rb-gift__row">' +
-              '<input class="rb-inp" data-gift placeholder="Enter code" autocapitalize="characters" autocomplete="off" style="flex:1;text-transform:uppercase" />' +
-              '<button class="rb-gift__apply" type="button" data-gift-apply>Apply</button>' +
-              '<button class="rb-gift__x" type="button" data-gift-cancel aria-label="Remove gift code">✕</button>' +
-            '</div>' +
-            '<div class="rb-gift__msg" data-gift-msg></div>' +
-          '</div>' +
-        '</div>' +
+        '<div class="rb-gift" data-gift-state></div>' +
       '</div>';
 
     var addrWrap = card.querySelector('[data-addr]');
     var sumEl = card.querySelector('[data-sum]');
-    var giftEl = card.querySelector('[data-gift]');
-    var giftMsg = card.querySelector('[data-gift-msg]');
-    var giftBody = card.querySelector('[data-gift-body]');
-    var giftToggle = card.querySelector('[data-gift-toggle]');
-    var giftCancel = card.querySelector('[data-gift-cancel]');
-
-    giftEl.value = data.giftCode || '';
+    var giftWrap = card.querySelector('[data-gift-state]');
 
     function paintSeg() {
       card.querySelectorAll('[data-ful]').forEach(function (b) {
@@ -2038,47 +2061,46 @@
       };
     });
 
-    // Gift code (read-only preview via check_gift_card; the burn is server-side in create_order)
-    function paintGiftMsg() {
+    // Gift code (read-only preview via check_gift_card; the burn is server-side
+    // in create_order). Entry happens in a bottom sheet — see openGiftSheet.
+    function repaintGiftTotals() { paintSum(sumEl); paintPill(); paintFooter(); }
+    function paintGift() {
       if (giftCredit() > 0) {
-        giftMsg.innerHTML = '<span class="ok">' + Icon.gift + ' ' + money(giftCredit()) + ' credit applied</span> · due ' + money(amountDue()) +
-          ' <button type="button" class="rb-gift__remove" data-gift-remove>Remove</button>';
-        var rm = giftMsg.querySelector('[data-gift-remove]');
-        if (rm) rm.onclick = function () {
-          data.giftCode = ''; data.giftCredit = 0; giftEl.value = ''; persist();
-          giftMsg.innerHTML = ''; paintSum(sumEl); paintPill(); paintFooter();
-        };
-      } else giftMsg.innerHTML = '';
-    }
-    function revealGift() { giftBody.hidden = false; giftToggle.style.display = 'none'; giftEl.focus(); }
-    function collapseGift() {
-      // Back out entirely: clear any typed/applied code and return to the toggle.
-      data.giftCode = ''; data.giftCredit = 0; giftEl.value = ''; giftMsg.innerHTML = ''; persist();
-      giftBody.hidden = true; giftToggle.style.display = '';
-      paintSum(sumEl); paintPill(); paintFooter();
-    }
-    giftToggle.onclick = revealGift;
-    giftCancel.onclick = collapseGift;
-    giftEl.oninput = function () { giftEl.value = giftEl.value.toUpperCase(); };
-    card.querySelector('[data-gift-apply]').onclick = function () {
-      var codeRaw = (giftEl.value || '').trim().toUpperCase();
-      if (!codeRaw) { data.giftCode = ''; data.giftCredit = 0; persist(); paintGiftMsg(); paintSum(sumEl); paintPill(); paintFooter(); return; }
-      if (!sb) { giftMsg.innerHTML = '<span class="muted">Can’t check right now — you can still submit.</span>'; return; }
-      giftMsg.innerHTML = '<span class="muted">Checking…</span>';
-      sb.rpc('check_gift_card', { p_code: codeRaw }).then(function (res) {
-        var row = res && res.data ? (Array.isArray(res.data) ? res.data[0] : res.data) : null;
-        if (res && !res.error && row && row.valid) {
-          data.giftCode = codeRaw; data.giftCredit = Number(row.amount) || 0; persist();
-          paintGiftMsg(); paintSum(sumEl); paintPill(); paintFooter();
-        } else {
+        giftWrap.innerHTML =
+          '<div class="rb-gift__on">' +
+            '<span class="rb-gift__on-code">' + Icon.gift + esc(data.giftCode || 'Gift') + '</span>' +
+            '<span>' + money(giftCredit()) + ' off · due ' + money(amountDue()) + '</span>' +
+            '<button type="button" class="rb-gift__remove" data-gift-remove>Remove</button>' +
+          '</div>';
+        giftWrap.querySelector('[data-gift-remove]').onclick = function () {
           data.giftCode = ''; data.giftCredit = 0; persist();
-          giftMsg.innerHTML = '<span class="ok">That code isn’t valid.</span>'; paintSum(sumEl); paintPill(); paintFooter();
-        }
-      }, function () { giftMsg.innerHTML = '<span class="muted">Couldn’t check that code — you can still submit.</span>'; });
-    };
+          paintGift(); repaintGiftTotals();
+        };
+        return;
+      }
+      giftWrap.innerHTML =
+        '<button type="button" class="rb-gift__toggle" data-gift-toggle>' + Icon.gift +
+          '<span class="rb-gift__toggle-txt">Have a gift code?</span></button>';
+      giftWrap.querySelector('[data-gift-toggle]').onclick = function () {
+        openGiftSheet({
+          verify: function (code, done) {
+            if (!sb) { done('Can’t check right now. You can still submit and Paige will apply it.'); return; }
+            sb.rpc('check_gift_card', { p_code: code }).then(function (res) {
+              var row = res && res.data ? (Array.isArray(res.data) ? res.data[0] : res.data) : null;
+              if (res && !res.error && row && row.valid) {
+                data.giftCode = code; data.giftCredit = Number(row.amount) || 0; persist();
+                paintGift(); repaintGiftTotals();
+                done(null);
+              } else {
+                done('That code is not valid or was already used.');
+              }
+            }, function () { done('Couldn’t check that code. Try again in a moment.'); });
+          }
+        });
+      };
+    }
 
-    paintSeg(); paintTurn(); renderAddr(); paintSum(sumEl); paintGiftMsg();
-    if (data.giftCredit > 0 || data.giftCode) { giftBody.hidden = false; giftToggle.style.display = 'none'; }
+    paintSeg(); paintTurn(); renderAddr(); paintSum(sumEl); paintGift();
     return card;
   }
 
@@ -2236,14 +2258,6 @@
         (!paidInFull && lastOrder && lastOrder.id && giftCredit() === 0
           ? '<div class="rb-gift rb-gift--done">' +
               '<button type="button" class="rb-gift__toggle" data-gift-toggle>' + Icon.gift + '<span class="rb-gift__toggle-txt">Forgot a gift code? Add it here</span></button>' +
-              '<div class="rb-gift__body" data-gift-body hidden>' +
-                '<div class="rb-gift__row">' +
-                  '<input class="rb-inp" data-gift placeholder="Enter code" autocapitalize="characters" autocomplete="off" style="flex:1;text-transform:uppercase" />' +
-                  '<button class="rb-gift__apply" type="button" data-gift-apply>Apply</button>' +
-                  '<button class="rb-gift__x" type="button" data-gift-cancel aria-label="Close gift code">✕</button>' +
-                '</div>' +
-                '<div class="rb-gift__msg" data-gift-msg></div>' +
-              '</div>' +
             '</div>'
           : '') +
         '<div class="rb-done__foot">Paige texts you within 24 hours to confirm your design <span style="color:var(--rose)">' + Icon.heart + '</span></div>' +
@@ -2337,6 +2351,67 @@
         });
     };
   }
+  /* Gift-code bottom sheet — one component, two callers (the Delivery section
+     before submit, and the "forgot a code" rescue after submit). The caller
+     supplies `verify(code, done)`; it calls done(null) on success or
+     done('message') to keep the sheet open with an error. */
+  function openGiftSheet(opts) {
+    var ov = el('div', 'rb-sheet-ov');
+    ov.innerHTML =
+      '<div class="rb-sheet" role="dialog" aria-modal="true" aria-label="Enter your gift code">' +
+        '<div class="rb-sheet__grab"></div>' +
+        '<div class="rb-sheet__title">' + esc(opts.title || 'Have a gift code?') + '</div>' +
+        '<div class="rb-sheet__hint">' + esc(opts.hint || 'Type the code from your gift card. We take it straight off your total.') + '</div>' +
+        '<input class="rb-sheet__code" data-sheet-code placeholder="Enter code" ' +
+          'autocapitalize="characters" autocomplete="off" autocorrect="off" spellcheck="false" ' +
+          'enterkeyhint="done" maxlength="12" aria-label="Gift code" />' +
+        '<div class="rb-sheet__msg" data-sheet-msg></div>' +
+        '<button type="button" class="rb-sheet__go" data-sheet-go disabled>' + esc(opts.cta || 'Apply code') + '</button>' +
+        '<button type="button" class="rb-sheet__cancel" data-sheet-cancel>Cancel</button>' +
+      '</div>';
+
+    var inp = ov.querySelector('[data-sheet-code]');
+    var msg = ov.querySelector('[data-sheet-msg]');
+    var go  = ov.querySelector('[data-sheet-go]');
+    var busy = false;
+
+    function close() {
+      document.removeEventListener('keydown', onKey);
+      if (ov.parentNode) ov.parentNode.removeChild(ov);
+    }
+    function onKey(e) { if (e.key === 'Escape' && !busy) close(); }
+    function submit() {
+      var code = (inp.value || '').trim().toUpperCase();
+      if (!code || busy) return;
+      busy = true; go.disabled = true;
+      msg.innerHTML = '<span class="muted">Checking…</span>';
+      opts.verify(code, function (err) {
+        busy = false; go.disabled = false;
+        if (!err) { close(); return; }
+        msg.innerHTML = '<span class="err">' + esc(err) + '</span>';
+        inp.focus(); inp.select();
+      });
+    }
+
+    inp.oninput = function () {
+      // Codes are short and uppercase; strip anything that can't be in one.
+      inp.value = inp.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+      go.disabled = !inp.value.trim();
+      msg.innerHTML = '';
+    };
+    inp.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); submit(); } };
+    go.onclick = submit;
+    ov.querySelector('[data-sheet-cancel]').onclick = function () { if (!busy) close(); };
+    // Tapping the dim backdrop (never the sheet itself) also backs out.
+    ov.onclick = function (e) { if (e.target === ov && !busy) close(); };
+    document.addEventListener('keydown', onKey);
+
+    document.body.appendChild(ov);
+    // Focus after paint so iOS ties the keyboard to the sheet's own field.
+    requestAnimationFrame(function () { inp.focus(); });
+    return close;
+  }
+
   // Post-submit gift rescue ("forgot my code"): the order row already exists,
   // so the code is applied to it directly via the apply_gift_to_order RPC
   // (burns the card + stamps the row atomically; migration 0020). On success a
@@ -2346,41 +2421,31 @@
   function wireSubmittedGift(app) {
     var tog = app.querySelector('[data-gift-toggle]');
     if (!tog) return;  // affordance not rendered (paid, gift already applied, or no saved order)
-    var body = app.querySelector('[data-gift-body]');
-    var inp = app.querySelector('[data-gift]');
-    var msg = app.querySelector('[data-gift-msg]');
-    tog.onclick = function () { body.hidden = false; tog.style.display = 'none'; inp.focus(); };
-    app.querySelector('[data-gift-cancel]').onclick = function () {
-      body.hidden = true; tog.style.display = ''; inp.value = ''; msg.innerHTML = '';
-    };
-    inp.oninput = function () { inp.value = inp.value.toUpperCase(); };
     var ERR = {
       invalid_code: 'That code is not valid or was already used.',
       already_has_gift: 'A gift code is already on this order.',
       already_paid: 'This order is already paid. Nothing to apply.'
     };
-    app.querySelector('[data-gift-apply]').onclick = function () {
-      var code = (inp.value || '').trim().toUpperCase();
-      if (!code) { inp.focus(); return; }
-      if (!sb || !lastOrder || !lastOrder.id) {
-        msg.innerHTML = '<span class="muted">Could not check that code. Try again in a moment.</span>';
-        return;
-      }
-      msg.innerHTML = '<span class="muted">Checking…</span>';
-      sb.rpc('apply_gift_to_order', { p_order_id: lastOrder.id, p_gift_code: code }).then(function (res) {
-        var row = res && res.data ? (Array.isArray(res.data) ? res.data[0] : res.data) : null;
-        if (res && !res.error && row && row.applied) {
-          data.giftCode = code;
-          data.giftCredit = Number(row.credit) || 0;
-          lastOrder.gift_credit = data.giftCredit;
-          persist();
-          render();
-        } else {
-          var key = row && row.message;
-          msg.innerHTML = '<span class="ok">' + esc(ERR[key] || 'Could not apply that code. Try again in a moment.') + '</span>';
+    tog.onclick = function () {
+      openGiftSheet({
+        title: 'Add your gift code',
+        hint: 'We put it on order ' + ((lastOrder && lastOrder.order_no != null) ? orderLabel(lastOrder.order_no) : 'you just placed') + ' and drop what you owe.',
+        verify: function (code, done) {
+          if (!sb || !lastOrder || !lastOrder.id) { done('Could not check that code. Try again in a moment.'); return; }
+          sb.rpc('apply_gift_to_order', { p_order_id: lastOrder.id, p_gift_code: code }).then(function (res) {
+            var row = res && res.data ? (Array.isArray(res.data) ? res.data[0] : res.data) : null;
+            if (res && !res.error && row && row.applied) {
+              data.giftCode = code;
+              data.giftCredit = Number(row.credit) || 0;
+              lastOrder.gift_credit = data.giftCredit;
+              persist();
+              done(null);
+              render();   // reprices the pay tiles / flips to the covered state
+            } else {
+              done(ERR[row && row.message] || 'Could not apply that code. Try again in a moment.');
+            }
+          }, function () { done('Could not check that code. Try again in a moment.'); });
         }
-      }, function () {
-        msg.innerHTML = '<span class="muted">Could not check that code. Try again in a moment.</span>';
       });
     };
   }
@@ -3105,6 +3170,9 @@
     function keyboardOpen() { return (window.innerHeight - vv.height) > 120; }
     function reveal() {
       var f = focusedField();
+      // A field inside the bottom sheet is already pinned above the keyboard;
+      // scrolling it would only drag the page out from under the sheet.
+      if (f && f.closest && f.closest('.rb-sheet-ov')) return;
       if (f && keyboardOpen()) {
         void docEl.offsetHeight; // flush layout so the shrunken shell is applied first
         try { f.scrollIntoView({ block: 'center' }); } catch (err) {}
@@ -3112,11 +3180,15 @@
     }
     function sync() {
       docEl.style.setProperty('--app-h', Math.round(vv.height) + 'px');
+      // iOS scrolls the layout viewport under the keyboard; offsetTop is how
+      // far it moved. Fixed overlays must follow it or they drift off-screen.
+      docEl.style.setProperty('--app-top', Math.round(vv.offsetTop || 0) + 'px');
       // Reveal *after* the shell has resized to the visible area — scrolling
       // before the shrink would just push the field back under the keyboard.
       requestAnimationFrame(reveal);
     }
     vv.addEventListener('resize', sync);
+    vv.addEventListener('scroll', sync);   // keeps a fixed sheet glued to the visible area
     sync();
     // Switching fields while the keyboard is already up fires no resize, so
     // also reveal on focus once the keyboard has settled.
