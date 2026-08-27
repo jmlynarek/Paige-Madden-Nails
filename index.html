@@ -120,11 +120,11 @@
   /* ════════════ WELCOME ════════════ */
   .rb-welcome { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
   .rb-welcome__body {
-    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: calc(var(--safe-top) + 8px) 34px 8px; text-align: center;
+    flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: calc(var(--safe-top) + clamp(2px, 1dvh, 8px)) 34px clamp(2px, 1dvh, 8px); text-align: center;
   }
   .rb-welcome__logo {
-    width: 188px; height: 188px; max-width: 58%; aspect-ratio: 1 / 1;
+    width: clamp(96px, 20dvh, 188px); height: auto; max-width: 58%; aspect-ratio: 1 / 1;
     border-radius: 50%; object-fit: cover; background: #fff;
     border: 6px solid #fff;
     box-shadow:
@@ -134,16 +134,20 @@
       0 5px 12px rgba(140,74,75,0.14);
   }
   .rb-welcome__tag {
-    font-family: var(--serif); font-size: 24px; font-weight: 600; line-height: 1.3;
-    color: var(--ink); margin-top: 18px;
+    font-family: var(--serif); font-size: clamp(21px, 3.1dvh, 24px); font-weight: 600; line-height: 1.3;
+    color: var(--ink); margin-top: clamp(12px, 2.2dvh, 18px);
   }
   .rb-welcome__strip {
     font-family: var(--serif); text-transform: uppercase; letter-spacing: 0.22em;
-    font-size: 11px; font-weight: 600; color: rgba(95,70,63,0.55); margin-top: 22px;
+    font-size: 11px; font-weight: 600; color: rgba(95,70,63,0.55); margin-top: clamp(12px, 2.6dvh, 22px);
   }
-  .rb-welcome__foot { padding: 14px 26px calc(var(--safe-bottom) + 34px); }
+  .rb-welcome__foot {
+    flex: none;
+    padding: clamp(8px, 1.6dvh, 14px) 26px calc(var(--safe-bottom) + clamp(10px, 2.4dvh, 34px));
+  }
+  .rb-welcome__foot .btn { min-height: clamp(52px, 6.8dvh, 58px); }
   .rb-subhint { text-align: center; font-size: 13px; color: rgba(95,70,63,0.55); margin-top: 12px; }
-  .rb-socials { display: flex; justify-content: center; gap: 10px; margin-top: 20px; }
+  .rb-socials { display: flex; justify-content: center; gap: 10px; margin-top: clamp(12px, 2.4dvh, 20px); }
   .rb-social {
     display: inline-flex; align-items: center; gap: 7px;
     padding: 8px 15px; border-radius: 99px; border: 1px solid var(--rose-30);
@@ -155,9 +159,9 @@
   /* Secondary "Send a gift" entry under the primary welcome CTA */
   .rb-welcome__gift {
     display: flex; align-items: center; justify-content: center; gap: 8px;
-    width: 100%; margin-top: 12px; box-sizing: border-box;
+    width: 100%; margin-top: clamp(7px, 1.4dvh, 12px); box-sizing: border-box;
     background: none; border: 1px solid var(--rose-30); border-radius: 99px;
-    height: 48px; font-family: var(--sans); font-size: 15px; font-weight: 600;
+    height: clamp(44px, 5.6dvh, 48px); font-family: var(--sans); font-size: 15px; font-weight: 600;
     color: var(--rose); cursor: pointer; transition: background .15s ease, transform .1s ease;
   }
   .rb-welcome__gift:active { transform: scale(0.99); background: rgba(180,104,105,0.06); }
@@ -317,16 +321,16 @@
   }
   .rb-welcome--blush { background: linear-gradient(180deg, #FDF4F4 0%, #FBEBEC 52%, #F7DFE1 100%); }
   .rb-welcome__price {
-    margin-top: 16px; font-family: var(--serif); font-style: italic;
+    margin-top: clamp(6px, 1.5dvh, 16px); font-family: var(--serif); font-style: italic;
     font-size: 15.5px; letter-spacing: 0.01em; color: var(--ink-2);
   }
   .rb-welcome__price strong { font-style: normal; font-weight: 700; font-size: 18px; color: var(--rose); }
 
   /* Breathing room for the blush welcome (scoped so paused/waitlist is untouched) */
-  .rb-welcome--blush .rb-welcome__body { gap: 4px; padding-top: calc(var(--safe-top) + 18px); }
-  .rb-welcome--blush .rb-welcome__tag { margin-top: 34px; }
+  .rb-welcome--blush .rb-welcome__body { gap: 4px; padding-top: calc(var(--safe-top) + clamp(2px, 2dvh, 18px)); }
+  .rb-welcome--blush .rb-welcome__tag { margin-top: clamp(14px, 3.2dvh, 34px); }
   .rb-welcome--blush .rb-welcome__strip {
-    margin-top: 34px; font-size: 11px; letter-spacing: 0.17em; color: rgba(95,70,63,0.62);
+    margin-top: clamp(12px, 3dvh, 34px); font-size: 11px; letter-spacing: 0.17em; color: rgba(95,70,63,0.62);
     display: flex; align-items: center; justify-content: center; gap: 11px; white-space: nowrap;
   }
   .rb-welcome--blush .rb-welcome__strip::before,
@@ -337,8 +341,8 @@
   .rb-welcome--blush .rb-welcome__strip::after {
     background: linear-gradient(90deg, #C4A668 0 62%, transparent 62% 82%, #C4A668 82% 100%);
   }
-  .rb-welcome--blush .rb-socials { margin-top: 34px; }
-  .rb-welcome--blush .rb-welcome__foot { padding-top: 18px; }
+  .rb-welcome--blush .rb-socials { margin-top: clamp(12px, 3dvh, 34px); }
+  .rb-welcome--blush .rb-welcome__foot { padding-top: clamp(8px, 1.8dvh, 18px); }
 
   /* ── Gift-purchase amount chips (Send a gift flow) ── */
   .rb-amts { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 12px; }
