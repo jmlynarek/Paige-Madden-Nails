@@ -572,13 +572,6 @@
     font-family: var(--sans); font-size: 10.5px; font-weight: 700; cursor: pointer;
   }
   .rb-chip.on { background: var(--rose); color: #fff; border-color: var(--rose); }
-  .rb-vid {
-    display: inline-flex; align-items: center; gap: 6px; margin-top: 12px;
-    background: #fff; border: 1px solid var(--line); border-radius: 99px;
-    padding: 7px 13px; font-family: var(--sans); font-size: 12.5px; font-weight: 600;
-    color: var(--rose); cursor: pointer; text-decoration: none;
-  }
-  .rb-vid svg { flex-shrink: 0; }
   .rb-confirm {
     width: 100%; margin-top: 16px; min-height: 50px; border: none; border-radius: 14px;
     background: var(--rose); color: #fff; font-family: var(--sans); font-weight: 700; font-size: 15.5px;
@@ -846,7 +839,6 @@
   var FORMSUBMIT_ENDPOINT = 'https://formsubmit.co/0e620942d4f8774424c1e753c929de16';
   var INSTAGRAM_HANDLE = 'paigemadden.nails';
   var TIKTOK_URL = 'https://www.tiktok.com/@paigemadden.nails';
-  var SIZE_VIDEO_URL = 'https://www.tiktok.com/@paigemadden.nails/video/7662774942508797197';
 
   // ── Config ──
   var FINGERS = ['Thumb', 'Index', 'Middle', 'Ring', 'Pinky'];
@@ -1684,9 +1676,6 @@
     var card = el('div', 'rb-card' + (animate ? ' rb-reveal' : ''));
     curActiveCard = card;
     card.innerHTML = cardHead('Your Sizes', 3, data.sizeConfirmed) +
-      '<a class="rb-vid" href="' + SIZE_VIDEO_URL + '" target="_blank" rel="noopener">' +
-        '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>' +
-        'Not sure of your size? Watch the fit video</a>' +
       '<div class="rb-presets" data-presets></div>' +
       '<div data-fine></div>';
 
