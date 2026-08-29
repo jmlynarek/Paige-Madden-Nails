@@ -109,7 +109,7 @@
   @media (prefers-reduced-motion: reduce) { .btn__spin { animation: none; } }
 
   /* Focus visibility (pointer taps stay ring-free) */
-  .btn:focus-visible, .rb-shape:focus-visible, .rb-preset:focus-visible, .rb-chip:focus-visible,
+  .btn:focus-visible, .rb-shape:focus-visible, .rb-preset:focus-visible, .rb-chip:focus-visible, .rb-galchip:focus-visible,
   .rb-collapse:focus-visible, .rb-edit:focus-visible, .rb-seg button:focus-visible, .rb-opt:focus-visible,
   .rb-add:focus-visible, .rb-thumb__x:focus-visible, .rb-toggle:focus-visible, .rb-pill:focus-visible,
   .rb-code:focus-visible, .rb-paytile:focus-visible, .rb-startover:focus-visible, .rb-modal__btn:focus-visible {
@@ -185,6 +185,22 @@
     padding: 11px 14px; font-family: var(--sans); font-size: 15px; color: var(--ink);
   }
   .rb-gal__search:focus { outline: none; border-color: var(--rose); }
+  /* One scrolling line of chips, so 9 filters cost ~38px of a phone screen. */
+  .rb-gal__chips {
+    display: flex; gap: 7px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;
+    padding: 0 18px 10px; margin: 0; -webkit-overflow-scrolling: touch;
+  }
+  .rb-gal__chips::-webkit-scrollbar { display: none; }
+  .rb-galchip {
+    flex: none; border: 1px solid var(--line); background: #fff; color: var(--ink-2);
+    border-radius: 99px; padding: 7px 13px; font-family: var(--sans); font-size: 12.5px;
+    font-weight: 600; white-space: nowrap; cursor: pointer;
+    transition: border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .rb-galchip:active { transform: scale(0.97); }
+  .rb-galchip--on { background: var(--rose); border-color: var(--rose); color: #fff; }
+  .rb-galchip--clear { border-style: dashed; color: var(--rose); border-color: var(--rose-30); }
+  .rb-gal__count { font-size: 12.5px; color: rgba(95,70,63,0.6); margin: 0 0 10px; }
   .rb-gal__scroll { flex: 1; overflow-y: auto; padding: 2px 18px calc(var(--safe-bottom) + 26px); }
   .rb-gal__note {
     margin-bottom: 12px; background: var(--blush); border: 1px solid var(--rose-line);
@@ -1251,6 +1267,7 @@
   var inventory = null;          // null = not fetched yet; [] = fetched, empty
   var inventoryLoading = false;
   var galleryQuery = '';
+  var galleryChips = {};         // { chipKey: true } — style keys plus 'p:40' price keys
   var galleryNotice = '';        // one-shot banner (e.g. "that design is gone")
   var galleryFrom = 'welcome';   // 'welcome' | 'inspo' — where Back returns to
 
@@ -1379,12 +1396,78 @@
     document.body.appendChild(ov);
   }
 
+  // ── Gallery filter chips ──
+  // Chips read words that are already in each design's name + description, so
+  // nothing needs tagging and new designs sort themselves. A design whose
+  // wording matches no chip simply lives under the unfiltered list and stays
+  // findable by search — chips narrow the grid, they never hide a design for
+  // good. If Paige ever wants a chip the wording can't catch, that's the point
+  // to add a real tags column instead of stretching these patterns.
+  var GAL_ART_RE = /dot|french|flower|floral|petal|bloom|blossom|star|print|stripe|swirl|plaid|gingham|charm|accent|lace|textur|quilt|rib|marble|tie dye|zebra|cow|letter|dragon|holly|citrus|grapefruit|lemon|seashell|chain|foil|bow|gem|rhinestone|bead|stud|ombre|fade|tips|mix/;
+  var GAL_STYLE_CHIPS = [
+    { key: 'french',  label: 'French tips',     re: /french/ },
+    { key: 'shine',   label: 'Glitter & shine', re: /glitter|shimmer|pearl|chrome|foil|holo|iridescent/ },
+    { key: 'gold',    label: 'Gold & gems',     re: /gold|rhinestone|stud|bead|charm|silver/ },
+    { key: 'dots',    label: 'Polka dots',      re: /dot/ },
+    { key: 'flowers', label: 'Flowers',         re: /flower|floral|petal|bloom|blossom/ },
+    // "Solid color" is the inverse: no art words at all, i.e. one plain colour.
+    { key: 'solid',   label: 'Solid color',     solid: true },
+    { key: 'animal',  label: 'Animal print',    re: /zebra|cow|leopard|tortoise/ }
+  ];
+
+  function galText(s) { return ((s.name || '') + ' ' + (s.description || '')).toLowerCase(); }
+
+  function galStyleHit(s, chip) {
+    var t = galText(s);
+    return chip.solid ? !GAL_ART_RE.test(t) : chip.re.test(t);
+  }
+
+  // Price chips come from the prices actually in use, so a future $60 design
+  // gets its own chip instead of falling through both of them.
+  function galPriceChips() {
+    var seen = {};
+    (inventory || []).forEach(function (s) { seen[s.price] = true; });
+    return Object.keys(seen).map(Number).sort(function (a, b) { return a - b; })
+      .map(function (p) { return { key: 'p:' + p, label: money(p), price: p }; });
+  }
+
+  // Chips with nothing behind them are dead ends, so drop them. Counts run over
+  // the whole gallery, not the filtered list, so chips don't vanish mid-tap.
+  function galLiveChips() {
+    var all = inventory || [];
+    return GAL_STYLE_CHIPS.filter(function (c) {
+      return all.some(function (s) { return galStyleHit(s, c); });
+    }).concat(galPriceChips());
+  }
+
   function galleryList() {
-    var q = galleryQuery.trim().toUpperCase();
+    var q = galleryQuery.trim().toLowerCase();
+    var styleOn = GAL_STYLE_CHIPS.filter(function (c) { return galleryChips[c.key]; });
+    var priceOn = galPriceChips().filter(function (c) { return galleryChips[c.key]; });
     return (inventory || []).filter(function (s) {
-      if (!q) return true;
-      return s.code.toUpperCase().indexOf(q) !== -1 || s.name.toUpperCase().indexOf(q) !== -1;
+      if (q && galText(s).indexOf(q) === -1 && s.code.toLowerCase().indexOf(q) === -1) return false;
+      // Chips are "any of these" within a kind, and "and" across the two kinds:
+      // French tips + $40 means cheap french sets, not french sets plus all $40s.
+      if (styleOn.length && !styleOn.some(function (c) { return galStyleHit(s, c); })) return false;
+      if (priceOn.length && !priceOn.some(function (c) { return s.price === c.price; })) return false;
+      return true;
     });
+  }
+
+  function galleryFiltered() {
+    return !!galleryQuery.trim() || Object.keys(galleryChips).some(function (k) { return galleryChips[k]; });
+  }
+
+  function galleryChipsHtml() {
+    if (inventory === null || !inventory.length) return '';
+    return galLiveChips().map(function (c) {
+      var on = !!galleryChips[c.key];
+      return '<button type="button" class="rb-galchip' + (on ? ' rb-galchip--on' : '') +
+        '" aria-pressed="' + on + '" data-chip="' + esc(c.key) + '">' + esc(c.label) + '</button>';
+    }).join('') +
+      // Clear resets the search box too, so "tap Clear" in the empty state is
+      // always the whole way back to every design.
+      (galleryFiltered() ? '<button type="button" class="rb-galchip rb-galchip--clear" data-chip-clear>Clear</button>' : '');
   }
 
   function galleryGridHtml(list) {
@@ -1395,9 +1478,20 @@
       return '<div class="rb-gal__empty">No designs to browse yet.<br>Check back soon — or start with your own inspo photo.</div>';
     }
     if (!list.length) {
-      return '<div class="rb-gal__empty">No design matches “' + esc(galleryQuery.trim()) + '”.</div>';
+      // The query is only half the story now — a chip combination can empty the
+      // grid on its own, so name whichever one the customer actually set.
+      var chipsOn = Object.keys(galleryChips).some(function (k) { return galleryChips[k]; });
+      return '<div class="rb-gal__empty">' +
+        (galleryQuery.trim()
+          ? 'No design matches “' + esc(galleryQuery.trim()) + '”' +
+            (chipsOn ? ' with those filters.' : '.')
+          : 'No design matches those filters.') +
+        '<br>Tap Clear to see all ' + inventory.length + ' designs.</div>';
     }
-    return '<div class="rb-gal__grid">' + list.map(function (s, i) {
+    return (galleryFiltered()
+        ? '<div class="rb-gal__count">' + list.length + ' of ' + inventory.length + ' designs</div>'
+        : '') +
+      '<div class="rb-gal__grid">' + list.map(function (s, i) {
       return '<button type="button" class="rb-galcard" data-set-i="' + i + '">' +
         '<img src="' + esc(s.url) + '" alt="' + esc(s.name || s.code) + '" loading="lazy" />' +
         '<div class="rb-galcard__body">' +
@@ -1433,7 +1527,8 @@
           '<button type="button" class="rb-gal__back" data-back>' + Icon.back + 'Back</button>' +
           '<div class="rb-gal__title">Recent designs</div>' +
         '</div>' +
-        '<input class="rb-gal__search" data-gal-q placeholder="Search by code or name" autocomplete="off" />' +
+        '<input class="rb-gal__search" data-gal-q placeholder="Search by code, name or look" autocomplete="off" />' +
+        '<div class="rb-gal__chips" data-gal-chips>' + galleryChipsHtml() + '</div>' +
         '<div class="rb-gal__scroll">' +
           (galleryNotice ? '<div class="rb-gal__note">' + esc(galleryNotice) + '</div>' : '') +
           (paused ? '<div class="rb-gal__note">Ordering is paused right now — you can still browse for inspiration.</div>' : '') +
@@ -1454,13 +1549,40 @@
     qEl.value = galleryQuery;
     qEl.oninput = function () {
       galleryQuery = qEl.value;
-      // Repaint only the grid so typing never loses focus.
-      app.querySelector('[data-gal-grid]').innerHTML = galleryGridHtml(galleryList());
-      wireGalleryGrid(app, paused);
+      // Repaint only the grid so typing never loses focus. Chips repaint too:
+      // the Clear button appears and disappears with the query.
+      repaintGallery(app, paused);
     };
 
+    wireGalleryChips(app, paused);
     wireGalleryGrid(app, paused);
     return app;
+  }
+
+  // Chips and grid repaint together, and both sit outside the search input, so
+  // this never steals focus mid-typing.
+  function repaintGallery(app, paused) {
+    app.querySelector('[data-gal-chips]').innerHTML = galleryChipsHtml();
+    app.querySelector('[data-gal-grid]').innerHTML = galleryGridHtml(galleryList());
+    wireGalleryChips(app, paused);
+    wireGalleryGrid(app, paused);
+  }
+
+  function wireGalleryChips(app, paused) {
+    app.querySelectorAll('[data-chip]').forEach(function (b) {
+      b.onclick = function () {
+        var k = b.getAttribute('data-chip');
+        if (galleryChips[k]) delete galleryChips[k]; else galleryChips[k] = true;
+        repaintGallery(app, paused);
+      };
+    });
+    var clear = app.querySelector('[data-chip-clear]');
+    if (clear) clear.onclick = function () {
+      galleryChips = {};
+      galleryQuery = '';
+      app.querySelector('[data-gal-q]').value = '';
+      repaintGallery(app, paused);
+    };
   }
 
   // ?set=PMS-### from a tag's QR code: attach the set and jump into the flow.
